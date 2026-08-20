@@ -30,7 +30,7 @@ kept rather than deleted; a decision log that only shows the winners can't be au
 | 16 | `ui` and `cmd` are clients of `core`; neither parses a line or writes a file | If the UI needs the grammar, the boundary is wrong | live |
 | 17 | Attributes are read off the **end** of a line, known keys only | A colon mid-sentence must survive, or the garage can't hold prose | live |
 | 18 | The tag vocabulary comes from what's already in use | No config, no registry | live |
-| 18a | Widgets are **hand-rolled** — radio, text fields, table, tabs | Only `bubbletea` + `lipgloss`; no `bubbles`. Cheap so far, but text editing is the thin ice — see 44a | live, watch |
+| 18a | Widgets are **hand-rolled** — radio, text fields, table, tabs | Only `bubbletea` + `lipgloss`; no `bubbles`. Cheap so far, but text editing is the thin ice | **partly reversed → 56** |
 
 ## Interface
 
@@ -74,10 +74,10 @@ kept rather than deleted; a decision log that only shows the winners can't be au
 
 | # | Item | Plan | Status |
 |---|---|---|---|
-| 44 | `/` search | **Hand off to `fzf` via `tea.ExecProcess`** — no matching code of ours. Check the alt-screen seam first | open |
-| 45 | Hand-rolled fuzzy matcher, or `sahilm/fuzzy` | Scoring heuristics are a rabbit hole; a dependency for one keystroke | rejected |
+| 44 | `/` search | **Hand off to `fzf` via `tea.ExecProcess`** — no matching code of ours. Check the alt-screen seam first | **reversed → 57** |
+| 45 | Hand-rolled fuzzy matcher, or `sahilm/fuzzy` | Scoring heuristics are a rabbit hole; a dependency for one keystroke | **half stands → 57** |
 | 46 | `u` undo, one level | Copy-forward keeps everything hand-recoverable meanwhile | open |
-| 47 | `?` help | The footer already carries the live keymap | open |
+| 47 | `?` help | The footer already carries the live keymap | **reversed → 59** |
 | 48 | Shipping: `go` in `Brewfile.tui`, built at install | Nothing vendored, no release pipeline. Prebuilt binaries if it ever ships wider | live, wants review |
 | 49 | Journal seeding (`- [ ]` scrape) | Only if the recurring-item problem comes back | deferred |
 | 50 | `tray dump` asking for the month on a TTY | The Python version's gum picker; the Go rewrite dropped it. `a` in a garage tab covers it | dropped, re-addable |
@@ -94,3 +94,19 @@ lived in was orphaned, so none of the history came with it — the import is one
 | 53 | `~/task-garage` stays the default home | Decision 2 says you must be able to edit these with no tool in the loop, and XDG buries them where nobody looks | live |
 | 54 | `scripts/check-tray.sh` **stays bash**, and builds the binary itself | Decision 37: it survived a whole-language rewrite unchanged. That property is worth one non-Go file | live |
 | 55 | No `internal/feature` until `tray install` needs it | A flag package with zero consumers is speculative code you can't test | live |
+
+## The list layer
+
+| # | Decision | Why | Status |
+|---|---|---|---|
+| 56 | **`bubbles/list`** is the list layer | Scrolling, paging and filtering, none of it ours. 18a's table and tabs survive intact; only the machinery under them changed | live |
+| 56a | The table is a **custom `ItemDelegate`**, not `list`'s default | A delegate renders whatever string you hand it, so the aligned columns, the `●`/`▸` glyphs and the header row all came across unchanged. Adopting `list` did not cost the table | live |
+| 56b | Columns are measured over the **visible** rows | A filter tightens the table instead of leaving it padded for rows that are no longer there | live |
+| 56c | Cells are truncated before they are padded | `lipgloss` wraps rather than clips, and one wrapped row pushes every row below it down — which is the jitter 35 exists to prevent | live |
+| 57 | `/` is **`bubbles/list`'s fuzzy filter**, in process | Reverses 44: no `fzf`, no `tea.ExecProcess`, no alt-screen seam, no runtime dependency. 45's real point — don't hand-roll a matcher — still stands; `sahilm/fuzzy` arrives as `list`'s transitive dependency rather than as a choice of ours | live |
+| 57a | An applied filter states what it hid | A table quietly showing 3 of 17 rows is a table you will misread | live |
+| 57b | **A mark survives a filter** | Hiding a row is not deselecting it. Filter, mark, filter again, act on all of it | live |
+| 58 | The list's `h`/`l`/`d` paging keys are unbound, and its quit keys disabled | `h`/`l` are the tabs and `d` hands back. The cursor keys page on their own | live |
+| 59 | `?` is **`bubbles/help`** over one `keyMap` that also renders the footer | Reverses 47. The overlay and the footer cannot drift apart, because they are the same value rendered at two lengths | live |
+| 59a | The footer drops `space mark`; `?` carries it | It is the least guessable key, and the footer has to stay inside eighty columns on either layer. That trade is only payable because `?` now exists | live |
+| 60 | The form stays **hand-rolled** — no `bubbles/textinput` yet | `←`/`→` on the `due` field shift by a day (25, and documented). A text input would take those keys for cursor movement. 18a's thin ice is still thin | open |

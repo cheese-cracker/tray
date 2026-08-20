@@ -72,7 +72,7 @@ func TestSweepTabsAreTheMonths(t *testing.T) {
 	if m.layers[2].month != store.Someday {
 		t.Errorf("someday should be reachable while sweeping: %v", titles(m))
 	}
-	if m.items[0].Text != "left over from july" {
+	if m.items()[0].Text != "left over from july" {
 		t.Errorf("items = %v", texts(m))
 	}
 }
@@ -105,14 +105,14 @@ func TestTabSwitchesLayer(t *testing.T) {
 	garage(t, "2026-08", "- in the garage")
 
 	m := New()
-	if m.items[0].Text != "on the tray" {
-		t.Fatalf("first tab should be the tray, got %q", m.items[0].Text)
+	if m.items()[0].Text != "on the tray" {
+		t.Fatalf("first tab should be the tray, got %q", m.items()[0].Text)
 	}
 	m = keys(m, "tab").(Model)
 	if m.layer().isTray() {
 		t.Fatal("tab should leave the tray")
 	}
-	if len(m.items) != 1 || m.items[0].Text != "in the garage" {
+	if len(m.items()) != 1 || m.items()[0].Text != "in the garage" {
 		t.Errorf("garage tab shows %v", texts(m))
 	}
 	m = keys(m, "shift+tab").(Model)
@@ -246,7 +246,7 @@ func titles(m Model) []string {
 
 func texts(m Model) []string {
 	var out []string
-	for _, t := range m.items {
+	for _, t := range m.items() {
 		out = append(out, t.Text)
 	}
 	return out
@@ -270,9 +270,9 @@ func TestFullPageFitsTheTerminal(t *testing.T) {
 	}
 }
 
-// A list longer than the terminal must window rather than overflow, and the cursor
-// has to stay on screen wherever it is.
-func TestLongListWindowsAroundTheCursor(t *testing.T) {
+// A list longer than the terminal must page rather than overflow, and the row under
+// the cursor has to stay on screen wherever it is.
+func TestLongListPagesAroundTheCursor(t *testing.T) {
 	var lines []string
 	for i := 0; i < 30; i++ {
 		lines = append(lines, fmt.Sprintf("- [ ] task %02d priority:M", i))
@@ -284,20 +284,25 @@ func TestLongListWindowsAroundTheCursor(t *testing.T) {
 	m = out.(Model)
 
 	for _, at := range []int{0, 15, 29} {
-		m.cursor = at
-		start, end := m.window()
-		if at < start || at >= end {
-			t.Errorf("cursor %d is outside the window %d..%d", at, start, end)
+		m.list.Select(at)
+		m.resize()
+		view := m.View()
+		want := m.items()[at].Text
+		if !strings.Contains(view, want) {
+			t.Errorf("cursor at %d: %q is off screen:\n%s", at, want, view)
 		}
-		if end-start >= len(m.items) {
-			t.Errorf("30 tasks should not all fit in 14 rows: %d..%d", start, end)
-		}
-		if h := lipgloss.Height(strings.TrimRight(m.View(), "\n")); h > 14 {
+		if h := lipgloss.Height(strings.TrimRight(view, "\n")); h > 14 {
 			t.Errorf("cursor %d: view is %d rows, past the terminal", at, h)
 		}
-	}
-	if !strings.Contains(m.View(), "more") {
-		t.Error("a windowed list should say how much is hidden")
+		shown := 0
+		for _, task := range m.items() {
+			if strings.Contains(view, task.Text) {
+				shown++
+			}
+		}
+		if shown >= len(m.items()) {
+			t.Errorf("cursor %d: 30 tasks should not all fit in 14 rows, %d shown", at, shown)
+		}
 	}
 }
 
@@ -326,7 +331,7 @@ func TestHandBackReturnsTheLineItCameFrom(t *testing.T) {
 	if n := strings.Count(month, "fix the sync job"); n != 1 {
 		t.Errorf("want exactly one line, got %d:\n%s", n, month)
 	}
-	if len(New().items) != 0 {
+	if len(New().items()) != 0 {
 		t.Error("the tray should be empty")
 	}
 }

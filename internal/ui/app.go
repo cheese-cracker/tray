@@ -6,6 +6,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/charmbracelet/bubbles/help"
+	"github.com/charmbracelet/bubbles/key"
+	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/cheese-cracker/tray/internal/core"
@@ -45,9 +48,10 @@ var actions = []action{
 type Model struct {
 	layers []layer
 	active int
-	items  []core.Task
-	cursor int
-	marked map[string]bool // by text, so it survives a reload
+	list   list.Model
+	deleg  *rowDelegate
+	help   help.Model
+	marked map[string]bool // by text, so it survives a reload and a filter
 
 	mode   mode
 	menuAt int
@@ -65,17 +69,60 @@ type Model struct {
 }
 
 func New() Model {
-	m := Model{marked: map[string]bool{}, today: store.Today()}
-	m.reload()
-	return m
+	return start(Model{marked: map[string]bool{}, today: store.Today()})
 }
 
 // NewSweep is `tray carryover`: the closing month, this one, and someday.
 func NewSweep(closing string) Model {
-	m := Model{marked: map[string]bool{}, today: store.Today(), sweep: true, closing: closing}
-	m.reload()
+	return start(Model{
+		marked: map[string]bool{}, today: store.Today(), sweep: true, closing: closing,
+	})
+}
+
+// start wires bubbles/list down to the part we want: scrolling, paging and the
+// fuzzy filter behind `/`. Everything it would otherwise draw is switched off,
+// because the frame, the tabs, the column header and the footer are ours.
+func start(m Model) Model {
+	m.deleg = &rowDelegate{marked: m.marked, today: m.today}
+	m.list = list.New(nil, m.deleg, 0, 0)
+	m.list.SetShowTitle(false)
+	m.list.SetShowStatusBar(false)
+	m.list.SetShowPagination(false)
+	m.list.SetShowHelp(false)
+	m.list.SetShowFilter(false) // drawn by renderFilter, so the frame owns the line
+	m.list.SetFilteringEnabled(true)
+	m.list.DisableQuitKeybindings() // q and esc mean tray things first
+	m.list.FilterInput.Prompt = ""
+
+	// h and l are the tabs, and d hands back — all three are list paging keys by
+	// default. Unbind them: the cursor keys page on their own anyway.
+	m.list.KeyMap.PrevPage = key.NewBinding()
+	m.list.KeyMap.NextPage = key.NewBinding()
+	// `?` is ours. list's own help would advertise list's keymap, not tray's.
+	m.list.KeyMap.ShowFullHelp = key.NewBinding()
+	m.list.KeyMap.CloseFullHelp = key.NewBinding()
+
+	m.help = help.New()
+	m.help.ShortSeparator = " · "
+	m.help.FullSeparator = "   "
+
+	m.reload() // no filter can be set yet, so there is no command to run
 	return m
 }
+
+// items is what is on screen: filtered, in the order the layer sorts them.
+func (m Model) items() []core.Task {
+	visible := m.list.VisibleItems()
+	out := make([]core.Task, 0, len(visible))
+	for _, item := range visible {
+		if r, ok := item.(row); ok {
+			out = append(out, r.Task)
+		}
+	}
+	return out
+}
+
+func (m Model) filtering() bool { return m.list.FilterState() != list.Unfiltered }
 
 func (m Model) layer() layer {
 	if m.active < len(m.layers) {
@@ -84,7 +131,9 @@ func (m Model) layer() layer {
 	return layer{title: "tray"}
 }
 
-func (m *Model) reload() {
+// reload re-reads the layer from disk. It returns a command because a filter that
+// is still applied has to be re-run against the new rows, and that is async.
+func (m *Model) reload() tea.Cmd {
 	m.layers = layers(m.sweep, m.closing)
 	if m.active >= len(m.layers) {
 		m.active = 0
@@ -92,7 +141,7 @@ func (m *Model) reload() {
 	doc, err := m.layer().open()
 	if err != nil {
 		m.err = err
-		return
+		return nil
 	}
 	var live []core.Task
 	for _, t := range doc.Tasks() {
@@ -103,10 +152,33 @@ func (m *Model) reload() {
 	if m.layer().isTray() {
 		sortByUrgency(live, m.today)
 	}
-	m.items = live
-	if m.cursor >= len(m.items) {
-		m.cursor = max(0, len(m.items)-1)
+	items := make([]list.Item, len(live))
+	for i, t := range live {
+		items[i] = row{t}
 	}
+	at := m.list.Index()
+	cmd := m.list.SetItems(items)
+	m.list.Select(min(at, max(0, len(items)-1)))
+	m.resize()
+	return cmd
+}
+
+// resize keeps the list inside the frame. The filter line and the help overlay both
+// take rows away from it, so this runs whenever either could have changed — an
+// overflowing pane is what makes the alt screen jitter.
+func (m *Model) resize() {
+	width := m.width - pane.GetHorizontalFrameSize()
+	if width < 1 {
+		width = 60 // before the terminal has said anything, pick a sane table width
+	}
+	height := m.rowRoom()
+	if height < 1 {
+		height = max(1, len(m.list.Items()))
+	}
+	m.list.SetSize(width, height)
+	m.deleg.tray = m.layer().isTray()
+	m.deleg.today = m.today
+	m.deleg.measure(m.list.VisibleItems(), width)
 }
 
 func sortByUrgency(items []core.Task, today time.Time) {
@@ -117,16 +189,21 @@ func sortByUrgency(items []core.Task, today time.Time) {
 	}
 }
 
-// picked is what an action applies to: everything marked, or the row under the cursor.
+// picked is what an action applies to: everything marked, or the row under the
+// cursor. A mark on a row a filter is currently hiding still counts — hiding a row
+// is not the same as deselecting it.
 func (m *Model) picked() []core.Task {
 	var out []core.Task
-	for _, t := range m.items {
-		if m.marked[t.Text] {
-			out = append(out, t)
+	for _, item := range m.list.Items() {
+		r, ok := item.(row)
+		if ok && m.marked[r.Text] {
+			out = append(out, r.Task)
 		}
 	}
-	if len(out) == 0 && m.cursor < len(m.items) {
-		out = append(out, m.items[m.cursor])
+	if len(out) == 0 {
+		if r, ok := m.list.SelectedItem().(row); ok {
+			out = append(out, r.Task)
+		}
 	}
 	return out
 }
@@ -157,88 +234,104 @@ func (m Model) offered() []action {
 func (m Model) Init() tea.Cmd { return nil }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	if size, ok := msg.(tea.WindowSizeMsg); ok {
-		m.width, m.height = size.Width, size.Height
+	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		m.width, m.height = msg.Width, msg.Height
+		m.resize()
 		return m, nil
+	case tea.KeyMsg:
+		switch m.mode {
+		case editing:
+			return m.updateForm(msg)
+		case acting:
+			return m.updateMenu(msg)
+		case sending:
+			return m.updateDestinations(msg)
+		default:
+			return m.updateList(msg)
+		}
 	}
-	key, ok := msg.(tea.KeyMsg)
-	if !ok {
-		return m, nil
-	}
-	switch m.mode {
-	case editing:
-		return m.updateForm(key)
-	case acting:
-		return m.updateMenu(key)
-	case sending:
-		return m.updateDestinations(key)
-	default:
-		return m.updateList(key)
-	}
+	// Filter matches arrive as a message of their own, so everything else goes
+	// to the list rather than being dropped on the floor.
+	return m.toList(msg)
+}
+
+// toList hands a message to bubbles/list and re-measures, because anything the list
+// acts on can change which rows are visible and therefore how wide the columns are.
+func (m Model) toList(msg tea.Msg) (tea.Model, tea.Cmd) {
+	l, cmd := m.list.Update(msg)
+	m.list = l
+	m.resize()
+	return m, cmd
 }
 
 // Tabs cycle: there are two or three of them, so stopping at the end just makes you
 // reach for the other key.
-func (m *Model) switchTab(by int) {
+func (m *Model) switchTab(by int) tea.Cmd {
 	if len(m.layers) == 0 {
-		return
+		return nil
 	}
 	m.active = (m.active + by + len(m.layers)) % len(m.layers)
-	m.cursor = 0
-	m.marked = map[string]bool{} // marks belong to a layer, not to the session
+	m.list.ResetFilter() // a filter is about the rows you were looking at
+	m.list.Select(0)
+	clear(m.marked) // marks belong to a layer, not to the session
 	m.status = ""
-	m.reload()
+	return m.reload()
 }
 
-func (m Model) updateList(key tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch key.String() {
-	case "q", "esc", "ctrl+c":
+func (m Model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	// With the filter box focused every keystroke is text, `q` and `j` included.
+	if m.list.SettingFilter() {
+		return m.toList(msg)
+	}
+	switch msg.String() {
+	case "ctrl+c", "q":
 		return m, tea.Quit
+	case "esc":
+		if m.filtering() {
+			return m.toList(msg) // esc drops the filter before it quits tray
+		}
+		return m, tea.Quit
+	case "?":
+		m.help.ShowAll = !m.help.ShowAll
+		m.resize()
 	case "tab", "l", "right":
-		m.switchTab(1)
+		return m, m.switchTab(1)
 	case "shift+tab", "h", "left":
-		m.switchTab(-1)
-	case "j", "down":
-		if m.cursor < len(m.items)-1 {
-			m.cursor++
-		}
-	case "k", "up":
-		if m.cursor > 0 {
-			m.cursor--
-		}
-	case "g":
-		m.cursor = 0
-	case "G":
-		m.cursor = max(0, len(m.items)-1)
+		return m, m.switchTab(-1)
+	case "j", "down", "k", "up", "g", "G", "/":
+		return m.toList(msg)
 	case " ":
-		if m.cursor < len(m.items) {
-			text := m.items[m.cursor].Text
-			if m.marked[text] {
-				delete(m.marked, text)
+		if r, ok := m.list.SelectedItem().(row); ok {
+			if m.marked[r.Text] {
+				delete(m.marked, r.Text)
 			} else {
-				m.marked[text] = true
+				m.marked[r.Text] = true
 			}
 		}
 	case "a", "n":
 		f := newEntry(m.layer().month, m.today)
 		m.form, m.mode = &f, editing
+		m.resize()
 	case "enter":
-		if len(m.items) > 0 {
+		if len(m.list.VisibleItems()) > 0 {
 			m.mode, m.menuAt = acting, 0
+			m.resize()
 		}
 	default:
-		if act, found := m.lookup(key.String()); found {
-			m.run(act)
+		if act, found := m.lookup(msg.String()); found {
+			return m, m.run(act)
 		}
 	}
 	return m, nil
 }
 
-func (m Model) updateMenu(key tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) updateMenu(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	offered := m.offered()
-	switch key.String() {
+	switch msg.String() {
 	case "esc", "q":
 		m.mode = browsing
+		m.resize()
 	case "j", "down":
 		if m.menuAt < len(offered)-1 {
 			m.menuAt++
@@ -248,19 +341,20 @@ func (m Model) updateMenu(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.menuAt--
 		}
 	case "enter":
-		m.run(offered[m.menuAt])
+		return m, m.run(offered[m.menuAt])
 	default:
-		if act, found := m.lookup(key.String()); found {
-			m.run(act)
+		if act, found := m.lookup(msg.String()); found {
+			return m, m.run(act)
 		}
 	}
 	return m, nil
 }
 
-func (m Model) updateDestinations(key tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch key.String() {
+func (m Model) updateDestinations(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
 	case "esc", "q":
 		m.mode = browsing
+		m.resize()
 	case "j", "down":
 		if m.destAt < len(m.dests)-1 {
 			m.destAt++
@@ -272,8 +366,8 @@ func (m Model) updateDestinations(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "enter":
 		m.status = m.move(m.picked(), m.dests[m.destAt])
 		m.mode = browsing
-		m.marked = map[string]bool{}
-		m.reload()
+		clear(m.marked)
+		return m, m.reload()
 	}
 	return m, nil
 }
@@ -293,9 +387,8 @@ func (m Model) updateForm(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	}
 	m.form, m.mode = nil, browsing
-	m.marked = map[string]bool{}
-	m.reload()
-	return m, nil
+	clear(m.marked)
+	return m, m.reload()
 }
 
 func (m Model) lookup(key string) (action, bool) {
@@ -308,18 +401,19 @@ func (m Model) lookup(key string) (action, bool) {
 }
 
 // run applies an action, then re-reads from disk so ids and urgency stay honest.
-func (m *Model) run(a action) {
+func (m *Model) run(a action) tea.Cmd {
 	picked := m.picked()
 	if len(picked) == 0 {
-		return
+		return nil
 	}
 	m.status = a.apply(m, picked)
 	if m.mode == editing || m.mode == sending {
-		return // those modes own the selection until they are done
+		m.resize()
+		return nil // those modes own the selection until they are done
 	}
 	m.mode = browsing
-	m.marked = map[string]bool{}
-	m.reload()
+	clear(m.marked)
+	return m.reload()
 }
 
 func (m *Model) chooseDestination(picked []core.Task) string {
@@ -394,11 +488,4 @@ func RunSweep(closing string) error { return run(NewSweep(closing)) }
 func run(m Model) error {
 	_, err := tea.NewProgram(m, tea.WithAltScreen()).Run()
 	return err
-}
-
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
 }

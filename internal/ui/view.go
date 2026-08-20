@@ -5,9 +5,6 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
-	"github.com/charmbracelet/lipgloss/table"
-
-	"github.com/cheese-cracker/tray/internal/core"
 )
 
 var (
@@ -78,13 +75,19 @@ func (m Model) View() string {
 	return b.String()
 }
 
-// rowRoom is how many task rows fit, leaving space for the chrome. Zero means no
-// limit, which is what happens before the terminal has told us its size.
+// rowRoom is how many task rows fit, leaving space for the chrome. Zero means the
+// terminal hasn't told us its size yet, so nothing is clipped.
 func (m Model) rowRoom() int {
 	if m.height == 0 {
 		return 0
 	}
-	chrome := 3 + pane.GetVerticalBorderSize() + 2 + 1 + 1 // tabs, border, padding, header, footer
+	// tabs, the pane border, its padding, the column header, then the footer as it
+	// will actually render — which grows when `?` is open or a status line is set.
+	chrome := 3 + pane.GetVerticalBorderSize() + 2 + 1
+	chrome += lipgloss.Height(strings.TrimRight(m.renderFooter(), "\n"))
+	if m.filtering() {
+		chrome++ // the filter line takes a row from the list, not from the frame
+	}
 	switch m.mode {
 	case acting:
 		chrome += len(m.offered()) + 2
@@ -94,50 +97,51 @@ func (m Model) rowRoom() int {
 	return max(1, m.height-chrome)
 }
 
-// window keeps the cursor on screen without keeping any scroll state: the offset is
-// derived, so it can never drift out of step with the list.
-func (m Model) window() (int, int) {
-	room := m.rowRoom()
-	if room == 0 || len(m.items) <= room {
-		return 0, len(m.items)
-	}
-	room = max(1, room-1) // the "… more" line needs a row of its own
-	start := m.cursor - room/2
-	if start < 0 {
-		start = 0
-	}
-	if start > len(m.items)-room {
-		start = len(m.items) - room
-	}
-	return start, start + room
-}
-
 func (m Model) renderTabs() string {
-	var rendered []string
+	labels := make([]string, len(m.layers))
+	width := 0
 	for i, l := range m.layers {
+		labels[i] = l.title
+		if !l.isTray() {
+			labels[i] = "garage · " + l.title
+		}
+		width += lipgloss.Width(inactiveTab.Render(labels[i]))
+	}
+	// The tab row's bottom border is the pane's top edge. It only turns a corner
+	// where the pane does — at the last tab if the tabs reach the edge, otherwise
+	// it carries straight on into the gap.
+	gap := m.width - width
+	closes := gap <= 0
+
+	var rendered []string
+	for i, label := range labels {
 		style := inactiveTab
 		if i == m.active {
 			style = activeTab
 		}
 		border, _, _, _, _ := style.GetBorder()
-		switch {
-		case i == 0 && i == m.active:
-			border.BottomLeft = "│"
-		case i == 0:
+		if i == 0 {
 			border.BottomLeft = "├"
-		case i == len(m.layers)-1 && i == m.active:
-			border.BottomRight = "│"
-		case i == len(m.layers)-1:
-			border.BottomRight = "┤"
+			if i == m.active {
+				border.BottomLeft = "│"
+			}
 		}
-		label := l.title
-		if !l.isTray() {
-			label = "garage · " + l.title
+		if i == len(labels)-1 {
+			switch {
+			case i == m.active && closes:
+				border.BottomRight = "│"
+			case i == m.active:
+				border.BottomRight = "└"
+			case closes:
+				border.BottomRight = "┤"
+			default:
+				border.BottomRight = "┴"
+			}
 		}
 		rendered = append(rendered, style.Border(border).Render(label))
 	}
 	row := lipgloss.JoinHorizontal(lipgloss.Top, rendered...)
-	if gap := m.width - lipgloss.Width(row); m.width > 0 && gap > 0 {
+	if gap > 0 {
 		row = lipgloss.JoinHorizontal(lipgloss.Bottom, row,
 			tabGap.Render(strings.Repeat(" ", gap)))
 	}
@@ -148,18 +152,39 @@ func (m Model) renderBody() string {
 	if m.form != nil {
 		return m.form.view()
 	}
-	if len(m.items) == 0 {
-		return faintStyle.Render(m.emptyMessage())
+
+	var b strings.Builder
+	if m.filtering() {
+		b.WriteString(m.renderFilter() + "\n")
+	}
+	switch {
+	case len(m.list.Items()) == 0:
+		b.WriteString(faintStyle.Render(m.emptyMessage()))
+	case len(m.list.VisibleItems()) == 0:
+		b.WriteString(faintStyle.Render("nothing here matches"))
+	default:
+		b.WriteString(m.deleg.header() + "\n")
+		b.WriteString(m.list.View())
 	}
 
-	body := m.renderTable()
 	switch m.mode {
 	case acting:
-		body += "\n\n" + m.renderMenu()
+		b.WriteString("\n\n" + m.renderMenu())
 	case sending:
-		body += "\n\n" + m.renderDestinations()
+		b.WriteString("\n\n" + m.renderDestinations())
 	}
-	return body
+	return b.String()
+}
+
+// The filter is drawn here rather than by the list so it sits inside our frame, and
+// so an applied filter keeps saying what it hid — a table that quietly shows four of
+// forty rows is a table you will misread.
+func (m Model) renderFilter() string {
+	if m.list.SettingFilter() {
+		return keyStyle.Render("/") + m.list.FilterInput.View()
+	}
+	return faintStyle.Render(fmt.Sprintf("/%s — %d of %d · esc clears",
+		m.list.FilterValue(), len(m.list.VisibleItems()), len(m.list.Items())))
 }
 
 func (m Model) emptyMessage() string {
@@ -167,73 +192,6 @@ func (m Model) emptyMessage() string {
 		return "nothing on the tray — a to add one, or take something from the garage"
 	}
 	return "nothing here — a to dump a line"
-}
-
-// renderTable uses lipgloss's own table so columns align without hand-padding.
-func (m Model) renderTable() string {
-	tray := m.layer().isTray()
-
-	headers := []string{"", "", "task", "urg", "pri", "due", "tags"}
-	if !tray {
-		headers = []string{"", "", "task", "", "", "", "tags"}
-	}
-
-	start, end := m.window()
-	rows := make([][]string, 0, end-start)
-	for i, t := range m.items[start:end] {
-		i += start
-		mark := " "
-		if m.marked[t.Text] {
-			mark = markStyle.Render("●")
-		}
-		point := " "
-		if i == m.cursor {
-			point = cursorStyle.Render("▸")
-		}
-		urgency, priority, due := "", "", ""
-		if tray {
-			urgency = fmt.Sprintf("%.1f", core.Urgency(t, m.today))
-			priority = t.Priority()
-			due = core.Day(t.Attrs["due"])
-		}
-		var tags []string
-		for _, g := range t.Tags {
-			tags = append(tags, "+"+g)
-		}
-		rows = append(rows, []string{
-			point, mark, t.Text, urgency, priority, due, strings.Join(tags, " "),
-		})
-	}
-	if hidden := len(m.items) - (end - start); hidden > 0 {
-		rows = append(rows, []string{"", "", fmt.Sprintf("… %d more", hidden), "", "", "", ""})
-	}
-
-	return table.New().
-		Border(lipgloss.HiddenBorder()).
-		BorderTop(false).BorderBottom(false).BorderLeft(false).BorderRight(false).
-		BorderHeader(false).BorderColumn(false).BorderRow(false).
-		Headers(headers...).
-		Rows(rows...).
-		StyleFunc(func(row, col int) lipgloss.Style {
-			style := lipgloss.NewStyle().PaddingRight(2)
-			switch col {
-			case 0:
-				style = style.PaddingRight(0) // the cursor sits tight against the mark
-			case 1:
-				style = style.PaddingRight(1)
-			}
-			if row == table.HeaderRow {
-				return style.Foreground(subtle)
-			}
-			if start, _ := m.window(); row+start == m.cursor {
-				return style.Bold(true)
-			}
-			if col >= 3 { // the attribute columns stay quiet
-				return style.Foreground(subtle)
-			}
-			return style
-		}).
-		Render()
 }
 
 func (m Model) renderMenu() string {
@@ -264,20 +222,17 @@ func (m Model) renderDestinations() string {
 	return strings.Join(rows, "\n")
 }
 
+// The footer and the `?` overlay are the same keymap rendered at two lengths, so
+// neither can advertise a key the other doesn't.
 func (m Model) renderFooter() string {
-	var keys string
-	switch m.mode {
-	case editing:
-		return ""
-	case acting, sending:
-		keys = "j k choose · enter apply · esc back"
-	default:
-		keys = "j k move · h l tab · space mark · enter act · a add · q quit"
-		if !m.layer().isTray() {
-			keys = "j k move · h l tab · space mark · enter act · a add · t take · q quit"
-		}
+	if m.mode == editing {
+		return "" // the form carries its own hint
 	}
-	footer := faintStyle.Render(" " + keys)
+	h := m.help
+	if m.width > 0 {
+		h.Width = m.width - 1
+	}
+	footer := " " + h.View(m.keys())
 	if m.status != "" {
 		footer = " " + cursorStyle.Render(m.status) + "\n" + footer
 	}

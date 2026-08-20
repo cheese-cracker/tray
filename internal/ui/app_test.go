@@ -84,11 +84,11 @@ func TestListOrdersByUrgency(t *testing.T) {
 		"- [ ] middle thing priority:M",
 	)
 	m := New()
-	if len(m.items) != 3 {
-		t.Fatalf("got %d items", len(m.items))
+	if len(m.items()) != 3 {
+		t.Fatalf("got %d items", len(m.items()))
 	}
-	if m.items[0].Text != "urgent thing" {
-		t.Errorf("first row = %q, want the most urgent", m.items[0].Text)
+	if m.items()[0].Text != "urgent thing" {
+		t.Errorf("first row = %q, want the most urgent", m.items()[0].Text)
 	}
 }
 
@@ -98,7 +98,7 @@ func TestTerminalTasksAreNotListed(t *testing.T) {
 		"- [x] ~~done thing~~ done:2026-08-01",
 		"- ~~dropped thing~~ dropped:2026-08-01",
 	)
-	if got := len(New().items); got != 1 {
+	if got := len(New().items()); got != 1 {
 		t.Errorf("listed %d items, want only the live one", got)
 	}
 }
@@ -106,21 +106,21 @@ func TestTerminalTasksAreNotListed(t *testing.T) {
 func TestCursorMoves(t *testing.T) {
 	sandbox(t, "- [ ] one priority:H", "- [ ] two priority:M", "- [ ] three priority:L")
 	m := keys(New(), "j", "j").(Model)
-	if m.cursor != 2 {
-		t.Errorf("cursor = %d, want 2", m.cursor)
+	if m.list.Index() != 2 {
+		t.Errorf("cursor = %d, want 2", m.list.Index())
 	}
 	m = keys(m, "k").(Model)
-	if m.cursor != 1 {
-		t.Errorf("cursor = %d, want 1", m.cursor)
+	if m.list.Index() != 1 {
+		t.Errorf("cursor = %d, want 1", m.list.Index())
 	}
 	// It must not run off either end.
 	m = keys(m, "k", "k", "k").(Model)
-	if m.cursor != 0 {
-		t.Errorf("cursor = %d, want 0", m.cursor)
+	if m.list.Index() != 0 {
+		t.Errorf("cursor = %d, want 0", m.list.Index())
 	}
 	m = keys(m, "G").(Model)
-	if m.cursor != 2 {
-		t.Errorf("G should go last, got %d", m.cursor)
+	if m.list.Index() != 2 {
+		t.Errorf("G should go last, got %d", m.list.Index())
 	}
 }
 
@@ -143,8 +143,8 @@ func TestDoneFromTheList(t *testing.T) {
 	if got := trayFile(t); !strings.Contains(got, "~~one~~") {
 		t.Errorf("file did not record done:\n%s", got)
 	}
-	if len(m.items) != 1 {
-		t.Errorf("the finished task should leave the list, got %d", len(m.items))
+	if len(m.items()) != 1 {
+		t.Errorf("the finished task should leave the list, got %d", len(m.items()))
 	}
 }
 
@@ -259,10 +259,29 @@ func TestFrameShowsRowsMarksAndKeymap(t *testing.T) {
 	sandbox(t, "- [ ] one priority:H", "- [ ] two priority:M")
 	view := keys(New(), " ").(Model).View()
 
-	for _, want := range []string{"tray", "one", "two", "●", "space mark", "enter act"} {
+	for _, want := range []string{"tray", "one", "two", "●", "urg", "pri", "enter act", "? help"} {
 		if !strings.Contains(view, want) {
 			t.Errorf("frame missing %q:\n%s", want, view)
 		}
+	}
+}
+
+// The footer sheds keys to stay on one line, so `?` has to be the place they turn
+// up. If a key is in neither, it doesn't exist as far as a new user is concerned.
+func TestHelpOverlayCarriesWhatTheFooterDrops(t *testing.T) {
+	sandbox(t, "- [ ] one priority:H")
+	m := keys(New(), "?").(Model)
+	if !m.help.ShowAll {
+		t.Fatal("? should open the overlay")
+	}
+	view := m.View()
+	for _, want := range []string{"space", "mark", "retake", "hand back", "filter", "quit"} {
+		if !strings.Contains(view, want) {
+			t.Errorf("overlay missing %q:\n%s", want, view)
+		}
+	}
+	if keys(m, "?").(Model).help.ShowAll {
+		t.Error("? should close it again")
 	}
 }
 

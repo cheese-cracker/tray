@@ -113,7 +113,9 @@ Dropped lines are struck through in place. Nothing is ever deleted.
 ## The TUI
 
 Bare `tray` on a terminal opens it; piped, `tray` stays text, so an agent is never
-handed a UI. Built with [bubbletea](https://github.com/charmbracelet/bubbletea).
+handed a UI. Built with [bubbletea](https://github.com/charmbracelet/bubbletea),
+[bubbles](https://github.com/charmbracelet/bubbles) and
+[lipgloss](https://github.com/charmbracelet/lipgloss).
 
 ```
 ╭────────╮╭───────────────────╮
@@ -126,7 +128,7 @@ handed a UI. Built with [bubbletea](https://github.com/charmbracelet/bubbletea).
 │     Review the deploy checklist  4.7   M                +infra       │
 │                                                                      │
 └──────────────────────────────────────────────────────────────────────┘
- j k move · h l tab · space mark · enter act · q quit
+ j k move · h l tab · enter act · a add · / filter · ? help · q quit
 ```
 
 | | |
@@ -136,6 +138,9 @@ handed a UI. Built with [bubbletea](https://github.com/charmbracelet/bubbletea).
 | `space` | mark. Every action applies to the marks, or to the row under the cursor |
 | `enter` | the action menu |
 | `a` `n` | add — a title alone in a garage tab, the whole form on the tray |
+| `/` | filter. Fuzzy, over the text and the tags; `esc` clears it |
+| `g` `G` | first row, last row |
+| `?` | the full keymap. The footer carries the short version |
 | `q` `esc` | quit |
 
 **Two tabs, day to day**: what you're doing, and what you dumped this month. Someday
@@ -188,8 +193,19 @@ sequence, no question you have to answer to reach the one you wanted.
 Every decision behind this, including the ones since reversed, is a row in
 [DECISIONS.md](DECISIONS.md).
 
-`/` search, `u` undo and `?` help are **not implemented** — see ROADMAP.md, where
-`/` is planned as a hand-off to `fzf` rather than a fuzzy matcher of our own.
+`u` undo is **not implemented** — see ROADMAP.md. Copy-forward keeps everything
+recoverable by hand meanwhile.
+
+### Filtering
+
+`/` filters the rows in front of you, fuzzily, over the text and the tags — never over
+`priority:H`, which you never typed. It is `bubbles/list` doing the work in process:
+no `fzf`, nothing handed the terminal, nothing to flicker.
+
+An applied filter says what it hid (`/infra — 3 of 17 · esc clears`), because a table
+quietly showing three of seventeen rows is a table you will misread. **A mark survives
+a filter**: hiding a row is not the same as deselecting it, so you can filter, mark,
+filter again, and act on everything you marked.
 
 ## The files
 

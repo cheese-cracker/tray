@@ -3,15 +3,12 @@
 Rough order, not commitments. Every choice already made — including the reversed ones —
 is one line in [DECISIONS.md](DECISIONS.md).
 
-## Now
-
-- [ ] **`/` fuzzy filter** — `bubbles/list` filtering, in-process. No `fzf`, no
-  `tea.ExecProcess`, no alt-screen seam to worry about. The month sweep needs it once a
-  month file has real volume.
-- [ ] **`?` help** — `bubbles/help` over the same keymap the footer renders, so the
-  overlay and the footer cannot drift apart.
-
 ## Next
+
+- [ ] **`bubbles/textinput` in the retake form** — 18a called hand-rolled text editing
+  the thin ice and it still is: no cursor, no word motions, no paste. The blocker is
+  that `←`/`→` on the `due` field shift by a day, which a text input would claim for
+  cursor movement. Needs a decision before it needs code.
 
 - [ ] **`u` undo, one level** — needs a snapshot in `store`; not free. Copy-forward keeps
   everything hand-recoverable meanwhile, so this is comfort rather than safety.
