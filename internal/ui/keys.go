@@ -22,8 +22,8 @@ func bind(keys, help string) key.Binding {
 
 func (m Model) keys() keyMap {
 	if m.mode == acting || m.mode == sending {
-		row := []key.Binding{bind("j k", "choose"), bind("enter", "apply"), bind("esc", "back")}
-		return keyMap{short: row, full: [][]key.Binding{row}}
+		picking := []key.Binding{bind("j k", "choose"), bind("enter", "apply"), bind("esc", "back")}
+		return keyMap{short: picking, full: [][]key.Binding{picking}}
 	}
 
 	// `space mark` is the one key the short line drops: it is the least guessable,

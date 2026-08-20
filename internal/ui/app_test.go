@@ -290,3 +290,37 @@ func TestProgramRunsAndQuits(t *testing.T) {
 	sandbox(t, "- [ ] one priority:H")
 	drive(t, New()).waitFor("one").press("q").final()
 }
+
+// The delegate renders marks by reading the Model's own map, so the two must stay
+// the same map. Clearing marks has to be clear(), never a fresh map: reassigning it
+// leaves the delegate pointing at the old one and marks silently stop drawing.
+func TestMarksKeepRenderingAfterTheyAreCleared(t *testing.T) {
+	sandbox(t, "- [ ] one priority:H", "- [ ] two priority:M")
+	garage(t, "2026-08", "- something jotted")
+
+	marked := func(m Model) bool { return strings.Contains(m.View(), "●") }
+
+	m := keys(New(), " ").(Model)
+	if !marked(m) {
+		t.Fatalf("a mark should draw a ●:\n%s", m.View())
+	}
+	if !m.deleg.marked["one"] {
+		t.Error("the delegate is not reading the model's mark map")
+	}
+
+	// Both paths that clear marks: a tab switch, and an action.
+	m = keys(m, "l", "h").(Model)
+	if marked(m) {
+		t.Error("switching tabs should clear the marks")
+	}
+	m = keys(m, " ").(Model)
+	if !marked(m) {
+		t.Errorf("marks must still draw after a tab switch cleared them:\n%s", m.View())
+	}
+
+	m = keys(m, "x").(Model) // done clears the marks too
+	m = keys(m, " ").(Model)
+	if !marked(m) {
+		t.Errorf("marks must still draw after an action cleared them:\n%s", m.View())
+	}
+}

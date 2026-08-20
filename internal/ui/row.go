@@ -161,9 +161,15 @@ func truncate(s string, width int) string {
 	if width <= 0 || lipgloss.Width(s) <= width {
 		return s
 	}
-	r := []rune(s)
-	for len(r) > 0 && lipgloss.Width(string(r))+1 > width {
-		r = r[:len(r)-1]
+	var b strings.Builder
+	used := 0
+	for _, r := range s {
+		w := lipgloss.Width(string(r))
+		if used+w+1 > width { // +1 for the ellipsis
+			break
+		}
+		b.WriteRune(r)
+		used += w
 	}
-	return string(r) + "…"
+	return b.String() + "…"
 }
