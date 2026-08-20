@@ -1,6 +1,6 @@
 BIN := build/tray
 
-.PHONY: build install test flows check fmt vet clean
+.PHONY: build install test flows check fmt vet golden clean
 
 build:
 	go build -o $(BIN) ./cmd/tray
@@ -22,6 +22,10 @@ fmt:
 
 vet:
 	go vet ./...
+
+# Rewrite the screen goldens after a deliberate restyle. Read the diff.
+golden:
+	go test ./internal/ui -run TestScreens -update
 
 clean:
 	rm -rf build

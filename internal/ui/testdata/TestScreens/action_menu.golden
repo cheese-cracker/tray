@@ -1,0 +1,20 @@
+╭────────╮╭───────────────────╮                                                     
+│  tray  ││  garage · August  │                                                     
+│        └┴───────────────────┴─────────────────────────────────────────────────────
+│                                                                                  │
+│     task                         urg   pri  due             tags                 │
+│  ▸  Rotate the api keys          17.1  H    2026-08-12 Wed  +infra               │
+│     Chase the invoice            8.1   M    2026-08-25 Tue  +admin               │
+│     Book the flights             7.3   L    2026-08-20 Thu                       │
+│     Review the deploy checklist  4.7   M                    +infra               │
+│                                                                                  │
+│                                                                                  │
+│  1 selected                                                                      │
+│  ▸ r  retake                                                                     │
+│    x  done                                                                       │
+│    d  hand back                                                                  │
+│    >  move to                                                                    │
+│    D  delete                                                                     │
+│                                                                                  │
+└──────────────────────────────────────────────────────────────────────────────────┘
+ j k choose · enter apply · esc back

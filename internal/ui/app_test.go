@@ -3,10 +3,8 @@ package ui
 import (
 	"strings"
 	"testing"
-	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/x/exp/teatest"
 
 	"github.com/cheese-cracker/tray/internal/store"
 )
@@ -47,34 +45,36 @@ func garageFile(t *testing.T) string {
 
 func keys(m tea.Model, presses ...string) tea.Model {
 	for _, k := range presses {
-		var msg tea.KeyMsg
-		switch k {
-		case " ":
-			msg = tea.KeyMsg{Type: tea.KeySpace}
-		case "enter":
-			msg = tea.KeyMsg{Type: tea.KeyEnter}
-		case "esc":
-			msg = tea.KeyMsg{Type: tea.KeyEsc}
-		case "backspace":
-			msg = tea.KeyMsg{Type: tea.KeyBackspace}
-		case "left":
-			msg = tea.KeyMsg{Type: tea.KeyLeft}
-		case "right":
-			msg = tea.KeyMsg{Type: tea.KeyRight}
-		case "up":
-			msg = tea.KeyMsg{Type: tea.KeyUp}
-		case "down":
-			msg = tea.KeyMsg{Type: tea.KeyDown}
-		case "tab":
-			msg = tea.KeyMsg{Type: tea.KeyTab}
-		case "shift+tab":
-			msg = tea.KeyMsg{Type: tea.KeyShiftTab}
-		default:
-			msg = tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(k)}
-		}
-		m, _ = m.Update(msg)
+		m, _ = m.Update(keyMsg(k))
 	}
 	return m
+}
+
+func keyMsg(k string) tea.KeyMsg {
+	switch k {
+	case " ":
+		return tea.KeyMsg{Type: tea.KeySpace}
+	case "enter":
+		return tea.KeyMsg{Type: tea.KeyEnter}
+	case "esc":
+		return tea.KeyMsg{Type: tea.KeyEsc}
+	case "backspace":
+		return tea.KeyMsg{Type: tea.KeyBackspace}
+	case "left":
+		return tea.KeyMsg{Type: tea.KeyLeft}
+	case "right":
+		return tea.KeyMsg{Type: tea.KeyRight}
+	case "up":
+		return tea.KeyMsg{Type: tea.KeyUp}
+	case "down":
+		return tea.KeyMsg{Type: tea.KeyDown}
+	case "tab":
+		return tea.KeyMsg{Type: tea.KeyTab}
+	case "shift+tab":
+		return tea.KeyMsg{Type: tea.KeyShiftTab}
+	default:
+		return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(k)}
+	}
 }
 
 func TestListOrdersByUrgency(t *testing.T) {
@@ -288,12 +288,5 @@ func TestHelpOverlayCarriesWhatTheFooterDrops(t *testing.T) {
 // Drives a real tea.Program, so the wiring itself is covered rather than Update alone.
 func TestProgramRunsAndQuits(t *testing.T) {
 	sandbox(t, "- [ ] one priority:H")
-	tm := teatest.NewTestModel(t, New(), teatest.WithInitialTermSize(80, 24))
-
-	teatest.WaitFor(t, tm.Output(), func(out []byte) bool {
-		return strings.Contains(string(out), "one")
-	}, teatest.WithDuration(3*time.Second))
-
-	tm.Send(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("q")})
-	tm.WaitFinished(t, teatest.WithFinalTimeout(3*time.Second))
+	drive(t, New()).waitFor("one").press("q").final()
 }
