@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"unicode"
 
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -27,7 +28,10 @@ var fieldNames = map[field]string{
 	fTitle: "title", fPriority: "priority", fDue: "due", fTag: "tag",
 }
 
-var priorities = []string{"L", "M", "H"}
+// Left to right, exactly as the radio draws them. Stepping and drawing must read
+// off the same slice: when they were two separate literals in opposite orders, h
+// and l moved the dot the wrong way.
+var priorities = []string{"H", "M", "L"}
 
 const defaultPriority = "M"
 
@@ -103,7 +107,7 @@ func (f *form) move(by int) {
 func (f *form) cycle(by int) {
 	switch f.at {
 	case fPriority:
-		f.prio = clamp(priorities, f.prio, by) // an ordered scale clamps: l must never wrap H to none
+		f.prio = clamp(priorities, f.prio, by) // an ordered scale clamps: l must never wrap L round to H
 		f.touched[fPriority] = true
 	case fDue:
 		day, ok := core.Date(f.due)
@@ -137,24 +141,39 @@ func clamp(options []string, current string, by int) string {
 	return options[next]
 }
 
-func wrap(options []string, current string, by int) string {
-	next := (at(options, current) + by + len(options)) % len(options)
-	return options[next]
-}
-
-// typing edits the free-text fields; enums are picked, never typed.
+// typing edits the free-text fields; enums are picked, never typed. A paste lands
+// here too, and a pasted block can carry newlines and control characters — a task is
+// one line of a markdown file, so those collapse rather than splitting it in two.
 func (f *form) typed(runes []rune) {
+	text := oneLine(runes)
+	if text == "" {
+		return
+	}
 	switch f.at {
 	case fTitle:
-		f.title += string(runes)
+		f.title += text
 		f.touched[fTitle] = true
 	case fDue:
-		f.due += string(runes)
+		f.due += text
 		f.touched[fDue] = true
 	case fTag:
-		f.tag += string(runes)
+		f.tag += text
 		f.touched[fTag] = true
 	}
+}
+
+func oneLine(runes []rune) string {
+	var b strings.Builder
+	for _, r := range runes {
+		switch {
+		case r == '\n' || r == '\r' || r == '\t':
+			b.WriteRune(' ')
+		case unicode.IsControl(r): // dropped: nothing sane to render for it
+		default:
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
 }
 
 func (f *form) backspace() {
@@ -274,6 +293,14 @@ func (f form) update(key tea.KeyMsg) (form, bool, bool) {
 		return f, false, false
 	}
 
+	// A paste — or a burst the terminal coalesced — is one message carrying many
+	// runes. It can never be a vim key, so it is always text. The len == 1 gate below
+	// used to be the only path, which dropped every paste on the floor.
+	if key.Type == tea.KeyRunes && (key.Paste || len(key.Runes) > 1) {
+		f.typed(key.Runes)
+		return f, false, false
+	}
+
 	// On an enum field the vim keys navigate; on a text field they are just letters.
 	if key.Type == tea.KeyRunes && len(key.Runes) == 1 {
 		enum := f.at == fPriority
@@ -353,7 +380,7 @@ func radio(current string) string {
 		current = defaultPriority
 	}
 	var out []string
-	for _, p := range []string{"H", "M", "L"} {
+	for _, p := range priorities {
 		dot := "( )"
 		if p == current {
 			dot = "(•)"

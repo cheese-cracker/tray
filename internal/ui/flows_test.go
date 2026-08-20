@@ -36,7 +36,7 @@ func TestFlowTakeOpensTheFormAndSaves(t *testing.T) {
 	u := drive(t, New()).waitFor("tray")
 	u.press("l").waitFor("add retries") // to the garage tab
 	u.press("t").waitFor("retake")      // take, which opens the form
-	u.press("down", "right")            // priority field, step it up
+	u.press("down", "left")             // priority field, step it up toward H
 	u.press("enter")
 	// The status is the form's, not the move's: take runs first, then the form
 	// saves over it. The arrow it left behind is in the file, which is the record.
@@ -58,7 +58,7 @@ func TestFlowBatchRetakeSkipsTheTitle(t *testing.T) {
 	u := drive(t, New()).waitFor("one")
 	u.press(" ", "j", " ") // mark both
 	u.press("r").waitFor("retake 2 tasks")
-	u.press("right", "enter") // priority L -> M, save
+	u.press("left", "enter") // priority L -> M, save
 	m := u.waitFor("retook 2").final()
 
 	if len(m.marked) != 0 {
@@ -211,7 +211,7 @@ func TestFlowTrayAddTakesTheWholeForm(t *testing.T) {
 	u := drive(t, New()).waitFor("nothing on the tray")
 	u.press("a").waitFor("add to the tray")
 	u.typeIn("rotate the api keys")
-	u.press("down", "right")          // priority M -> H
+	u.press("down", "left")           // priority M -> H, leftward: the radio reads H · M · L
 	u.press("down", "right", "right") // due: the first → lands on today, the next steps a day
 	u.press("down").typeIn("infra")   // tag
 	u.press("enter")
@@ -278,5 +278,26 @@ func TestFlowHelpOverlayToggles(t *testing.T) {
 	}
 	if len(m.items()) != 1 {
 		t.Errorf("the list should be untouched, got %d rows", len(m.items()))
+	}
+}
+
+// T13 · pasting a title. The form is hand-rolled, and it used to accept only
+// single-rune messages — so a paste, which arrives as one message carrying all of
+// it, was dropped silently. A pasted block can also carry newlines, and a task is
+// one line of a markdown file.
+func TestFlowPasteIntoTheTitle(t *testing.T) {
+	sandbox(t)
+
+	u := drive(t, New()).waitFor("nothing on the tray")
+	u.press("a").waitFor("add to the tray")
+	u.paste("rotate the api keys\nand the certs")
+	u.typeIn("!")
+	u.press("enter")
+	u.waitFor("added").final()
+
+	tray := trayFile(t)
+	has(t, tray, "rotate the api keys and the certs!") // newline collapsed, not split
+	if n := strings.Count(tray, "- [ ] "); n != 1 {
+		t.Errorf("a pasted newline must not split the task in two:\n%s", tray)
 	}
 }

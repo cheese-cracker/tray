@@ -48,13 +48,13 @@ func TestCyclePriority(t *testing.T) {
 	m := openRetake(t)
 	m.form.at = fPriority
 
-	m = keys(m, "l").(Model) // M → H
+	m = keys(m, "h").(Model) // M → H, leftward, because the radio reads H · M · L
 	if m.form.prio != "H" {
-		t.Errorf("after l = %q, want H", m.form.prio)
+		t.Errorf("after h = %q, want H", m.form.prio)
 	}
-	m = keys(m, "h", "h").(Model) // H → M → L
+	m = keys(m, "l", "l").(Model) // H → M → L
 	if m.form.prio != "L" {
-		t.Errorf("after h h = %q, want L", m.form.prio)
+		t.Errorf("after l l = %q, want L", m.form.prio)
 	}
 	keys(m, "enter")
 	if got := trayFile(t); !strings.Contains(got, "priority:L") {
@@ -72,9 +72,9 @@ func TestPriorityHasNoNoneAndDefaultsToMedium(t *testing.T) {
 	}
 
 	m.form.at = fPriority
-	m = keys(m, "h", "h", "h").(Model) // walk to the bottom and stay there
+	m = keys(m, "l", "l", "l").(Model) // walk to the far end and stay there
 	if m.form.prio != "L" {
-		t.Errorf("h should clamp at L, got %q", m.form.prio)
+		t.Errorf("l should clamp at L, got %q", m.form.prio)
 	}
 	if !strings.Contains(m.View(), "(•) L") {
 		t.Errorf("the radio should show the choice:\n%s", m.View())
@@ -184,9 +184,9 @@ func TestPriorityClampsAtTheTop(t *testing.T) {
 	sandbox(t, "- [ ] a thing priority:H")
 	m := openRetake(t)
 	m.form.at = fPriority
-	m = keys(m, "l", "l").(Model)
+	m = keys(m, "h", "h").(Model)
 	if m.form.prio != "H" {
-		t.Errorf("l must not wrap H round to none, got %q", m.form.prio)
+		t.Errorf("h must not wrap H round to L, got %q", m.form.prio)
 	}
 }
 
@@ -201,7 +201,7 @@ func TestBatchSkipsTheTitle(t *testing.T) {
 			t.Error("a batch form must not offer the title")
 		}
 	}
-	m = keys(m, "l").(Model) // priority is the first field in a batch
+	m = keys(m, "h").(Model) // priority is the first field in a batch
 	keys(m, "enter")
 
 	got := trayFile(t)
@@ -250,7 +250,7 @@ func TestAddToTrayOffersTheWholeForm(t *testing.T) {
 
 	m = keys(m, "d", "o", " ", "i", "t").(Model)
 	m.form.at = fPriority
-	m = keys(m, "l", "l", "l").(Model) // none → H
+	m = keys(m, "h", "h", "h").(Model) // M → H, clamped
 	m = keys(m, "enter").(Model)
 
 	got := trayFile(t)
@@ -298,5 +298,30 @@ func TestWeekdayIsShownButNotEdited(t *testing.T) {
 	keys(m, "enter")
 	if got := trayFile(t); !strings.Contains(got, "due:2026-08-13") || strings.Contains(got, "Thu") {
 		t.Errorf("the file must stay plain ISO:\n%s", got)
+	}
+}
+
+// The radio reads H · M · L left to right. Whichever way the keys step, the dot has
+// to move the way the key points — the two used to be separate literals in opposite
+// orders, so l moved the dot left.
+func TestPriorityStepsTheWayTheRadioReads(t *testing.T) {
+	sandbox(t, "- [ ] a thing priority:M")
+	m := openRetake(t)
+	m.form.at = fPriority
+
+	dot := func(m Model) int { return strings.Index(m.View(), "(•)") }
+	mid := dot(m)
+	if mid < 0 {
+		t.Fatalf("no radio drawn:\n%s", m.View())
+	}
+	for _, step := range []struct {
+		key   string
+		wants string
+	}{{"l", "right"}, {"right", "right"}, {"h", "left"}, {"left", "left"}} {
+		got := dot(keys(m, step.key).(Model))
+		if (step.wants == "right") != (got > mid) {
+			t.Errorf("%q should move the dot %s, %d -> %d:\n%s",
+				step.key, step.wants, mid, got, keys(m, step.key).(Model).View())
+		}
 	}
 }

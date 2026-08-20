@@ -59,6 +59,14 @@ func (u *tui) typeIn(s string) *tui {
 	return u
 }
 
+// paste is what the terminal sends for ctrl+shift+v: one message, every rune at
+// once, Paste set. bubbletea turns bracketed paste into exactly this.
+func (u *tui) paste(s string) *tui {
+	u.t.Helper()
+	u.tm.Send(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(s), Paste: true})
+	return u
+}
+
 // waitFor blocks until the given text has appeared in some frame, or fails the test.
 // It can never block longer than `patience`.
 //
