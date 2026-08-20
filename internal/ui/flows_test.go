@@ -296,8 +296,15 @@ func TestFlowPasteIntoTheTitle(t *testing.T) {
 	u.waitFor("added").final()
 
 	tray := trayFile(t)
-	has(t, tray, "rotate the api keys and the certs!") // newline collapsed, not split
-	if n := strings.Count(tray, "- [ ] "); n != 1 {
-		t.Errorf("a pasted newline must not split the task in two:\n%s", tray)
+	has(t, tray, "rotate the api keys and the certs!") // collapsed to a space, not split
+
+	// Counting bullets would not catch this: a split leaves the tail with no bullet
+	// at all, so the count stays at one while half the task sits on a line the
+	// parser will never recognise.
+	for _, line := range strings.Split(tray, "\n") {
+		if line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, "- ") {
+			continue
+		}
+		t.Errorf("a pasted newline left the orphan line %q in:\n%s", line, tray)
 	}
 }

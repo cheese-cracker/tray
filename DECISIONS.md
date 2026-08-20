@@ -109,7 +109,7 @@ lived in was orphaned, so none of the history came with it — the import is one
 | 58 | The list's `h`/`l`/`d` paging keys are unbound, and its quit keys disabled | `h`/`l` are the tabs and `d` hands back. The cursor keys page on their own | live |
 | 59 | `?` is **`bubbles/help`** over one `keyMap` that also renders the footer | Reverses 47. The overlay and the footer cannot drift apart, because they are the same value rendered at two lengths | live |
 | 59a | The footer drops `space mark`; `?` carries it | It is the least guessable key, and the footer has to stay inside eighty columns on either layer. That trade is only payable because `?` now exists | live |
-| 60 | The form stays **hand-rolled** — no `bubbles/textinput` yet | `←`/`→` on the `due` field shift by a day (25, and documented). A text input would take those keys for cursor movement. 18a's thin ice is still thin | open |
+| 60 | The form stays **hand-rolled** — no `bubbles/textinput` yet | `←`/`→` on the `due` field shift by a day (25, and documented). A text input would take those keys for cursor movement. 18a's thin ice is still thin — and 67 is what fell through it | open |
 
 ## Flows
 
@@ -124,3 +124,13 @@ lived in was orphaned, so none of the history came with it — the import is one
 | 63 | teatest asserts on the **final model and the files**, never on a frame | 40 still holds. teatest buys a real program, not a new thing to assert on | live |
 | 64 | **One golden per screen**, colour stripped, and none of them assert behaviour | Narrows 40 rather than reversing it: goldens catch a lost border, a column that stopped aligning, a footer that overflowed into `…` — none of which a behaviour test can see | live |
 | 65 | The F suite builds the binary itself | The `bin/tray` wrapper that used to do it went with super-utils (52) | live |
+
+## Two bugs the hand-rolled form had
+
+| # | Decision | Why | Status |
+|---|---|---|---|
+| 66 | The priority radio **draws and steps off one slice** | It was two literals in opposite orders — `{"L","M","H"}` stepped, `{"H","M","L"}` drawn — so `l` and `→` moved the dot left. One slice is the only fix that cannot drift again | live |
+| 66a | The test asserts the **rendered dot** moves the way the key points | Asserting `prio == "H"` would have passed the whole time the keys were backwards. Order-agnostic, so it survives a reordering of the scale | live |
+| 67 | A `KeyRunes` message with **many runes is always text** | Bracketed paste is on by default and delivers a paste as one message with every rune. The form only handled single-rune messages, so pastes vanished silently | live |
+| 67a | Pasted newlines collapse to a space; other control characters are dropped | A task is one line of markdown. A raw `\n` split it in two — and the attributes went with the tail, so the surviving half silently lost its priority | live |
+| 67b | `bubbles/textinput` already did both | It sanitises pasted runes the same way, which is why `/` never had this bug and the form did. Evidence for 60, not against it | noted |
