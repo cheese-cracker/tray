@@ -255,7 +255,7 @@ func unload(tray *store.Doc, picked []core.Task, to string) (string, error) {
 	for _, t := range picked {
 		switch {
 		case t.Text == "" || seen[t.Text]: // already there: a second run is a no-op
-		case garage.Revive(t.Text): // it came from here, so bring that line home
+		case garage.Reclaim(t): // it came from here, so bring that line home as it is
 			seen[t.Text] = true
 			moved++
 		default:

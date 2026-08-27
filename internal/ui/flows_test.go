@@ -170,8 +170,9 @@ func TestFlowHandBackRevivesTheGarageLine(t *testing.T) {
 
 	u := drive(t, New()).waitFor("tray")
 	u.press("l").waitFor("fix the sync job")
-	u.press("t").waitFor("retake")
-	u.press("enter").waitFor("unchanged") // take it, accept the form unchanged
+	u.press("t").waitFor("retake") // take it, and give it a priority on the way
+	u.press("down", "left")
+	u.press("enter").waitFor("retook 1")
 	u.press("h").waitFor("fix the sync job")
 	u.press("d") // hand it straight back
 	u.final()
@@ -183,6 +184,9 @@ func TestFlowHandBackRevivesTheGarageLine(t *testing.T) {
 	if n := strings.Count(month, "fix the sync job"); n != 1 {
 		t.Errorf("handing back should revive one line, not add a copy:\n%s", month)
 	}
+	// Coming home must not undo what the tray added, or taking it again costs the
+	// same structuring twice.
+	has(t, month, "fix the sync job priority:H")
 }
 
 // T8 · the garage asks for the words and nothing else — that is the whole point of

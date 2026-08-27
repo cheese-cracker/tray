@@ -108,7 +108,7 @@ func (m *Model) move(picked []core.Task, to layer) string {
 	for _, t := range picked {
 		switch {
 		case t.Text == "" || seen[t.Text]: // already live there
-		case !to.isTray() && dst.Revive(t.Text): // it came from there: bring it home
+		case !to.isTray() && dst.Reclaim(t): // it came from there: bring it home as it is
 			seen[t.Text] = true
 			moved++
 		case to.isTray():

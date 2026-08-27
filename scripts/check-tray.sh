@@ -252,6 +252,38 @@ tray --version | grep -q "^tray " && pass "--version" || bad "--version broken"
 tray help | grep -q "two layers" && pass "help" || bad "help broken"
 teardown
 
+# --- F17 · the round trip home ----------------------------------------------
+# F7 covers a tray whose tasks never came from this month, so it only ever
+# exercised the copy path. This is the common one: dump here, take it, hand it
+# back. It goes home to the line it left, which must not undo what the tray added.
+head_ "F17 · unload brings the tray home whole"
+setup
+tray dump ship the release notes >/dev/null
+tray dump finish the migration >/dev/null
+tray garage 1 take pri:H due:2026-08-20 +work >/dev/null
+tray garage 1 take pri:L >/dev/null
+tray 1 done >/dev/null
+tray unload >/dev/null
+
+[ "$(count 2026-08.md 'ship the release notes')" = "1" ] \
+  && pass "one line home, not a copy beside the one it left" \
+  || bad "duplicated: $(cat "$TRAY_HOME/2026-08.md")"
+has 2026-08.md "~~ship the release notes~~" \
+  && pass "a finished task lands struck through" \
+  || bad "finished task came home open — carryover would carry it forever"
+has 2026-08.md "done:2026-08-07" && pass "and dated" || bad "no done date"
+grep -q "ship the release notes~~ priority:H due:2026-08-20" "$TRAY_HOME/2026-08.md" \
+  && pass "a finished task keeps what the tray gave it" || bad "attrs dropped"
+grep -q "^- finish the migration priority:L" "$TRAY_HOME/2026-08.md" \
+  && pass "an open task keeps its attrs, so taking it again is free" \
+  || bad "open task came home bare: $(cat "$TRAY_HOME/2026-08.md")"
+has 2026-08.md "from:" && bad "from: is noise on a line that lives here" \
+  || pass "from: dropped on the way home"
+[ "$(count 2026-08.md '→ tray')" = "0" ] \
+  && pass "no line still points at the tray" || bad "stale arrow left behind"
+teardown
+
+
 # F17 and F18 lived here: they drove the fzf keymap and gum's pickers, both of
 # which the Go rewrite replaces. bubbletea's own harness covers that ground once
 # the TUI lands; until then the interface has no automated cover, deliberately.

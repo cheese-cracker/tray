@@ -54,7 +54,7 @@ kept rather than deleted; a decision log that only shows the winners can't be au
 | 33 | The garage form asks for the title alone; the tray form asks for everything | Structure is expected on the tray, nowhere else | live |
 | 34 | `tray add`/`take` **warn** what's missing rather than prompting | The CLI is the agent surface; it can't start asking questions | live |
 | 34a | The menu leads with the layer's primary action: `retake` on the tray, `take` in the garage | `enter enter` should do the obvious thing | live |
-| 34b | Handing back **revives the line it came from** rather than adding a copy | Dedupe counted departed lines, so the task left the tray and lived nowhere | live |
+| 34b | Handing back **revives the line it came from** rather than adding a copy | Dedupe counted departed lines, so the task left the tray and lived nowhere | live, corrected by 68 |
 | 35 | Full-page layout, list windows around the cursor | Overflow makes the alt screen jitter | live |
 | 36 | Dates **display** with the weekday (`2026-08-12 Wed`); files and JSON stay ISO | The day is what tells you whether something is soon | live |
 
@@ -134,3 +134,14 @@ lived in was orphaned, so none of the history came with it — the import is one
 | 67 | A `KeyRunes` message with **many runes is always text** | Bracketed paste is on by default and delivers a paste as one message with every rune. The form only handled single-rune messages, so pastes vanished silently | live |
 | 67a | Pasted newlines collapse to a space; other control characters are dropped | A task is one line of markdown. A raw `\n` split it in two — and the attributes went with the tail, so the surviving half silently lost its priority | live |
 | 67b | `bubbles/textinput` already did both | It sanitises pasted runes the same way, which is why `/` never had this bug and the form did. Evidence for 60, not against it | noted |
+
+## Coming home
+
+Found by using it: dumping a checklist into a month, taking part of it, then
+unloading. Both promises TRAY.md makes about `unload` were false on that path.
+
+| # | Decision | Why | Status |
+|---|---|---|---|
+| 68 | Coming home **reclaims** the departed line — it writes the task's current state onto it, rather than restoring what the line used to say | 34b was right that the line must come home rather than be copied, but `Revive` restored the *garage's* old text. So a task finished on the tray came home **open**, and every carryover after that carried completed work forward again. Open ones came home bare, so "taking them again is free" was false too | live |
+| 68a | `from:` is dropped on the way home | It records which month a task graduated from; on a line living in that month it is tautology. The exact inverse of what take adds | live |
+| 68b | F7 passed throughout | Its tray never came from the month it unloaded into, so it only ever exercised the copy path, where nothing was wrong. F17 is the round trip — dump here, take, hand back — which is the common case and was untested | live |

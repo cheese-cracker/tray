@@ -42,6 +42,7 @@ suite rather than hanging it.
 | F14 | Ids are positional per report, so a hand reorder cannot desync them | `F14 · ids survive a hand reorder` |
 | F15 | `find` reaches every layer and every month at once | `F15 · find is the rot signal` |
 | F16 | Every report runs headless without ever prompting | `F16 · headless` |
+| F17 | `unload` puts a task back on the line it left — finished ones struck through, open ones keeping what the tray gave them | `F17 · unload brings the tray home whole` |
 
 ## T · the terminal interface
 
@@ -53,7 +54,7 @@ suite rather than hanging it.
 | T4 | **Marks survive a filter.** Filter, mark, filter again, act on all of them | `TestFlowMarksSurviveAFilter` |
 | T5 | Tabs cycle at both ends rather than stopping | `TestFlowTabsCycleBothWays` |
 | T6 | `>` copies forward and leaves an arrow on the source line | `TestFlowMoveToCopiesForwardWithAnArrow` |
-| T7 | Handing back **revives** the garage line it came from — no copy, no orphan | `TestFlowHandBackRevivesTheGarageLine` |
+| T7 | Handing back **revives** the garage line it came from — no copy, no orphan, and it keeps what the tray added | `TestFlowHandBackRevivesTheGarageLine` |
 | T8 | Adding in a garage tab asks for the words and writes nothing else | `TestFlowGarageAddAsksOnlyForATitle` |
 | T9 | Adding on the tray takes the whole form: priority, due and tag all land | `TestFlowTrayAddTakesTheWholeForm` |
 | T10 | `esc` clears an applied filter **before** it quits the program | `TestFlowEscClearsTheFilterBeforeItQuits` |

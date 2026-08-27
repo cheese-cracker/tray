@@ -70,6 +70,22 @@ func (d *Doc) Texts() map[string]bool {
 
 // Revive clears the arrow on a departed line with this text, so a task handed back
 // comes home instead of appearing twice — or, worse, nowhere.
+// Reclaim puts a task back on the line it departed from, in whatever state it is
+// in now. Revive restores what the garage line used to say, which loses everything
+// the tray added — a finished task comes home open, and every carryover after that
+// carries completed work forward again.
+func (d *Doc) Reclaim(t core.Task) bool {
+	for _, was := range d.Tasks() {
+		if was.Text == t.Text && was.Moved != "" && !was.Terminal() {
+			t.Index, t.Moved = was.Index, ""
+			delete(t.Attrs, "from") // the inverse of take: it lives here again
+			d.Set(t)
+			return true
+		}
+	}
+	return false
+}
+
 func (d *Doc) Revive(text string) bool {
 	for _, t := range d.Tasks() {
 		if t.Text == text && t.Moved != "" && !t.Terminal() {
