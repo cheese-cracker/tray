@@ -94,6 +94,21 @@ func TestScreens(t *testing.T) {
 		frame(t, New())
 	})
 
+	// The sweep is its own screen: four month tabs, no tray, no `garage ·` prefix
+	// repeated four times, opening on the current month.
+	t.Run("sweep", func(t *testing.T) {
+		sandbox(t)
+		garage(t, "2026-07", "- left over from july", "- chase the deposit +chore")
+		garage(t, "2026-08", "- dumped this month", "- another jotting +infra")
+		frame(t, NewSweep(""))
+	})
+
+	t.Run("month_picker", func(t *testing.T) {
+		sandbox(t)
+		golden.RequireEqual(t, []byte(ansi.ReplaceAllString(
+			picker{months: pickable(), title: "unload the tray to", at: 1}.View(), "")))
+	})
+
 	// A task wider than the terminal must be truncated, not wrapped.
 	t.Run("narrow_truncates", func(t *testing.T) {
 		sandbox(t, "- [ ] a task with a very long description that will not fit priority:H +infra")

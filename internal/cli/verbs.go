@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"time"
 
 	"github.com/cheese-cracker/tray/internal/core"
 	"github.com/cheese-cracker/tray/internal/store"
@@ -225,8 +226,24 @@ func openEditor(path string) error {
 	return cmd.Run()
 }
 
-// cmdUnload hands the tray back to a garage month. Runnable any time.
+// Emptying the whole tray is the largest single action here, so where it lands is
+// never guessed. On a terminal that means asking; piped, it means saying so and
+// stopping, because the agent surface must not start a conversation.
 func cmdUnload(req request) (string, error) {
+	to := req.opts.to
+	if to == "" {
+		if !interactive() {
+			return "", fmt.Errorf("unload needs a month — tray unload --to %s", store.ThisMonth())
+		}
+		chosen, err := ui.PickMonth()
+		if err != nil {
+			return "", err
+		}
+		if chosen == "" {
+			return "cancelled", nil
+		}
+		to = chosen
+	}
 	tray, items, err := view(request{scope: "tray"}, true)
 	if err != nil {
 		return "", err
@@ -235,7 +252,7 @@ func cmdUnload(req request) (string, error) {
 	if req.ids != "" {
 		picked = store.Resolve(items, req.ids)
 	}
-	return unload(tray, picked, req.opts.to)
+	return unload(tray, picked, to)
 }
 
 func unload(tray *store.Doc, picked []core.Task, to string) (string, error) {
@@ -274,32 +291,27 @@ func unload(tray *store.Doc, picked []core.Task, to string) (string, error) {
 	return fmt.Sprintf("%d → %s", moved, month), nil
 }
 
-// cmdCarryover copies a closing month's live lines forward, annotating the source.
+// carryover is month → month and nothing else. It used to drain the whole tray into
+// the closing month first, which is how running it mid-August emptied the tray into a
+// July that never existed. Unload is its own ritual now, run first and by name.
+//
+// The source is never inferred: "the closing month" is not a fact about the calendar.
+// Sweeping August into September is the same job whether you do it on the 30th, when
+// August is the current month, or on the 10th, when it is the previous one.
 func cmdCarryover(req request) (string, error) {
-	if !req.opts.all && !req.opts.draft {
+	if !req.opts.run && !req.opts.draft {
 		if interactive() {
 			return "", ui.RunSweep(req.opts.month)
 		}
-		return "not a terminal — use --all or --draft", nil
+		return "", fmt.Errorf("not a terminal — tray carryover --run --month %s",
+			store.PrevMonth(store.ThisMonth()))
 	}
 	source := req.opts.month
 	if source == "" {
-		source = store.PrevMonth(store.ThisMonth())
+		return "", fmt.Errorf("carryover --run needs a month — try --month %s",
+			store.PrevMonth(store.ThisMonth()))
 	}
 	target := store.NextMonth(source)
-
-	var notes []string
-	tray, err := store.Tray()
-	if err != nil {
-		return "", err
-	}
-	if len(tray.Tasks()) > 0 { // the tray drains into the month it lived in
-		note, err := unload(tray, tray.Tasks(), source)
-		if err != nil {
-			return "", err
-		}
-		notes = append(notes, note)
-	}
 
 	src, err := store.Garage(source)
 	if err != nil {
@@ -312,9 +324,8 @@ func cmdCarryover(req request) (string, error) {
 		}
 	}
 	if len(live) == 0 {
-		return strings.Join(append(notes, source+": nothing to carry"), "\n"), nil
+		return source + ": nothing to carry", nil
 	}
-
 	dst, err := store.Garage(target)
 	if err != nil {
 		return "", err
@@ -322,7 +333,7 @@ func cmdCarryover(req request) (string, error) {
 	seen := dst.Texts()
 	for _, t := range live {
 		if !seen[t.Text] {
-			dst.Add(t.Copy())
+			dst.Add(carried(t, store.Today()))
 			seen[t.Text] = true
 		}
 		core.Depart(&t, target)
@@ -334,15 +345,24 @@ func cmdCarryover(req request) (string, error) {
 	if err := src.Save(); err != nil {
 		return "", err
 	}
-
-	notes = append(notes, fmt.Sprintf("%d %s → %s", len(live), source, target))
+	note := fmt.Sprintf("%d %s → %s", len(live), source, target)
 	if req.opts.draft {
-		notes = append(notes, "editing "+dst.Path+" — delete a line to drop it")
-		if err := openEditor(dst.Path); err != nil {
-			return strings.Join(notes, "\n"), nil
-		}
+		note += "\nediting " + dst.Path + " — delete a line to drop it"
+		_ = openEditor(dst.Path)
 	}
-	return strings.Join(notes, "\n"), nil
+	return note, nil
+}
+
+// carried is the copy that goes forward. A due date that has already passed does not:
+// carrying a line forward is admitting the date did not hold, and keeping it means
+// every re-take starts overdue with a junk urgency. The source keeps the original, so
+// the record is still there.
+func carried(t core.Task, today time.Time) core.Task {
+	forward := t.Copy()
+	if due, ok := core.Date(forward.Attrs["due"]); ok && due.Before(today) {
+		delete(forward.Attrs, "due")
+	}
+	return forward
 }
 
 func cmdStatus(req request) (string, error) {
@@ -363,11 +383,8 @@ func cmdStatus(req request) (string, error) {
 		}
 		if live > 0 {
 			stale = append(stale, fmt.Sprintf(
-				"%s unresolved: %d items — run tray carryover --month %s", month, live, month))
+				"%s unresolved: %d items — tray carryover --run --month %s", month, live, month))
 		}
-	}
-	if req.opts.nag {
-		return strings.Join(stale, "\n"), nil
 	}
 	_, items, err := view(request{scope: "tray"}, false)
 	if err != nil {

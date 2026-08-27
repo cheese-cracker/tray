@@ -69,6 +69,7 @@ func (m Model) View() string {
 	}
 
 	var b strings.Builder
+	b.WriteString("\n") // the tabs need air above them or the frame reads as clipped
 	b.WriteString(tabs + "\n")
 	b.WriteString(style.Render(body) + "\n")
 	b.WriteString(footer)
@@ -81,9 +82,9 @@ func (m Model) rowRoom() int {
 	if m.height == 0 {
 		return 0
 	}
-	// tabs, the pane border, its padding, the column header, then the footer as it
-	// will actually render — which grows when `?` is open or a status line is set.
-	chrome := 3 + pane.GetVerticalBorderSize() + 2 + 1
+	// the top margin, tabs, the pane border, its padding, the column header, then the
+	// footer as it renders — which grows when `?` is open or a status line is set.
+	chrome := 1 + 3 + pane.GetVerticalBorderSize() + 2 + 1 // margin, tabs, border, padding, header
 	chrome += lipgloss.Height(strings.TrimRight(m.renderFooter(), "\n"))
 	if m.filtering() {
 		chrome++ // the filter line takes a row from the list, not from the frame
@@ -102,7 +103,10 @@ func (m Model) renderTabs() string {
 	width := 0
 	for i, l := range m.layers {
 		labels[i] = l.title
-		if !l.isTray() {
+		// The prefix earns its place next to "tray" and nowhere else. In the sweep
+		// every tab is a garage month, so it is four repetitions of the obvious —
+		// and four prefixed labels do not fit an eighty-column terminal.
+		if !l.isTray() && !m.sweep {
 			labels[i] = "garage · " + l.title
 		}
 		width += lipgloss.Width(inactiveTab.Render(labels[i]))

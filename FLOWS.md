@@ -33,16 +33,17 @@ suite rather than hanging it.
 | F5 | `take` is a transformation: structure is added, the source keeps an arrow | `F5 · take is a transformation` |
 | F6 | `done` and `drop` strike through in place, dated, never moving the line | `F6 · done · drop` |
 | F7 | `unload` is idempotent — running it twice does not duplicate the tray | `F7 · unload is idempotent` |
-| F8 | `carryover` copies forward; the source month stays a record | `F8 · carryover copies forward` |
+| F8 | `carryover` copies forward, leaves the tray alone, and drops a due date that already passed | `F8 · carryover copies forward` |
 | F9 | Headings, prose and `*` bullets survive every operation byte-for-byte | `F9 · one document, two hands` |
 | F10 | `export` is valid JSON in Taskwarrior's import shape | `F10 · export` |
 | F11 | `+tag` and `due:` filters select the right lines | `F11 · filters` |
-| F12 | `status --nag` is silent inside the month and speaks once it turns | `F12 · the nag` |
+| F12 | `status` names any earlier month still holding live lines, and the command that clears it | `F12 · status names the month left behind` |
 | F13 | The piped default view is plain bullets with ids, no attributes | `F13 · the default view is the print, with ids` |
 | F14 | Ids are positional per report, so a hand reorder cannot desync them | `F14 · ids survive a hand reorder` |
 | F15 | `find` reaches every layer and every month at once | `F15 · find is the rot signal` |
 | F16 | Every report runs headless without ever prompting | `F16 · headless` |
 | F17 | `unload` puts a task back on the line it left — finished ones struck through, open ones keeping what the tray gave them | `F17 · unload brings the tray home whole` |
+| F18 | Nothing is inferred headlessly: `carryover` and `unload` refuse to guess a month, and an unknown flag is an error rather than a silence | `F18 · nothing is inferred headlessly` |
 
 ## T · the terminal interface
 
@@ -58,7 +59,7 @@ suite rather than hanging it.
 | T8 | Adding in a garage tab asks for the words and writes nothing else | `TestFlowGarageAddAsksOnlyForATitle` |
 | T9 | Adding on the tray takes the whole form: priority, due and tag all land | `TestFlowTrayAddTakesTheWholeForm` |
 | T10 | `esc` clears an applied filter **before** it quits the program | `TestFlowEscClearsTheFilterBeforeItQuits` |
-| T11 | `carryover` opens the same interface with the months as tabs, and no tray tab | `TestFlowSweepOpensTheMonthsAsTabs` |
+| T11 | `carryover` opens four month tabs — prev · this · next · someday — no tray tab, focused on the current month | `TestFlowSweepOpensTheMonthsAsTabs` |
 | T12 | `?` opens and closes without disturbing the list underneath | `TestFlowHelpOverlayToggles` |
 | T13 | A pasted title lands whole, and a pasted newline collapses rather than splitting the line | `TestFlowPasteIntoTheTitle` |
 

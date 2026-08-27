@@ -66,8 +66,8 @@ Everything else is reading, finishing, or moving things between those two layers
 | `tray 3 take` | Garage → tray. This is where a jotted pointer becomes a real task. |
 | `tray 3 take pri:H +infra` | Same, without the prompts. |
 | `tray 2 retake` | Restructure something already on the tray. |
-| `tray unload` | Hand the whole tray back to this month's garage. Runnable any time, not just at the month turn. Done items land struck through; open ones keep their attributes, so taking them again is free. |
-| `tray 2 unload --to 2026-09` | One item, to a month you choose. |
+| `tray unload --to 2026-09` | Hand the whole tray back to a month's garage. Runnable any time, not just at the month turn. **The month is never guessed** — bare `tray unload` picks it on a terminal and is an error when piped. Done items land struck through; open ones keep what the tray gave them, so taking them again is free. |
+| `tray 2 unload --to 2026-09` | One item. |
 
 ### Finishing
 
@@ -96,17 +96,35 @@ Everything else is reading, finishing, or moving things between those two layers
 | `tray find <text>` | Every layer, every month at once. **A line that turns up in four months is a rot signal** — you get it free, with no counter to maintain. |
 | `tray print` | Plain `- [ ]` bullets grouped by tag, for pasting into a journal. No priority, no dates. |
 | `tray export` | JSON in Taskwarrior's import shape: `tray export \| task import` works. |
-| `tray status --nag` | One line if a month has turned with things left in it. Silent otherwise. |
+| `tray list --all` | The finished lines too, `✓` done and `✗` dropped. Works on either layer. |
+| `tray status` | Where you stand, and any earlier month still holding live lines. |
 
 ### The month turn
 
 | | |
 |---|---|
-| `tray carryover --all` | Every live line in the closing month is copied into the next one. |
-| `tray carryover --draft` | Same, then opens next month so you can delete what's dead. |
-| `tray carryover --month 2026-06` | A specific month. |
+| `tray carryover` | The sweep, on a terminal: four month tabs, described below. |
+| `tray carryover --run --month 2026-08` | Headless. Every live line in that month is copied into the next one. |
+| `tray carryover --draft --month 2026-08` | Same, then opens the target so you can delete what's dead. |
+
+**Carryover is month → month and nothing else.** It does not touch your tray — `unload`
+is its own ritual, run first and by name. At a turn that is two commands:
+
+```sh
+tray unload --to 2026-08                 # close the tray out into the month that ended
+tray carryover --run --month 2026-08     # its leftovers move to September
+```
+
+**The month is never inferred.** "The closing month" is not a fact about the calendar:
+sweeping August into September is the same job whether you do it on the 30th, when
+August is the current month, or on the 10th, when it is the previous one. So `--run`
+requires `--month`, and `tray status` prints the exact line to run.
 
 Carryover is **copy-forward**: the source line stays where it was, annotated `→ 2026-09`. Month files are immutable records of what you were considering, which is what makes `tray find` a rot detector.
+
+A **due date that has already passed is not carried**. Carrying a line forward is
+admitting the date didn't hold; keeping it would mean every re-take starts overdue.
+The source line keeps it, so the record is intact.
 
 Dropped lines are struck through in place. Nothing is ever deleted.
 
@@ -146,10 +164,14 @@ handed a UI. Built with [bubbletea](https://github.com/charmbracelet/bubbletea),
 **Two tabs, day to day**: what you're doing, and what you dumped this month. Someday
 and other months are still reachable through `>`; they just don't earn standing room.
 
-**`tray carryover` opens the same interface with the months as tabs** — the closing
-month, this one, and someday — because that ritual is the one time the months matter
-more than the tray. Mark what deserves to survive, `>` it where it belongs, and
-anything you leave is carried forward as usual.
+**`tray carryover` opens the same interface with the months as tabs** — the previous
+month, this one, the next, and someday — because that ritual is the one time the
+months matter more than the tray. It opens on **this** month, because which month is
+"closing" depends on the day you happen to sweep.
+
+The sweep is **triage only: quitting it carries nothing.** Mark what deserves to
+survive and `>` it where it belongs; `x` and `D` finish or drop what doesn't. When
+you're done, `tray carryover --run --month <m>` moves everything still live.
 
 ### Acting
 
@@ -195,6 +217,9 @@ Every decision behind this, including the ones since reversed, is a row in
 
 `u` undo is **not implemented** — see ROADMAP.md. Copy-forward keeps everything
 recoverable by hand meanwhile.
+
+Bare `tray unload` on a terminal opens a month picker rather than guessing. Piped, it
+is an error: the CLI is the agent surface and must never start a conversation.
 
 ### Filtering
 

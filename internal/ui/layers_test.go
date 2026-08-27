@@ -61,18 +61,24 @@ func TestNoSomedayOrOldMonthTab(t *testing.T) {
 func TestSweepTabsAreTheMonths(t *testing.T) {
 	sandbox(t)
 	garage(t, "2026-07", "- left over from july")
+	garage(t, "2026-08", "- dumped this month")
 
 	m := NewSweep("")
-	if len(m.layers) != 3 {
-		t.Fatalf("sweep tabs = %v, want closing + this + someday", titles(m))
+	want := []string{"2026-07", "2026-08", "2026-09", "someday"}
+	var got []string
+	for _, l := range m.layers {
+		got = append(got, l.month)
 	}
-	if m.layers[0].month != "2026-07" {
-		t.Errorf("the sweep should open on the closing month, got %v", titles(m))
+	if strings.Join(got, " ") != strings.Join(want, " ") {
+		t.Fatalf("sweep tabs = %v, want prev · this · next · someday", got)
 	}
-	if m.layers[2].month != store.Someday {
-		t.Errorf("someday should be reachable while sweeping: %v", titles(m))
+	// It opens on the current month. Which month is "closing" depends on whether you
+	// sweep on the 30th or the 10th, so landing somewhere predictable beats landing
+	// somewhere clever that is sometimes wrong.
+	if m.layer().month != store.ThisMonth() {
+		t.Errorf("sweep should open on the current month, got %q", m.layer().month)
 	}
-	if m.items()[0].Text != "left over from july" {
+	if m.items()[0].Text != "dumped this month" {
 		t.Errorf("items = %v", texts(m))
 	}
 }
@@ -383,5 +389,23 @@ func TestTabsCycle(t *testing.T) {
 	}
 	if !m.layer().isTray() {
 		t.Error("l all the way round should land back on the tray")
+	}
+}
+
+// --month puts a month further back in the closing tab, so a sweep you skipped is
+// still reachable without hand-editing.
+func TestSweepNamedMonthReplacesTheClosingTab(t *testing.T) {
+	sandbox(t)
+	garage(t, "2026-05", "- ancient history")
+
+	m := NewSweep("2026-05")
+	if m.layers[0].month != "2026-05" {
+		t.Errorf("first tab = %q, want the named month", m.layers[0].month)
+	}
+	if m.layer().month != store.ThisMonth() {
+		t.Errorf("it should still open on the current month, got %q", m.layer().month)
+	}
+	if got := keys(m, "h").(Model); got.items()[0].Text != "ancient history" {
+		t.Errorf("h should reach the named month, got %v", texts(got))
 	}
 }

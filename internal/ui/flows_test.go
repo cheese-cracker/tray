@@ -248,24 +248,39 @@ func TestFlowEscClearsTheFilterBeforeItQuits(t *testing.T) {
 }
 
 // T11 · `tray carryover` opens the same interface with the months as tabs, because
-// that ritual is the one time the months matter more than the tray. Decision 28.
+// that ritual is the one time the months matter more than the tray. It opens on the
+// current month: which month is "closing" depends on whether you sweep on the 30th or
+// the 10th, so there is nothing honest to guess.
 func TestFlowSweepOpensTheMonthsAsTabs(t *testing.T) {
 	sandbox(t, "- [ ] on the tray priority:M")
 	garage(t, "2026-07", "- left over from july")
 	garage(t, "2026-08", "- dumped this month")
 
-	u := drive(t, NewSweep("2026-07")).waitFor("left over from july")
+	u := drive(t, NewSweep("2026-07")).waitFor("dumped this month")
 	m := u.press("q").final()
 
-	if m.layer().month != "2026-07" {
-		t.Errorf("the sweep should open on the closing month, got %q", m.layer().month)
+	if m.layer().month != "2026-08" {
+		t.Errorf("the sweep should open on the current month, got %q", m.layer().month)
 	}
+	var months []string
 	for _, tab := range m.layers {
 		if tab.isTray() {
 			t.Error("the tray does not get a tab during the sweep")
 		}
+		months = append(months, tab.month)
+	}
+	want := []string{"2026-07", "2026-08", "2026-09", "someday"}
+	if strings.Join(months, " ") != strings.Join(want, " ") {
+		t.Errorf("tabs = %v, want %v", months, want)
 	}
 	hasNot(t, m.View(), "on the tray")
+
+	// The closing month is one `h` away, and it is a real tab, not a destination.
+	back := keys(m, "h").(Model)
+	if back.layer().month != "2026-07" {
+		t.Errorf("h should reach the closing month, got %q", back.layer().month)
+	}
+	has(t, back.View(), "left over from july")
 }
 
 // T12 · `?` is the only place some keys are named, so it has to open, list them, and

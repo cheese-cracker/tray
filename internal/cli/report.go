@@ -43,27 +43,33 @@ func table(rows [][]string, headers []string) string {
 	return strings.Join(out, "\n")
 }
 
+// mark rides on the id, so a finished line is never mistaken for work still to do —
+// which matters most on the garage, where --all is the only way to see one at all.
+func mark(t core.Task) string {
+	switch {
+	case t.Done:
+		return "✓"
+	case t.Dropped:
+		return "✗"
+	case !t.Parsed():
+		return "?"
+	default:
+		return ""
+	}
+}
+
 func trayTable(items []core.Task, today time.Time) string {
 	if len(items) == 0 {
 		return "tray empty"
 	}
 	var rows [][]string
 	for n, t := range items {
-		mark := ""
-		switch {
-		case t.Done:
-			mark = "✓"
-		case t.Dropped:
-			mark = "✗"
-		case !t.Parsed():
-			mark = "?"
-		}
 		urgency := "—"
 		if t.Parsed() {
 			urgency = fmt.Sprintf("%.1f", core.Urgency(t, today))
 		}
 		rows = append(rows, []string{
-			fmt.Sprintf("%d%s", n+1, mark), urgency,
+			fmt.Sprintf("%d%s", n+1, mark(t)), urgency,
 			dash(t.Priority()), dash(core.Day(t.Attrs["due"])), text(t),
 		})
 	}
@@ -80,7 +86,8 @@ func garageTable(items []core.Task, month string) string {
 		for _, g := range t.Tags {
 			tags = append(tags, "+"+g)
 		}
-		rows = append(rows, []string{fmt.Sprint(n + 1), text(t), strings.Join(tags, " ")})
+		rows = append(rows, []string{
+			fmt.Sprintf("%d%s", n+1, mark(t)), text(t), strings.Join(tags, " ")})
 	}
 	return table(rows, []string{"ID", "DESCRIPTION", "TAGS"})
 }
@@ -204,8 +211,11 @@ func text(t core.Task) string {
 	return strings.TrimSpace(t.Raw)
 }
 
+// --all is the one switch for "show me what I finished too", on either layer. It
+// used to be aliased to `dense`, so the tray table quietly included finished work
+// while the garage could never show it at all.
 func cmdReport(req request, dense bool) (string, error) {
-	_, items, err := view(req, dense)
+	_, items, err := view(req, req.opts.all)
 	if err != nil {
 		return "", err
 	}

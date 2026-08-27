@@ -126,7 +126,7 @@ tray | grep -q "Dead idea" && bad "dropped item still in the default report" \
 
 # --- F7 · unload, twice ------------------------------------------------------
 head_ "F7 · unload is idempotent"
-tray unload >/dev/null
+tray unload --to 2026-08 >/dev/null
 has 2026-08.md "~~Renew the passport~~" && has 2026-08.md "done:2026-08-07" \
   && pass "done items land struck and dated" || bad "done item lost its strike"
 has 2026-08.md "priority:H" && pass "open items keep their attrs" || bad "attrs dropped"
@@ -134,7 +134,7 @@ has 2026-08.md "priority:H" && pass "open items keep their attrs" || bad "attrs 
   && pass "tray emptied" || bad "tray not empty"
 head -1 "$TRAY_HOME/tray.md" | grep -q "^# tray$" && pass "header survives" || bad "header lost"
 cp "$TRAY_HOME/2026-08.md" "$TRAY_HOME/.snap"
-tray unload >/dev/null
+tray unload --to 2026-08 >/dev/null
 diff -q "$TRAY_HOME/.snap" "$TRAY_HOME/2026-08.md" >/dev/null \
   && pass "second unload is a no-op" || bad "second unload rewrote the month"
 teardown
@@ -144,13 +144,22 @@ head_ "F8 · carryover copies forward"
 setup
 TRAY_TODAY=2026-07-15 tray dump July leftover one >/dev/null
 TRAY_TODAY=2026-07-15 tray dump July leftover two >/dev/null
-TRAY_TODAY=2026-07-15 tray dump July third thing >/dev/null
-tray carryover --all >/dev/null
+TRAY_TODAY=2026-07-15 tray dump 'July dated thing due:2026-07-20' >/dev/null
+tray add 'still working on this' pri:H >/dev/null
+tray carryover --run --month 2026-07 >/dev/null
 has 2026-08.md "- July leftover one" && pass "copied into August" || bad "not copied"
 has 2026-07.md "July leftover one → 2026-08" && pass "source annotated" || bad "source clean"
 [ "$(count 2026-07.md 'July leftover one')" = "1" ] \
   && pass "source kept exactly once" || bad "source duplicated"
-out=$(tray carryover --all)
+has tray.md "still working on this" \
+  && pass "the tray is left alone — unload is its own ritual" \
+  || bad "carryover emptied the tray behind your back"
+has 2026-08.md "July dated thing" && ! has 2026-08.md "due:2026-07-20" \
+  && pass "a due date that already passed is not carried" \
+  || bad "carried a stale due:\n$(cat "$TRAY_HOME/2026-08.md")"
+has 2026-07.md "due:2026-07-20" \
+  && pass "the source still records what the date was" || bad "source lost the date"
+out=$(tray carryover --run --month 2026-07)
 case $out in *"nothing to carry"*) pass "second run finds nothing live" ;; *) bad "got: $out" ;; esac
 
 # --- F9 · hand-edit tolerance ------------------------------------------------
@@ -165,7 +174,7 @@ head_ "F9 · one document, two hands"
 cp "$TRAY_HOME/2026-08.md" "$TRAY_HOME/.snap"
 tray add Something else pri:M >/dev/null
 tray dump another line >/dev/null
-tray unload >/dev/null
+tray unload --to 2026-08 >/dev/null
 grep -q "this paragraph is mine and must survive" "$TRAY_HOME/2026-08.md" \
   && pass "prose survives a write cycle" || bad "prose lost"
 grep -q "a star bullet with weird: punctuation" "$TRAY_HOME/2026-08.md" \
@@ -190,14 +199,17 @@ tray +nope list | grep -q Exportable && bad "+tag filter matched wrongly" \
   || pass "non-matching tag excludes"
 tray --json list | valid_json && pass "--json on a report" || bad "--json broken"
 
-# --- F12 · status --nag ------------------------------------------------------
-head_ "F12 · the nag"
+# --- F12 · status ------------------------------------------------------------
+head_ "F12 · status names the month left behind"
 tray dump to:2026-06 stale June thing >/dev/null
-out=$(TRAY_TODAY=2026-06-20 tray status --nag)
-[ -z "$out" ] && pass "silent inside the month" || bad "nagged early: $out"
-out=$(tray status --nag)
-case $out in *2026-06*unresolved*carryover*) pass "nags once the month turns" ;;
-  *) bad "no nag: $out" ;; esac
+out=$(TRAY_TODAY=2026-06-20 tray status)
+case $out in *unresolved*) bad "warned inside the month: $out" ;; *) pass "quiet inside the month" ;; esac
+out=$(tray status)
+case $out in *2026-06*unresolved*carryover*--run*--month*)
+  pass "names the month, and the command that fixes it" ;;
+  *) bad "no warning: $out" ;; esac
+case $out in *"tray:"*live*) pass "and still says where you stand" ;; *) bad "no summary: $out" ;; esac
+tray status --nag >/dev/null 2>&1 && bad "--nag should be gone" || pass "--nag is gone"
 
 # --- F13 · print -------------------------------------------------------------
 head_ "F13 · the default view is the print, with ids"
@@ -263,7 +275,7 @@ tray dump finish the migration >/dev/null
 tray garage 1 take pri:H due:2026-08-20 +work >/dev/null
 tray garage 1 take pri:L >/dev/null
 tray 1 done >/dev/null
-tray unload >/dev/null
+tray unload --to 2026-08 >/dev/null
 
 [ "$(count 2026-08.md 'ship the release notes')" = "1" ] \
   && pass "one line home, not a copy beside the one it left" \
@@ -284,9 +296,22 @@ has 2026-08.md "from:" && bad "from: is noise on a line that lives here" \
 teardown
 
 
-# F17 and F18 lived here: they drove the fzf keymap and gum's pickers, both of
-# which the Go rewrite replaces. bubbletea's own harness covers that ground once
-# the TUI lands; until then the interface has no automated cover, deliberately.
+# Two flows here once drove the fzf keymap and gum's pickers. Both are gone: `/`
+# is in-process now and the month picker is bubbletea. The interface is covered by
+# the teatest flows in internal/ui — see FLOWS.md.
+
+# --- F18 · nothing is inferred headlessly -------------------------------------
+head_ "F18 · nothing is inferred headlessly"
+setup
+tray carryover >/dev/null 2>&1 && bad "bare carryover should fail when piped" \
+  || pass "bare carryover refuses without a terminal"
+tray carryover --run >/dev/null 2>&1 && bad "--run should need a month" \
+  || pass "--run refuses to guess the month"
+tray unload >/dev/null 2>&1 && bad "bare unload should fail when piped" \
+  || pass "unload refuses to guess the month"
+tray garage list --nope >/dev/null 2>&1 && bad "an unknown flag was swallowed" \
+  || pass "an unknown flag is an error, not a silence"
+teardown
 
 printf '\n'
 [ "$fail" = 0 ] && printf '\033[32mtray flows pass\033[0m\n' || printf '\033[31mtray flows FAILED\033[0m\n'

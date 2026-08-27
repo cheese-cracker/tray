@@ -37,18 +37,21 @@ const usage = `tray — two layers of markdown. Dump to the garage, take onto th
   tray 1 done  ·  tray 3 drop  ·  tray 2,5-7 done
   tray 2 modify pri:M                exact, scriptable form of retake
   tray 2 edit <new text>  ·  tray edit      one line, or the file in $EDITOR
-  tray unload [--to 2026-09]         hand the tray back to the garage
-  tray carryover --all               closing month → next
-  tray carryover --draft             ... then hand-edit next month
-  tray garage list  ·  tray +infra list
+  tray unload --to 2026-09           hand the tray back to a month, whole
+  tray unload                        ... picks the month on a terminal
+  tray carryover                     the sweep: prev · this · next · someday
+  tray carryover --run --month 2026-08     ... headless; the month is required
+  tray carryover --draft --month 2026-08   ... then hand-edit the target
+  tray garage list  ·  tray +infra list  ·  tray list --all (with the finished)
   tray find <text>                   every layer, every month — repeats are rot
-  tray print  ·  tray export  ·  tray status [--nag]
+  tray print  ·  tray export  ·  tray status
 
 Filters: bare ids (3, 2,5-7), +tag, and ` + "`garage`" + ` to switch layer.`
 
 type options struct {
-	json, all, draft, nag, help, version bool
+	json, all, run, draft, help, version bool
 	month, to                            string
+	unknown                              []string // rejected, not ignored
 }
 
 var valueFlags = map[string]bool{"--month": true, "--to": true}
@@ -63,10 +66,10 @@ func takeFlags(args []string) (options, []string) {
 			opts.json = true
 		case arg == "--all":
 			opts.all = true
+		case arg == "--run":
+			opts.run = true
 		case arg == "--draft":
 			opts.draft = true
-		case arg == "--nag":
-			opts.nag = true
 		case arg == "--help" || arg == "-h":
 			opts.help = true
 		case arg == "--version":
@@ -80,6 +83,8 @@ func takeFlags(args []string) (options, []string) {
 				opts.to = args[i+1]
 			}
 			i++
+		case strings.HasPrefix(arg, "--"):
+			opts.unknown = append(opts.unknown, arg)
 		default:
 			rest = append(rest, arg)
 		}
@@ -137,8 +142,9 @@ func parse(args []string) request {
 func merge(into *options, from options) {
 	into.json = into.json || from.json
 	into.all = into.all || from.all
+	into.run = into.run || from.run
+	into.unknown = append(into.unknown, from.unknown...)
 	into.draft = into.draft || from.draft
-	into.nag = into.nag || from.nag
 	into.help = into.help || from.help
 	into.version = into.version || from.version
 	if from.month != "" {
@@ -160,6 +166,10 @@ func Run(args []string) int {
 	if req.opts.version {
 		fmt.Println("tray " + Version)
 		return 0
+	}
+	if len(req.opts.unknown) > 0 {
+		fmt.Fprintln(os.Stderr, "tray: unknown flag "+strings.Join(req.opts.unknown, " "))
+		return 2
 	}
 
 	out, err := dispatch(req)
@@ -224,8 +234,8 @@ func view(req request, everything bool) (*store.Doc, []core.Task, error) {
 			return nil, nil, err
 		}
 		var items []core.Task
-		for _, t := range doc.Live() {
-			if t.Parsed() && matches(t, req.filters) {
+		for _, t := range doc.Tasks() {
+			if t.Parsed() && (everything || t.Live()) && matches(t, req.filters) {
 				items = append(items, t)
 			}
 		}

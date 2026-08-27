@@ -33,14 +33,33 @@ func layers(sweep bool, closing string) []layer {
 			{title: monthTitle(this), month: this},
 		}
 	}
-	if closing == "" {
-		closing = store.PrevMonth(this)
+	// Four months and no tray. `--month` replaces the closing tab so a month further
+	// back is still reachable; without it the tab is simply the previous one.
+	prev := store.PrevMonth(this)
+	if closing != "" {
+		prev = closing
 	}
-	out := []layer{{title: monthTitle(closing), month: closing}}
-	if closing != this {
+	out := []layer{{title: monthTitle(prev), month: prev}}
+	if prev != this {
 		out = append(out, layer{title: monthTitle(this), month: this})
 	}
-	return append(out, layer{title: store.Someday, month: store.Someday})
+	next := store.NextMonth(this)
+	return append(out,
+		layer{title: monthTitle(next), month: next},
+		layer{title: store.Someday, month: store.Someday})
+}
+
+// sweepStart is the tab the sweep opens on: the current month, always. Which month is
+// "closing" depends on whether you sweep on the 30th or the 10th, so there is no
+// honest way to guess it — and landing somewhere predictable beats landing somewhere
+// clever that is sometimes wrong.
+func sweepStart(tabs []layer) int {
+	for i, l := range tabs {
+		if l.month == store.ThisMonth() {
+			return i
+		}
+	}
+	return 0
 }
 
 func monthTitle(month string) string {

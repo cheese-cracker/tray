@@ -13,7 +13,7 @@ kept rather than deleted; a decision log that only shows the winners can't be au
 | 4 | Keep TW's field names and urgency coefficients | `tray export \| task import` stays a one-way hatch | live |
 | 5 | **Nothing is ever deleted.** `done`/`drop` strike through in place | The file is the record; that's what makes `find` a rot detector | live |
 | 6 | Copy-forward with an arrow: the source line stays, annotated `→ 2026-09` | Month files stay a record, and nothing can move twice | live |
-| 7 | take · hand back · carry forward are **one operation** | Three rituals were three code paths for the same move | live |
+| 7 | take · hand back · carry forward are **one operation** | Three rituals were three code paths for the same move | live — but see 71: sharing the *move* is not sharing the *command* |
 | 8 | Ids are positional and ephemeral, never stored | A hand-edit can then never desync them | live |
 | 9 | `project` dropped; **tags are the only axis** | One dimension, nothing to decide twice | live |
 | 10 | Someday and old months have no tab | Reachable via `>`; they don't earn standing room | live |
@@ -45,7 +45,7 @@ kept rather than deleted; a decision log that only shows the winners can't be au
 | 25 | `retake` is **one form, every field prefilled** | Only what you touch changes; no wizard | live |
 | 26 | `d` hands back to the garage, `D` deletes | Your mapping | live |
 | 27 | `D` strikes through rather than removing the line | Consistent with 5. Flagged as overridable | live |
-| 28 | Two tabs day to day; **`tray carryover` opens the months as tabs** | The sweep is the one ritual that's about months | live |
+| 28 | Two tabs day to day; **`tray carryover` opens the months as tabs** | The sweep is the one ritual that's about months | live, widened by 73 |
 | 28a | Tabs **cycle** at either end | With two or three tabs, stopping just makes you reach for the other key | live |
 | 29 | Tags are picked from a closed list, never typed | Feared vocabulary sprawl | **reversed → 30** |
 | 30 | **Tags are typed**; the ones in use show as a hint | A picker was friction for the rarer case of a new tag | live |
@@ -145,3 +145,24 @@ unloading. Both promises TRAY.md makes about `unload` were false on that path.
 | 68 | Coming home **reclaims** the departed line — it writes the task's current state onto it, rather than restoring what the line used to say | 34b was right that the line must come home rather than be copied, but `Revive` restored the *garage's* old text. So a task finished on the tray came home **open**, and every carryover after that carried completed work forward again. Open ones came home bare, so "taking them again is free" was false too | live |
 | 68a | `from:` is dropped on the way home | It records which month a task graduated from; on a line living in that month it is tautology. The exact inverse of what take adds | live |
 | 68b | F7 passed throughout | Its tray never came from the month it unloaded into, so it only ever exercised the copy path, where nothing was wrong. F17 is the round trip — dump here, take, hand back — which is the common case and was untested | live |
+
+## The month turn
+
+Designed by running the tool for real: two checklists dumped into two months, then
+asking what the turn actually looks like. Almost every question turned out to be about
+what is *guessed*.
+
+| # | Decision | Why | Status |
+|---|---|---|---|
+| 69 | **The closing month is not a fact about the calendar** | Sweeping August into September is the same job on Aug 30, when August is current, and on Sep 10, when it is previous. No date offset gets both, so nothing infers it | live |
+| 70 | `carryover --run` **requires `--month`** | The one rule that cannot cascade. "Oldest month with live lines" is right until you run it twice — the second run marches the month you just carried *into* forward again | live |
+| 71 | `carryover` **no longer drains the tray** | It used to unload the whole tray into the closing month first. Run mid-August that meant a fabricated `2026-07.md` holding your live work. Two rituals, two names, run in order | live |
+| 72 | `unload` **requires `--to`**, picks it on a terminal, errors when piped | Emptying the tray is the largest single action here. Decision 20 says a bare command on a terminal is a UI and 34 says the CLI must not prompt — a picker on a TTY and an error otherwise is both at once | live |
+| 73 | The sweep is **four tabs**: prev · this · next · someday | You need somewhere to put things as much as somewhere to take them from. `--month` replaces the closing tab, so a month you skipped stays reachable | live |
+| 73a | It opens on **this** month, always | Landing somewhere predictable beats landing somewhere clever that is sometimes wrong — and by 69, "clever" has nothing honest to aim at | live |
+| 73b | The `garage ·` prefix is dropped in the sweep | It earns its place next to "tray" and nowhere else. Four prefixed labels also overflow an eighty-column terminal | live |
+| 74 | **Quitting the sweep carries nothing**, and the docs now say so | The docs claimed otherwise for as long as the sweep has existed. Triage and carry are separate acts; the sweep is the first | live |
+| 75 | A **due date that has already passed is not carried forward** | Carrying a line forward is admitting the date did not hold. Keeping it means every re-take starts overdue and urgency is junk. The source line keeps it | live |
+| 76 | **`--nag` deleted** | Nothing ever ran it. It was built to live in a shell profile, super-utils' installer is gone, and `tray install` is not written — so it was a nag you had to remember to trigger. `tray status` carries the warning until something can install it | live |
+| 77 | **`--all` means one thing everywhere**: show the finished too | It was aliased to `dense`, so the tray table quietly included finished work while the garage could never show it at all. `carryover` uses `--run` now | live |
+| 77a | An unknown `--flag` is an **error** | `garage list --all` was silently swallowed, which is how 77 went unnoticed. Unknown flags fell into the filter list and vanished | live |

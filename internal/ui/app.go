@@ -107,6 +107,10 @@ func start(m Model) Model {
 	m.help.FullSeparator = "   "
 
 	m.reload() // no filter can be set yet, so there is no command to run
+	if m.sweep {
+		m.active = sweepStart(m.layers)
+		m.reload()
+	}
 	return m
 }
 

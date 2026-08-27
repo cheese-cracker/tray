@@ -5,6 +5,8 @@ is one line in [DECISIONS.md](DECISIONS.md).
 
 ## Next
 
+- [ ] **`tray install`** — the nag has no home until this exists. See below.
+
 - [ ] **`bubbles/textinput` in the retake form** — 18a called hand-rolled text editing
   the thin ice and it still is: no cursor, no word motions, no paste. The blocker is
   that `←`/`→` on the `due` field shift by a day, which a text input would claim for
@@ -16,6 +18,9 @@ is one line in [DECISIONS.md](DECISIONS.md).
   prompts, `--yes` for headless): PATH check, binary placement, shell init block. Lands
   behind a runtime feature flag (`internal/feature`, env + config), which is why that
   package doesn't exist yet — nothing to gate until this does.
+  - it is also the only thing that would make a turn-of-the-month reminder work.
+    `--nag` was deleted because nothing ever ran it; `tray status` carries the warning
+    until something can put it in a shell profile.
 
 ## Later
 
