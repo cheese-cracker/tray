@@ -327,9 +327,13 @@ tray add 'third thing' pri:L >/dev/null
 tray add 'fourth thing' pri:L >/dev/null
 
 out=$(tray head)
-[ "$(printf '%s' "$out" | grep -c .)" = "4" ] \
-  && pass "one heading and three rows by default" || bad "got:\n$out"
-case $out in "tray · 3 of 4"*) pass "says how much it is not showing" ;; *) bad "heading: $out" ;; esac
+[ "$(printf '%s' "$out" | grep -c .)" = "5" ] \
+  && pass "a framed box of three rows by default" || bad "got:\n$out"
+case $out in "╭─ tray "*) pass "titled top edge" ;; *) bad "no title: $out" ;; esac
+case $out in *"╰─"*) pass "and it closes" ;; *) bad "unclosed box: $out" ;; esac
+case $out in *"of 4"*) bad "a count was asked to go: $out" ;; *) pass "no count" ;; esac
+printf '%s' "$out" | grep -q "$(printf '\033')" \
+  && bad "escape codes survived a pipe" || pass "plain when piped, coloured on a terminal"
 case $out in *"3d over"*) pass "a date already past reads as overdue" ;;
   *) bad "an overdue task must not read as upcoming:\n$out" ;; esac
 case $out in *tomorrow*) pass "and a near one reads as near" ;; *) bad "no relative date:\n$out" ;; esac
@@ -337,7 +341,12 @@ case $out in *[0-9][0-9].[0-9]*) bad "urgency numbers are noise here: $out" ;;
   *) pass "no urgency figures" ;; esac
 
 out=$(tray head 2)
-[ "$(printf '%s' "$out" | grep -c .)" = "3" ] && pass "the count is honoured" || bad "got:\n$out"
+[ "$(printf '%s' "$out" | grep -c .)" = "4" ] && pass "the count is honoured" || bad "got:\n$out"
+
+tray add 'a task with a description far too long to fit inside any sensible terminal window at all' pri:H due:2026-08-01 >/dev/null
+out=$(tray head 1)
+longest=$(printf '%s' "$out" | awk '{ print length }' | sort -rn | head -1)
+[ "$longest" -le 80 ] && pass "clamps to the terminal (80 when piped)" || bad "line was $longest wide"
 out=$(tray +nope head)
 [ -z "$out" ] && pass "a filter that matches nothing is silent too" || bad "printed: $out"
 teardown

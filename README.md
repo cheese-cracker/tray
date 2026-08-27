@@ -294,11 +294,16 @@ when the tray is empty, so a fresh terminal costs nothing on a clear day.
 ```
 
 ```
-tray · 3 of 5
-  H  I'll discuss a deposit with Vishal.           3d over
-  H  Wire the transfer money to carta              Mon
-  M  Reach out to the people mentioned by Prannay  3d over
+╭─ tray ───────────────────────────────────────────────────╮
+│ H  I'll discuss a deposit with Vishal.           3d over │
+│ H  Wire the transfer money to carta                  Mon │
+│ M  Reach out to the people mentioned by Prannay  3d over │
+╰──────────────────────────────────────────────────────────╯
 ```
+
+Rows are tinted by priority — H red, M amber, L blue — with overdue in red and every
+other date faint. Piped, it is the plain box above and nothing else, so `tray head` is
+still safe to read from a script.
 
 No ids and no urgency figures — you can't act on an id you didn't ask for, and the
 number means nothing at a glance. Dates are relative, because a task due last Monday

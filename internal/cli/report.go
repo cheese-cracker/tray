@@ -6,7 +6,10 @@ import (
 
 	"encoding/json"
 	"fmt"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/term"
+
+	"github.com/cheese-cracker/tray/internal/style"
 	"sort"
 	"strings"
 	"time"
@@ -256,13 +259,12 @@ func cmdFind(req request) (string, error) {
 	return findReport(store.Grep(needle)), nil
 }
 
-// head is the terminal-header report: the top of the tray, compactly, and nothing at
-// all when there is nothing on it.
+// head is the terminal-header report: the top of the tray, and nothing at all when
+// there is nothing on it.
 //
 // It exists because a shell profile runs it on every new terminal. That changes what
 // good output is — ids you didn't ask for are clutter, an urgency figure is noise at a
-// glance, and a "nothing to do" line is one you stop reading in a week. So it prints
-// three things and stays silent otherwise.
+// glance, and a "nothing to do" line is one you stop reading in a week.
 func cmdHead(req request) (string, error) {
 	_, items, err := view(request{scope: "tray", filters: req.filters}, false)
 	if err != nil {
@@ -285,27 +287,45 @@ func cmdHead(req request) (string, error) {
 
 	today := store.Today()
 	whens := make([]string, len(shown))
-	width := 0
+	textW, whenW := 0, 0
 	for i, t := range shown {
 		whens[i] = when(t.Attrs["due"], today)
-		if w := len([]rune(text(t))); w > width {
-			width = w
-		}
+		textW = max(textW, lipgloss.Width(text(t)))
+		whenW = max(whenW, lipgloss.Width(whens[i]))
 	}
-	if room := headRoom() - 9; width > room { // "  H  " plus the widest when
-		width = room
+	// 1 letter + 2 + text + 2 + when, inside a border and a space either side.
+	if over := (1 + 2 + textW + 2 + whenW + 4) - headRoom(); over > 0 {
+		textW = max(12, textW-over)
 	}
 
-	head := fmt.Sprintf("tray · %d", len(shown))
-	if len(shown) < len(items) {
-		head = fmt.Sprintf("tray · %d of %d", len(shown), len(items))
-	}
-	lines := []string{head}
+	rows := make([]string, len(shown))
 	for i, t := range shown {
-		lines = append(lines, strings.TrimRight(fmt.Sprintf("  %s  %-*s  %s",
-			letter(t), width, clip(text(t), width), whens[i]), " "))
+		tint := lipgloss.NewStyle().Foreground(style.Priority(t.Priority()))
+		rows[i] = tint.Bold(true).Render(letter(t)) + "  " +
+			tint.Render(fill(clip(text(t), textW), textW)) + "  " +
+			whenStyle(whens[i]).Render(rightFill(whens[i], whenW))
 	}
-	return strings.Join(lines, "\n"), nil
+	return box("tray", rows, 1+2+textW+2+whenW), nil
+}
+
+// box is hand-drawn rather than lipgloss's border, because the title sits *in* the
+// top edge and splicing it into an already-coloured border is guesswork about where
+// the escape codes fall.
+func box(title string, rows []string, inner int) string {
+	edge := lipgloss.NewStyle().Foreground(style.Accent)
+	name := lipgloss.NewStyle().Foreground(style.Accent).Bold(true)
+
+	top := edge.Render("╭" + strings.Repeat("─", inner+2) + "╮")
+	if fillW := inner - lipgloss.Width(title) - 1; fillW >= 0 {
+		top = edge.Render("╭─ ") + name.Render(title) +
+			edge.Render(" "+strings.Repeat("─", fillW)+"╮")
+	}
+	out := []string{top}
+	for _, row := range rows {
+		out = append(out, edge.Render("│")+" "+row+" "+edge.Render("│"))
+	}
+	return strings.Join(append(out,
+		edge.Render("╰"+strings.Repeat("─", inner+2)+"╯")), "\n")
 }
 
 // An unset priority reads as medium (decision 32), but writing "M" would claim you
@@ -337,6 +357,33 @@ func when(due string, today time.Time) string {
 	default:
 		return d.Format(core.DateLayout)
 	}
+}
+
+// Overdue is the only thing here allowed to shout.
+func whenStyle(w string) lipgloss.Style {
+	switch {
+	case strings.HasSuffix(w, "over"):
+		return lipgloss.NewStyle().Foreground(style.High).Bold(true)
+	case w == "today" || w == "tomorrow":
+		return lipgloss.NewStyle().Foreground(style.Medium)
+	default:
+		return lipgloss.NewStyle().Foreground(style.Subtle)
+	}
+}
+
+func fill(s string, width int) string {
+	if pad := width - lipgloss.Width(s); pad > 0 {
+		return s + strings.Repeat(" ", pad)
+	}
+	return s
+}
+
+// Dates read as a column of deadlines, so they line up on the right.
+func rightFill(s string, width int) string {
+	if pad := width - lipgloss.Width(s); pad > 0 {
+		return strings.Repeat(" ", pad) + s
+	}
+	return s
 }
 
 func clip(s string, width int) string {

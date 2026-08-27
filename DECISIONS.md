@@ -174,4 +174,8 @@ what is *guessed*.
 | 78 | `tray head [n]` is its own report, not `list \| head` | A shell profile runs it on every terminal, which changes what good output is: ids you didn't ask for are clutter, and the urgency figure is noise at a glance | live |
 | 78a | **Silent on an empty tray** | A header that says "nothing to do" is one you stop reading in a week, and a clear day should cost a new terminal nothing | live |
 | 78b | Dates are **relative**, and the past says so | `Mon` for a task due last Monday reads as upcoming. Getting that wrong in a header is worse than omitting the date | live |
+| 78d | The header is a **titled box**, rows tinted by priority | Your call over my recommendation: I argued a rule was quieter for something seen fifty times a day, you wanted the frame. It matches the TUI's own pane, which is the better consistency argument | live |
+| 78e | The box is **hand-drawn**, not `lipgloss.Border` | The title sits *in* the top edge, and splicing it into an already-coloured border is guesswork about where the escape codes fall | live |
+| 78f | No count in the title | It was answering a question nobody asks at a prompt | live |
+| 78g | `internal/style` holds the palette | The header and the TUI are drawn by different packages. Two copies of the accent colour is a drift waiting to happen | live |
 | 78c | An unset priority prints `·`, not `M` | 32 says unset *reads* as medium; printing the letter would claim you chose it | live |

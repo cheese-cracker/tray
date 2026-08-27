@@ -5,11 +5,13 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+
+	"github.com/cheese-cracker/tray/internal/style"
 )
 
 var (
-	accent = lipgloss.AdaptiveColor{Light: "#874BFD", Dark: "#7D56F4"}
-	subtle = lipgloss.AdaptiveColor{Light: "#909090", Dark: "#626262"}
+	accent = style.Accent
+	subtle = style.Subtle
 
 	titleStyle  = lipgloss.NewStyle().Bold(true)
 	faintStyle  = lipgloss.NewStyle().Foreground(subtle)
