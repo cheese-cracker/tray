@@ -1,8 +1,12 @@
 package cli
 
 import (
+	"os"
+	"strconv"
+
 	"encoding/json"
 	"fmt"
+	"github.com/charmbracelet/x/term"
 	"sort"
 	"strings"
 	"time"
@@ -250,4 +254,104 @@ func cmdFind(req request) (string, error) {
 		return "nothing to find", nil
 	}
 	return findReport(store.Grep(needle)), nil
+}
+
+// head is the terminal-header report: the top of the tray, compactly, and nothing at
+// all when there is nothing on it.
+//
+// It exists because a shell profile runs it on every new terminal. That changes what
+// good output is — ids you didn't ask for are clutter, an urgency figure is noise at a
+// glance, and a "nothing to do" line is one you stop reading in a week. So it prints
+// three things and stays silent otherwise.
+func cmdHead(req request) (string, error) {
+	_, items, err := view(request{scope: "tray", filters: req.filters}, false)
+	if err != nil {
+		return "", err
+	}
+	if len(items) == 0 {
+		return "", nil // an empty tray costs a new terminal nothing
+	}
+
+	n := 3
+	if len(req.tail) > 0 {
+		if want, err := strconv.Atoi(req.tail[0]); err == nil && want > 0 {
+			n = want
+		}
+	}
+	shown := items
+	if len(shown) > n {
+		shown = shown[:n]
+	}
+
+	today := store.Today()
+	whens := make([]string, len(shown))
+	width := 0
+	for i, t := range shown {
+		whens[i] = when(t.Attrs["due"], today)
+		if w := len([]rune(text(t))); w > width {
+			width = w
+		}
+	}
+	if room := headRoom() - 9; width > room { // "  H  " plus the widest when
+		width = room
+	}
+
+	head := fmt.Sprintf("tray · %d", len(shown))
+	if len(shown) < len(items) {
+		head = fmt.Sprintf("tray · %d of %d", len(shown), len(items))
+	}
+	lines := []string{head}
+	for i, t := range shown {
+		lines = append(lines, strings.TrimRight(fmt.Sprintf("  %s  %-*s  %s",
+			letter(t), width, clip(text(t), width), whens[i]), " "))
+	}
+	return strings.Join(lines, "\n"), nil
+}
+
+// An unset priority reads as medium (decision 32), but writing "M" would claim you
+// chose it. The dot says the column is empty without breaking the alignment.
+func letter(t core.Task) string {
+	if p := t.Priority(); p != "" {
+		return p
+	}
+	return "·"
+}
+
+// when is honest about the past. A task due last Monday rendered as "Mon" reads as
+// upcoming, which is the one thing a header must never get wrong.
+func when(due string, today time.Time) string {
+	d, ok := core.Date(due)
+	if !ok {
+		return ""
+	}
+	days := int(d.Sub(today).Hours() / 24)
+	switch {
+	case days < 0:
+		return fmt.Sprintf("%dd over", -days)
+	case days == 0:
+		return "today"
+	case days == 1:
+		return "tomorrow"
+	case days < 7:
+		return d.Format("Mon")
+	default:
+		return d.Format(core.DateLayout)
+	}
+}
+
+func clip(s string, width int) string {
+	r := []rune(s)
+	if len(r) <= width || width < 2 {
+		return s
+	}
+	return string(r[:width-1]) + "…"
+}
+
+// headRoom is the terminal's width, or a sane fallback when there isn't one — the
+// header is often the first thing a profile runs, before anything has a size.
+func headRoom() int {
+	if w, _, err := term.GetSize(os.Stdout.Fd()); err == nil && w > 20 {
+		return w
+	}
+	return 80
 }

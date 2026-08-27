@@ -96,6 +96,7 @@ Everything else is reading, finishing, or moving things between those two layers
 | `tray find <text>` | Every layer, every month at once. **A line that turns up in four months is a rot signal** — you get it free, with no counter to maintain. |
 | `tray print` | Plain `- [ ]` bullets grouped by tag, for pasting into a journal. No priority, no dates. |
 | `tray export` | JSON in Taskwarrior's import shape: `tray export \| task import` works. |
+| `tray head [n]` | The top few, compactly — for a shell profile. **Silent on an empty tray.** |
 | `tray list --all` | The finished lines too, `✓` done and `✗` dropped. Works on either layer. |
 | `tray status` | Where you stand, and any earlier month still holding live lines. |
 
@@ -281,6 +282,27 @@ urgency = 6.0·priority + 12.0·due_proximity + 1.0·tags − 2.0·age
 ```
 
 The Eisenhower view reads `urgent` as due within seven days and `important` as priority `H` or `M`.
+
+### In your shell
+
+`tray head` is built for a profile: it prints the top of the tray and **nothing at all**
+when the tray is empty, so a fresh terminal costs nothing on a clear day.
+
+```zsh
+# ~/.zshrc
+[[ -o interactive && -t 1 ]] && command -v tray >/dev/null && tray head
+```
+
+```
+tray · 3 of 5
+  H  I'll discuss a deposit with Vishal.           3d over
+  H  Wire the transfer money to carta              Mon
+  M  Reach out to the people mentioned by Prannay  3d over
+```
+
+No ids and no urgency figures — you can't act on an id you didn't ask for, and the
+number means nothing at a glance. Dates are relative, because a task due last Monday
+shown as `Mon` reads as upcoming, which is the one thing a header must not get wrong.
 
 ## Requirements
 

@@ -313,6 +313,35 @@ tray garage list --nope >/dev/null 2>&1 && bad "an unknown flag was swallowed" \
   || pass "an unknown flag is an error, not a silence"
 teardown
 
+# --- F19 · the terminal header ------------------------------------------------
+# Runs in a shell profile on every new terminal, so the empty case matters more
+# than the full one: it must cost a fresh terminal nothing at all.
+head_ "F19 · head is the terminal header"
+setup
+out=$(tray head)
+[ -z "$out" ] && pass "an empty tray prints nothing at all" || bad "printed: $out"
+
+tray add 'first thing' pri:H due:2026-08-04 >/dev/null
+tray add 'second thing' pri:M due:2026-08-08 >/dev/null
+tray add 'third thing' pri:L >/dev/null
+tray add 'fourth thing' pri:L >/dev/null
+
+out=$(tray head)
+[ "$(printf '%s' "$out" | grep -c .)" = "4" ] \
+  && pass "one heading and three rows by default" || bad "got:\n$out"
+case $out in "tray · 3 of 4"*) pass "says how much it is not showing" ;; *) bad "heading: $out" ;; esac
+case $out in *"3d over"*) pass "a date already past reads as overdue" ;;
+  *) bad "an overdue task must not read as upcoming:\n$out" ;; esac
+case $out in *tomorrow*) pass "and a near one reads as near" ;; *) bad "no relative date:\n$out" ;; esac
+case $out in *[0-9][0-9].[0-9]*) bad "urgency numbers are noise here: $out" ;;
+  *) pass "no urgency figures" ;; esac
+
+out=$(tray head 2)
+[ "$(printf '%s' "$out" | grep -c .)" = "3" ] && pass "the count is honoured" || bad "got:\n$out"
+out=$(tray +nope head)
+[ -z "$out" ] && pass "a filter that matches nothing is silent too" || bad "printed: $out"
+teardown
+
 printf '\n'
 [ "$fail" = 0 ] && printf '\033[32mtray flows pass\033[0m\n' || printf '\033[31mtray flows FAILED\033[0m\n'
 exit "$fail"

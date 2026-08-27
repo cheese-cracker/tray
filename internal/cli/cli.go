@@ -20,7 +20,7 @@ const Version = "0.2.0"
 
 var verbs = []string{
 	"init", "dump", "add", "take", "retake", "edit", "done", "drop", "modify",
-	"unload", "carryover", "list", "find", "print", "export", "status", "help",
+	"unload", "carryover", "list", "head", "find", "print", "export", "status", "help",
 }
 
 var idSpec = regexp.MustCompile(`^\d+([,-]\d+)*$`)
@@ -29,6 +29,7 @@ const usage = `tray — two layers of markdown. Dump to the garage, take onto th
 
   tray                              the tray, grouped by tag, ids on the left
   tray list                         the dense table: urgency, priority, due
+  tray head [n]                     the top few, compactly. Silent when empty
   tray dump <text>                  → this month's garage; the tail is literal
   tray dump to:2026-11 +infra <text>
   tray add <desc> pri:H due:2026-08-12
@@ -216,6 +217,8 @@ func dispatch(req request) (string, error) {
 		return cmdStatus(req)
 	case "list":
 		return cmdReport(req, true)
+	case "head":
+		return cmdHead(req)
 	default:
 		// Bare tray on a terminal is the interface; piped, it stays text so an
 		// agent can never be handed a UI.

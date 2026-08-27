@@ -166,3 +166,12 @@ what is *guessed*.
 | 76 | **`--nag` deleted** | Nothing ever ran it. It was built to live in a shell profile, super-utils' installer is gone, and `tray install` is not written — so it was a nag you had to remember to trigger. `tray status` carries the warning until something can install it | live |
 | 77 | **`--all` means one thing everywhere**: show the finished too | It was aliased to `dense`, so the tray table quietly included finished work while the garage could never show it at all. `carryover` uses `--run` now | live |
 | 77a | An unknown `--flag` is an **error** | `garage list --all` was silently swallowed, which is how 77 went unnoticed. Unknown flags fell into the filter list and vanished | live |
+
+## The terminal header
+
+| # | Decision | Why | Status |
+|---|---|---|---|
+| 78 | `tray head [n]` is its own report, not `list \| head` | A shell profile runs it on every terminal, which changes what good output is: ids you didn't ask for are clutter, and the urgency figure is noise at a glance | live |
+| 78a | **Silent on an empty tray** | A header that says "nothing to do" is one you stop reading in a week, and a clear day should cost a new terminal nothing | live |
+| 78b | Dates are **relative**, and the past says so | `Mon` for a task due last Monday reads as upcoming. Getting that wrong in a header is worse than omitting the date | live |
+| 78c | An unset priority prints `·`, not `M` | 32 says unset *reads* as medium; printing the letter would claim you chose it | live |

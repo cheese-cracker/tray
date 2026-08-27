@@ -44,6 +44,7 @@ suite rather than hanging it.
 | F16 | Every report runs headless without ever prompting | `F16 · headless` |
 | F17 | `unload` puts a task back on the line it left — finished ones struck through, open ones keeping what the tray gave them | `F17 · unload brings the tray home whole` |
 | F18 | Nothing is inferred headlessly: `carryover` and `unload` refuse to guess a month, and an unknown flag is an error rather than a silence | `F18 · nothing is inferred headlessly` |
+| F19 | `head` prints the top few compactly, says nothing at all on an empty tray, and never renders a past due date as an upcoming weekday | `F19 · head is the terminal header` |
 
 ## T · the terminal interface
 
