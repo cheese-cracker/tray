@@ -74,6 +74,7 @@ Everything else is reading, finishing, or moving things between those two layers
 | | |
 |---|---|
 | `tray 1 done` | Struck through in place, dated. Never moved, never deleted. |
+| `tray 2 restore` | Says it wasn't finished after all. Ids resolve against `tray list --all`, which is the view you read them from. |
 | `tray 3 drop` | Also terminal, but abandoned rather than finished. |
 | `tray 2,5-7 done` | Ranges, like Taskwarrior. |
 
@@ -158,6 +159,7 @@ handed a UI. Built with [bubbletea](https://github.com/charmbracelet/bubbletea),
 | `enter` | the action menu |
 | `a` `n` | add — a title alone in a garage tab, the whole form on the tray |
 | `/` | filter. Fuzzy, over the text and the tags; `esc` clears it |
+| `v` | show what you finished, `✓` done and `✗` dropped, struck through |
 | `g` `G` | first row, last row |
 | `?` | the full keymap. The footer carries the short version |
 | `q` `esc` | quit |
@@ -186,6 +188,7 @@ from the list — so the menu teaches itself out of a job.
 | `>` | move to | `x` | done, without ever reaching the tray |
 | `r` | retake | `r` | retake |
 | `D` | delete | `D` | delete |
+| `R` | restore — **only offered on a finished row** | `R` | restore |
 
 `>` **is the month sweep.** Open last month, mark what matters, and move it — to the
 tray, to next month, or to someday. Anything you leave is carried forward as usual.

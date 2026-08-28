@@ -18,6 +18,7 @@ var (
 	cursorStyle = lipgloss.NewStyle().Bold(true).Foreground(accent)
 	markStyle   = lipgloss.NewStyle().Foreground(accent)
 	keyStyle    = lipgloss.NewStyle().Bold(true).Foreground(accent)
+	doneStyle   = lipgloss.NewStyle().Foreground(subtle).Strikethrough(true)
 
 	// Tabs, as bubbletea's own tabs example does it: the active tab's bottom border
 	// is opened so it reads as one shape with the pane below.

@@ -32,6 +32,20 @@ func Finish(t *Task, as string, today time.Time) {
 	t.Dropped = as == "dropped"
 }
 
+// Restore is the inverse of Finish: the line stops being struck through and reads as
+// open again. Decision 5 is about never deleting a *line* — this deletes nothing, it
+// just says the thing was not finished after all.
+//
+// No trace is kept. The overwhelming reason to reach for this is a mis-key, and a
+// line stamped with every time you fumbled is worse than one that is simply correct.
+func Restore(t *Task) {
+	if t.Attrs != nil {
+		delete(t.Attrs, "done")
+		delete(t.Attrs, "dropped")
+	}
+	t.Done, t.Dropped = false, false
+}
+
 func setDefault(attrs map[string]string, key, value string) {
 	if attrs[key] == "" {
 		attrs[key] = value

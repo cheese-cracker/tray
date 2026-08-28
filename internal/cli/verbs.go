@@ -171,6 +171,32 @@ func cmdFinish(req request, as string) (string, error) {
 	return as + ": " + strings.Join(names, " · "), nil
 }
 
+// restore resolves ids against the same rows `list --all` prints, in the same order.
+// Numbering the finished ones separately would have been tidier to implement and a
+// trap to use: you read "2✓" off the screen and 2 would have meant something else.
+func cmdRestore(req request) (string, error) {
+	doc, items, err := view(req, true)
+	if err != nil {
+		return "", err
+	}
+	var names []string
+	for _, t := range store.Resolve(items, req.ids) {
+		if !t.Terminal() {
+			continue // already open; restoring it would be a no-op worth not claiming
+		}
+		core.Restore(&t)
+		doc.Set(t)
+		names = append(names, t.Text)
+	}
+	if len(names) == 0 {
+		return "nothing finished at those ids — tray list --all", nil
+	}
+	if err := doc.Save(); err != nil {
+		return "", err
+	}
+	return "restored: " + strings.Join(names, " · "), nil
+}
+
 func cmdModify(req request) (string, error) {
 	doc, items, err := view(req, false)
 	if err != nil {

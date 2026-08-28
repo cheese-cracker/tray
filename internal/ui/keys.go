@@ -36,6 +36,9 @@ func (m Model) keys() keyMap {
 		short = append(short, bind("t", "take"))
 	}
 	short = append(short, bind("/", "filter"), bind("?", "help"), bind("q", "quit"))
+	if m.showDone {
+		short = append([]key.Binding{bind("v", "hide done")}, short...)
+	}
 
 	// The action letters come from the layer, so the overlay teaches exactly the
 	// menu you would have got from enter.
@@ -54,7 +57,7 @@ func (m Model) keys() keyMap {
 		short: short,
 		full: [][]key.Binding{
 			{bind("j k", "move"), bind("g G", "top bottom"), bind("h l", "tab")},
-			{bind("space", "mark"), bind("enter", "act"), bind("a", "add")},
+			{bind("space", "mark"), bind("enter", "act"), bind("a", "add"), bind("v", "show done")},
 			acts,
 			filter,
 		},

@@ -43,6 +43,7 @@ var actions = []action{
 	{key: "r", label: "retake", tray: true, rest: true, apply: (*Model).openForm},
 	{key: "D", label: "delete", tray: true, rest: true,
 		apply: func(m *Model, p []core.Task) string { return m.finish(p, "dropped") }},
+	{key: "R", label: "restore", tray: true, rest: true, apply: (*Model).restore},
 }
 
 type Model struct {
@@ -59,13 +60,14 @@ type Model struct {
 	destAt int
 	form   *form
 
-	status  string
-	today   time.Time
-	err     error
-	sweep   bool   // the month-turn ritual: months get the tabs, not the tray
-	closing string // which month is being swept
-	width   int    // 0 until the terminal tells us, so the view must cope without
-	height  int
+	status   string
+	today    time.Time
+	err      error
+	showDone bool   // v: the finished rows are hidden until you ask for them
+	sweep    bool   // the month-turn ritual: months get the tabs, not the tray
+	closing  string // which month is being swept
+	width    int    // 0 until the terminal tells us, so the view must cope without
+	height   int
 }
 
 func New() Model {
@@ -149,7 +151,7 @@ func (m *Model) reload() tea.Cmd {
 	}
 	var live []core.Task
 	for _, t := range doc.Tasks() {
-		if t.Live() && t.Parsed() {
+		if t.Parsed() && (t.Live() || (m.showDone && t.Terminal())) {
 			live = append(live, t)
 		}
 	}
@@ -219,9 +221,22 @@ var order = map[bool][]string{
 	false: {"t", "r", ">", "x", "D"}, // a garage month
 }
 
+// A finished row is a record. The only sane thing to say about one is that it was not
+// finished after all, so that is the only thing offered — `x` on a done task or `d`
+// handing a done task back are either meaningless or quietly destructive.
 func (m Model) offered() []action {
+	if m.allFinished() {
+		for _, a := range actions {
+			if a.key == "R" {
+				return []action{a}
+			}
+		}
+	}
 	byKey := map[string]action{}
 	for _, a := range actions {
+		if a.key == "R" {
+			continue // reachable only on a finished row, above
+		}
 		if (m.layer().isTray() && a.tray) || (!m.layer().isTray() && a.rest) {
 			byKey[a.key] = a
 		}
@@ -233,6 +248,41 @@ func (m Model) offered() []action {
 		}
 	}
 	return out
+}
+
+// allFinished, not anyFinished: a mixed selection keeps the normal menu, because
+// there is no single sensible verb across both kinds.
+func (m *Model) allFinished() bool {
+	picked := m.picked()
+	if len(picked) == 0 {
+		return false
+	}
+	for _, t := range picked {
+		if !t.Terminal() {
+			return false
+		}
+	}
+	return true
+}
+
+func (m *Model) restore(picked []core.Task) string {
+	doc, err := m.layer().open()
+	if err != nil {
+		return err.Error()
+	}
+	n := 0
+	for _, t := range picked {
+		if !t.Terminal() {
+			continue
+		}
+		core.Restore(&t)
+		doc.Set(t)
+		n++
+	}
+	if err := doc.Save(); err != nil {
+		return err.Error()
+	}
+	return plural(n, "restored")
 }
 
 func (m Model) Init() tea.Cmd { return nil }
@@ -299,6 +349,9 @@ func (m Model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "?":
 		m.help.ShowAll = !m.help.ShowAll
 		m.resize()
+	case "v":
+		m.showDone = !m.showDone
+		return m, m.reload()
 	case "tab", "l", "right":
 		return m, m.switchTab(1)
 	case "shift+tab", "h", "left":

@@ -327,3 +327,59 @@ func TestFlowPasteIntoTheTitle(t *testing.T) {
 		t.Errorf("a pasted newline left the orphan line %q in:\n%s", line, tray)
 	}
 }
+
+// T14 · a finished task is invisible until you ask for it, and the only thing you can
+// say about one is that it wasn't finished after all.
+func TestFlowViewDoneThenRestore(t *testing.T) {
+	sandbox(t,
+		"- [ ] still open priority:H entry:2026-08-01",
+		"- [x] ~~done by mistake~~ priority:M entry:2026-08-02 done:2026-08-06",
+	)
+
+	u := drive(t, New()).waitFor("still open")
+	if got := len(u.press("q").final().items()); got != 1 {
+		t.Fatalf("a finished task should be hidden by default, saw %d rows", got)
+	}
+
+	u = drive(t, New()).waitFor("still open")
+	u.press("v").waitFor("done by mistake")
+	u.press("j").press("enter").waitFor("restore")
+	m := u.press("R").waitFor("1 restored").final()
+
+	tray := trayFile(t)
+	has(t, tray, "- [ ] done by mistake")
+	hasNot(t, tray, "~~done by mistake~~")
+	hasNot(t, tray, "done:2026-08-06")
+	has(t, tray, "priority:M") // restoring un-finishes it, it does not strip it
+	if got := len(m.items()); got != 2 {
+		t.Errorf("both should be live now, saw %d", got)
+	}
+}
+
+// T15 · the menu on a finished row offers restore and nothing else — `x` on a done
+// task or `d` handing one back are meaningless or quietly destructive.
+func TestFlowFinishedRowOffersOnlyRestore(t *testing.T) {
+	sandbox(t,
+		"- [ ] still open priority:H entry:2026-08-01",
+		"- [x] ~~already done~~ priority:M entry:2026-08-02 done:2026-08-06",
+	)
+
+	m := keys(New(), "v", "j").(Model)
+	offered := m.offered()
+	if len(offered) != 1 || offered[0].key != "R" {
+		var keys []string
+		for _, a := range offered {
+			keys = append(keys, a.key)
+		}
+		t.Errorf("a finished row offered %v, want just R", keys)
+	}
+	// The cursor back on a live row gets the normal menu again.
+	if got := len(keys(m, "k").(Model).offered()); got < 4 {
+		t.Errorf("a live row should keep its full menu, got %d actions", got)
+	}
+	// A mixed selection has no single sensible verb, so it keeps the normal menu.
+	mixed := keys(New(), "v", " ", "j", " ").(Model)
+	if mixed.allFinished() {
+		t.Error("a selection spanning both kinds is not all finished")
+	}
+}

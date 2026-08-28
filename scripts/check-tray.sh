@@ -351,6 +351,32 @@ out=$(tray +nope head)
 [ -z "$out" ] && pass "a filter that matches nothing is silent too" || bad "printed: $out"
 teardown
 
+# --- F20 · restore --------------------------------------------------------------
+# The ids must mean the same thing in the view you read them from. Numbering the
+# finished rows separately would be tidier to implement and a trap to use.
+head_ "F20 · restore says a task was not finished after all"
+setup
+tray add alpha pri:M >/dev/null
+tray add beta pri:M >/dev/null
+tray add gamma pri:M >/dev/null
+tray 2,3 done >/dev/null
+
+tray list | grep -q beta && bad "a finished task should be out of the default view" \
+  || pass "finished tasks are hidden by default"
+tray list --all | grep -q "2✓" && pass "--all shows them, marked" || bad "no mark: $(tray list --all)"
+
+tray 2 restore >/dev/null
+has tray.md "- [ ] beta" && pass "restore clears the checkbox" || bad "still done: $(cat "$TRAY_HOME/tray.md")"
+has tray.md "~~beta~~" && bad "strikethrough survived" || pass "and the strikethrough"
+has tray.md "priority:M" && pass "attributes are untouched" || bad "attrs lost"
+has tray.md "~~gamma~~" && pass "it restored the row you read as 2, not some other one" \
+  || bad "restored the wrong task: $(cat "$TRAY_HOME/tray.md")"
+
+out=$(tray 1 restore)
+case $out in *"nothing finished"*) pass "an open id says so rather than lying" ;;
+  *) bad "got: $out" ;; esac
+teardown
+
 printf '\n'
 [ "$fail" = 0 ] && printf '\033[32mtray flows pass\033[0m\n' || printf '\033[31mtray flows FAILED\033[0m\n'
 exit "$fail"

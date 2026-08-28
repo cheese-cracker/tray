@@ -179,3 +179,16 @@ what is *guessed*.
 | 78f | No count in the title | It was answering a question nobody asks at a prompt | live |
 | 78g | `internal/style` holds the palette | The header and the TUI are drawn by different packages. Two copies of the accent colour is a drift waiting to happen | live |
 | 78c | An unset priority prints `·`, not `M` | 32 says unset *reads* as medium; printing the letter would claim you chose it | live |
+
+## Undoing a finish
+
+Reported from use: two tasks went done when one was meant to.
+
+| # | Decision | Why | Status |
+|---|---|---|---|
+| 79 | `v` reveals the finished rows, struck through and marked `✓`/`✗` | They were unreachable from the TUI entirely — the only way to see one was `tray list --all` or opening the file | live |
+| 80 | A finished row offers **restore and nothing else** | The only sane thing to say about a record is that it isn't one. `x` on a done task re-stamps it and `d` hands a finished task back — meaningless or quietly destructive | live |
+| 80a | **All** finished, not any | A selection spanning both kinds has no single sensible verb, so it keeps the normal menu | live |
+| 81 | Restore leaves **no trace** | Decision 5 is about never deleting a *line*; this deletes nothing. The overwhelming reason to reach for it is a mis-key, and a line stamped with every fumble is worse than one that is simply correct | live |
+| 82 | `tray <ids> restore` resolves ids against **`list --all`** | Numbering the finished rows separately was tidier to implement and a trap to use: you read `2✓` off the screen and 2 meant something else. Caught by trying it once | live |
+| 83 | Nothing was done about the mis-select itself | Considered a footer mark count, confirm-on-batch, and `u` undo. Your call: not a problem worth solving, and simpler is better. Marks still silently win over the cursor row, and a letter pressed from the list still skips the menu's count | open by choice |

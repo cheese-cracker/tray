@@ -44,6 +44,7 @@ suite rather than hanging it.
 | F16 | Every report runs headless without ever prompting | `F16 · headless` |
 | F17 | `unload` puts a task back on the line it left — finished ones struck through, open ones keeping what the tray gave them | `F17 · unload brings the tray home whole` |
 | F18 | Nothing is inferred headlessly: `carryover` and `unload` refuse to guess a month, and an unknown flag is an error rather than a silence | `F18 · nothing is inferred headlessly` |
+| F20 | `restore` un-finishes a task, resolving ids against the same rows `list --all` prints | `F20 · restore says a task was not finished after all` |
 | F19 | `head` prints the top few compactly, says nothing at all on an empty tray, and never renders a past due date as an upcoming weekday | `F19 · head is the terminal header` |
 
 ## T · the terminal interface
@@ -62,6 +63,8 @@ suite rather than hanging it.
 | T10 | `esc` clears an applied filter **before** it quits the program | `TestFlowEscClearsTheFilterBeforeItQuits` |
 | T11 | `carryover` opens four month tabs — prev · this · next · someday — no tray tab, focused on the current month | `TestFlowSweepOpensTheMonthsAsTabs` |
 | T12 | `?` opens and closes without disturbing the list underneath | `TestFlowHelpOverlayToggles` |
+| T14 | A finished task is hidden until `v`, and `R` says it wasn't finished after all | `TestFlowViewDoneThenRestore` |
+| T15 | A finished row offers restore and nothing else; a mixed selection keeps the normal menu | `TestFlowFinishedRowOffersOnlyRestore` |
 | T13 | A pasted title lands whole, and a pasted newline collapses rather than splitting the line | `TestFlowPasteIntoTheTitle` |
 
 ## Screens

@@ -66,7 +66,13 @@ func (d *rowDelegate) Render(w io.Writer, m list.Model, i int, item list.Item) {
 	if d.marked[r.Text] {
 		cells[cMark] = "●"
 	}
-	fmt.Fprint(w, d.render(cells, i == m.Index(), false))
+	if r.Terminal() {
+		cells[cMark] = "✓"
+		if r.Dropped {
+			cells[cMark] = "✗"
+		}
+	}
+	fmt.Fprint(w, d.render(cells, i == m.Index(), false, r.Terminal()))
 }
 
 func (d *rowDelegate) headers() [nCols]string {
@@ -77,7 +83,7 @@ func (d *rowDelegate) headers() [nCols]string {
 	return h
 }
 
-func (d *rowDelegate) header() string { return d.render(d.headers(), false, true) }
+func (d *rowDelegate) header() string { return d.render(d.headers(), false, true, false) }
 
 // A garage month has no urgency, priority or due date to show: those are what `take`
 // adds, and the whole point of the garage is that they haven't been decided yet.
@@ -130,12 +136,18 @@ func (d *rowDelegate) measure(items []list.Item, avail int) {
 	d.widths = w
 }
 
-func (d *rowDelegate) render(cells [nCols]string, selected, header bool) string {
+func (d *rowDelegate) render(cells [nCols]string, selected, header, finished bool) string {
 	var b strings.Builder
 	for i := 0; i < nCols; i++ {
 		cell := pad(cells[i], d.widths[i], colPad[i])
 		switch {
 		case header:
+			cell = faintStyle.Render(cell)
+		// A finished row reads as the file does: struck through and quiet. It is
+		// only on screen at all because you pressed v.
+		case finished && i == cTask:
+			cell = doneStyle.Render(cell)
+		case finished:
 			cell = faintStyle.Render(cell)
 		case i == cPoint:
 			cell = cursorStyle.Render(cell)

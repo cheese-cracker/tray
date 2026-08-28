@@ -20,7 +20,8 @@ const Version = "0.2.0"
 
 var verbs = []string{
 	"init", "dump", "add", "take", "retake", "edit", "done", "drop", "modify",
-	"unload", "carryover", "list", "head", "find", "print", "export", "status", "help",
+	"unload", "carryover", "list", "head", "find", "print", "export", "status",
+	"restore", "help",
 }
 
 var idSpec = regexp.MustCompile(`^\d+([,-]\d+)*$`)
@@ -36,6 +37,7 @@ const usage = `tray — two layers of markdown. Dump to the garage, take onto th
   tray 3 take [pri:H due:...]        garage → tray, the structuring step
   tray 2 retake                      restructure it, current values prefilled
   tray 1 done  ·  tray 3 drop  ·  tray 2,5-7 done
+  tray --all list  ·  tray 4 restore       see the finished; say one wasn't
   tray 2 modify pri:M                exact, scriptable form of retake
   tray 2 edit <new text>  ·  tray edit      one line, or the file in $EDITOR
   tray unload --to 2026-09           hand the tray back to a month, whole
@@ -196,6 +198,8 @@ func dispatch(req request) (string, error) {
 		return cmdTake(req)
 	case "done":
 		return cmdFinish(req, "done")
+	case "restore":
+		return cmdRestore(req)
 	case "drop":
 		return cmdFinish(req, "dropped")
 	case "modify", "retake":
