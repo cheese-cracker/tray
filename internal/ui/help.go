@@ -57,28 +57,42 @@ func (m Model) helpPage() string {
 	return b.String()
 }
 
-// One section, four columns summing to the seventy-four a pane leaves on an
-// eighty-column terminal. Equal widths do not work: at twenty-two the last column
-// wrapped, and at eighteen "show done" ran into the column beside it.
+// One section, four columns. The widths are measured from the labels rather than
+// picked by hand: hand-picked ones broke three times running — the last column wrapped
+// at 22, "show done" collided with its neighbour at 18, and "tab  h l" was clipped to
+// "tab  h…" by a key column sized for a shorter key.
 func helpKeys() string {
 	cols := [][][2]string{
-		{{"", "moving"}, {"↑↓", "move"}, {"←→", "tab"}, {"h j k l", "the same"}},
+		{{"", "moving"}, {"↑↓  j k", "move"}, {"tab  h l", "switch"}},
 		{{"", "choosing"}, {"space", "select"}, {"enter", "the menu"}, {"/", "filter"}, {"v", "show done"}},
 		{{"", "acting"}, {"a", "add"}, {"t", "take"}, {"r", "retake"}, {"x", "done"}},
 		{{"", ""}, {"d", "hand back"}, {">", "move to"}, {"D", "delete"}, {"R", "restore"}},
 	}
+
+	keyW := 0
+	for _, col := range cols {
+		for _, pair := range col[1:] {
+			keyW = max(keyW, lipgloss.Width(pair[0]))
+		}
+	}
+
 	rendered := make([]string, len(cols))
 	for i, col := range cols {
+		descW := 0
 		var rows []string
 		for j, pair := range col {
 			if j == 0 {
 				rows = append(rows, helpHead.Render(pair[1]))
 				continue
 			}
-			rows = append(rows, keyStyle.Render(pad(pair[0], 7, 1))+faintStyle.Render(pair[1]))
+			descW = max(descW, lipgloss.Width(pair[1]))
+			rows = append(rows, keyStyle.Render(pad(pair[0], keyW, 1))+faintStyle.Render(pair[1]))
 		}
-		rendered[i] = lipgloss.NewStyle().Width([]int{19, 19, 18, 18}[i]).
-			Render(strings.Join(rows, "\n"))
+		width := keyW + 1 + descW
+		if i < len(cols)-1 {
+			width += 2 // a gutter, except after the last column
+		}
+		rendered[i] = lipgloss.NewStyle().Width(width).Render(strings.Join(rows, "\n"))
 	}
 	return lipgloss.JoinHorizontal(lipgloss.Top, rendered...)
 }

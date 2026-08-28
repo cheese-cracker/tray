@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 
 	"github.com/cheese-cracker/tray/internal/store"
 )
@@ -307,7 +308,7 @@ func TestHelpPageExplainsTheTwoLayers(t *testing.T) {
 		"take", "hand back", // and the move between them
 		"dump a line", "add, with the form", // what each one asks of you
 		"moving", "choosing", "acting", // one keymap section, headed
-		"h j k l", // the aliases the footer deliberately doesn't name
+		"j k", "h l", // the aliases the footer deliberately doesn't name
 		"restore", "retake", "delete",
 	} {
 		if !strings.Contains(view, want) {
@@ -323,6 +324,26 @@ func TestHelpPageExplainsTheTwoLayers(t *testing.T) {
 	}
 	if keys(m, "?").(Model).help.ShowAll {
 		t.Error("? should close it too")
+	}
+}
+
+// The help page's layout has broken three times in a row — a wrapped column, two
+// labels colliding, a key clipped to "tab  h…". Its widths are measured now, but the
+// measuring is only as good as this check: nothing may exceed the terminal, and no
+// key may be truncated into an ellipsis.
+func TestHelpPageFitsTheTerminal(t *testing.T) {
+	sandbox(t, "- [ ] one priority:H")
+	for _, width := range []int{80, 100} {
+		out, _ := New().Update(tea.WindowSizeMsg{Width: width, Height: 26})
+		view := keys(out, "?").(Model).View()
+		for _, line := range strings.Split(view, "\n") {
+			if got := lipgloss.Width(line); got > width {
+				t.Errorf("at %d cols a help line is %d wide: %q", width, got, line)
+			}
+		}
+		if strings.Contains(view, "…") {
+			t.Errorf("at %d cols something in the help was truncated:\n%s", width, view)
+		}
 	}
 }
 

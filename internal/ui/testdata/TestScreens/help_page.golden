@@ -15,11 +15,11 @@
 │                                                                              │
 │  Structure is paid for once, when something graduates — never at capture.    │
 │                                                                              │
-│  moving             choosing           acting                                │
-│  ↑↓      move       space   select     a       add       d       hand back   │
-│  ←→      tab        enter   the menu   t       take      >       move to     │
-│  h j k l the same   /       filter     r       retake    D       delete      │
-│                     v       show done  x       done      R       restore     │
+│  moving           choosing            acting                                 │
+│  ↑↓  j k  move    space    select     a        add     d        hand back    │
+│  tab  h l switch  enter    the menu   t        take    >        move to      │
+│                   /        filter     r        retake  D        delete       │
+│                   v        show done  x        done    R        restore      │
 │                                                                              │
 │                                                                              │
 └──────────────────────────────────────────────────────────────────────────────┘

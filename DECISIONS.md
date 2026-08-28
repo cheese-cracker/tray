@@ -206,8 +206,10 @@ Reported from use: two tasks went done when one was meant to.
 | # | Decision | Why | Status |
 |---|---|---|---|
 | 85 | The footer names **the arrows**; `h j k l` work but are written down only in `?` | They are the keys someone opening this for the first time already tries. A footer that lists two ways to do one thing teaches neither | live |
+| 85c | `tab` switches layers; **`←→` are unbound** | ↑↓ move within a layer and nothing moves sideways, so sideways arrows were a third idiom for a job `tab` already names. `⇧tab` goes back and is not advertised | live |
 | 85a | `g` `G` `home` `end` `pgup` `pgdn` are **unbound** | Four more ways to move one cursor. Paging follows the cursor on its own | live |
 | 85b | `mark` is called **select** everywhere now | The menu had said "N selected" since the beginning while the footer said "mark". One of them had to give | live |
 | 86 | `?` is a **page**, not a keymap strip | Narrows 59. A keymap tells you which letter does a thing you already understand; what needs explaining here is why there are two layers at all. So the diagram comes first and the keys come last, as one section | live |
 | 86a | It **replaces the list** rather than pushing it up | It fits a short terminal, and it reads as one page instead of a strip beneath a table | live |
-| 86b | Column widths are 19·19·18·18, not four equal ones | Equal columns broke twice: at 22 the last one wrapped, at 18 "show done" ran into its neighbour. 74 is what a pane leaves on an eighty-column terminal | live |
+| 86b | Help column widths are **measured from the labels**, not chosen | Hand-picked widths broke three times running: the last column wrapped at 22, "show done" collided at 18, and "tab  h l" was clipped to "tab  h…" by a key column sized for a shorter key | live |
+| 86c | A test asserts no help line exceeds the terminal and nothing is truncated | The measuring is only as good as the check. Three layout regressions reached a golden before this existed | live |

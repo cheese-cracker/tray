@@ -148,14 +148,14 @@ handed a UI. Built with [bubbletea](https://github.com/charmbracelet/bubbletea),
 │     Review the deploy checklist  4.7   M                +infra       │
 │                                                                      │
 └──────────────────────────────────────────────────────────────────────┘
- ↑↓ move · space select · ←→ tab · enter act · a add · v show done · / filter
- ? help · q quit
+ ↑↓ move · space select · tab switch · enter act · a add · v show done
+ / filter · ? help · q quit
 ```
 
 | | |
 |---|---|
 | `↑` `↓` | move — `j` `k` also work |
-| `←` `→` · `tab` `⇧tab` | switch tab — cycles round at either end. `h` `l` also work |
+| `tab` | switch tab — cycles round at either end. `⇧tab` goes back, `h` `l` also work |
 | `space` | select. Every action applies to the selection, or to the row under the cursor |
 | `enter` | the action menu |
 | `a` `n` | add — a title alone in a garage tab, the whole form on the tray |

@@ -32,7 +32,7 @@ func (m Model) keys() keyMap {
 	//
 	// Every key it names is on screen: the footer wraps rather than truncating.
 	short := []key.Binding{
-		bind("↑↓", "move"), bind("space", "select"), bind("←→", "tab"),
+		bind("↑↓", "move"), bind("space", "select"), bind("tab", "switch"),
 		bind("enter", "act"), bind("a", "add"),
 	}
 	if !m.layer().isTray() {
