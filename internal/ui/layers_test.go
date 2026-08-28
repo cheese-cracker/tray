@@ -126,7 +126,7 @@ func TestTabSwitchesLayer(t *testing.T) {
 		t.Error("shift+tab should come back")
 	}
 	// l and h are the same movement, for people who never leave home row.
-	if keys(m, "l").(Model).layer().isTray() {
+	if keys(m, "tab").(Model).layer().isTray() {
 		t.Error("l should move a tab right")
 	}
 }
@@ -385,7 +385,7 @@ func TestTabsCycle(t *testing.T) {
 	// h and l are the same movement, so they wrap too.
 	m = New()
 	for i := 0; i < len(m.layers); i++ {
-		m = keys(m, "l").(Model)
+		m = keys(m, "tab").(Model)
 	}
 	if !m.layer().isTray() {
 		t.Error("l all the way round should land back on the tray")
@@ -405,7 +405,7 @@ func TestSweepNamedMonthReplacesTheClosingTab(t *testing.T) {
 	if m.layer().month != store.ThisMonth() {
 		t.Errorf("it should still open on the current month, got %q", m.layer().month)
 	}
-	if got := keys(m, "h").(Model); got.items()[0].Text != "ancient history" {
+	if got := keys(m, "shift+tab").(Model); got.items()[0].Text != "ancient history" {
 		t.Errorf("h should reach the named month, got %v", texts(got))
 	}
 }

@@ -206,7 +206,7 @@ Reported from use: two tasks went done when one was meant to.
 | # | Decision | Why | Status |
 |---|---|---|---|
 | 85 | The footer names **the arrows**; `h j k l` work but are written down only in `?` | They are the keys someone opening this for the first time already tries. A footer that lists two ways to do one thing teaches neither | live |
-| 85c | `tab` switches layers; **`←→` are unbound** | ↑↓ move within a layer and nothing moves sideways, so sideways arrows were a third idiom for a job `tab` already names. `⇧tab` goes back and is not advertised | live |
+| 85c | **`tab` alone** switches layers; `←→` and `h` `l` are unbound | ↑↓ move within a layer and nothing here moves sideways, so every sideways key was another idiom for a job `tab` already names. `⇧tab` goes back and is not advertised. `j` `k` survive as the one alias, because moving is the thing you do constantly | live |
 | 85a | `g` `G` `home` `end` `pgup` `pgdn` are **unbound** | Four more ways to move one cursor. Paging follows the cursor on its own | live |
 | 85b | `mark` is called **select** everywhere now | The menu had said "N selected" since the beginning while the footer said "mark". One of them had to give | live |
 | 86 | `?` is a **page**, not a keymap strip | Narrows 59. A keymap tells you which letter does a thing you already understand; what needs explaining here is why there are two layers at all. So the diagram comes first and the keys come last, as one section | live |

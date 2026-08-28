@@ -155,7 +155,7 @@ handed a UI. Built with [bubbletea](https://github.com/charmbracelet/bubbletea),
 | | |
 |---|---|
 | `↑` `↓` | move — `j` `k` also work |
-| `tab` | switch tab — cycles round at either end. `⇧tab` goes back, `h` `l` also work |
+| `tab` | switch layer — cycles round at either end. `⇧tab` goes back |
 | `space` | select. Every action applies to the selection, or to the row under the cursor |
 | `enter` | the action menu |
 | `a` `n` | add — a title alone in a garage tab, the whole form on the tray |
@@ -164,8 +164,9 @@ handed a UI. Built with [bubbletea](https://github.com/charmbracelet/bubbletea),
 | `?` | the help page — what the two layers are, and every key |
 | `q` `esc` | quit |
 
-**The footer names the arrows only.** `h j k l` work and are written down in `?`; a
-footer that lists two ways to do one thing teaches neither.
+**The footer names the arrows only.** `j` `k` also move and are written down in `?`;
+a footer that lists two ways to do one thing teaches neither. `←` `→` and `h` `l` do
+nothing — `tab` is the only way between layers.
 
 **Two tabs, day to day**: what you're doing, and what you dumped this month. Someday
 and other months are still reachable through `>`; they just don't earn standing room.

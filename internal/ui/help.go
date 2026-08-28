@@ -63,7 +63,7 @@ func (m Model) helpPage() string {
 // "tab  h…" by a key column sized for a shorter key.
 func helpKeys() string {
 	cols := [][][2]string{
-		{{"", "moving"}, {"↑↓  j k", "move"}, {"tab  h l", "switch"}},
+		{{"", "moving"}, {"↑↓  j k", "move"}, {"tab", "switch layer"}},
 		{{"", "choosing"}, {"space", "select"}, {"enter", "the menu"}, {"/", "filter"}, {"v", "show done"}},
 		{{"", "acting"}, {"a", "add"}, {"t", "take"}, {"r", "retake"}, {"x", "done"}},
 		{{"", ""}, {"d", "hand back"}, {">", "move to"}, {"D", "delete"}, {"R", "restore"}},

@@ -128,6 +128,26 @@ func TestCursorMoves(t *testing.T) {
 	}
 }
 
+// tab is the only way across and ⇧tab the only way back. ←→ and h l are dead: ↑↓
+// move within a layer and nothing here moves sideways.
+func TestOnlyTabSwitchesLayers(t *testing.T) {
+	sandbox(t, "- [ ] on the tray priority:H")
+	garage(t, "2026-08", "- in the garage")
+
+	m := New()
+	for _, dead := range []string{"left", "right", "h", "l"} {
+		if got := keys(m, dead).(Model).layer().title; got != "tray" {
+			t.Errorf("%q should not switch layers, landed on %q", dead, got)
+		}
+	}
+	if got := keys(m, "tab").(Model).layer().month; got != "2026-08" {
+		t.Errorf("tab should switch, landed on %q", got)
+	}
+	if got := keys(m, "shift+tab").(Model).layer().month; got != "2026-08" {
+		t.Errorf("⇧tab should switch back round, landed on %q", got)
+	}
+}
+
 func TestSpaceMarksAndUnmarks(t *testing.T) {
 	sandbox(t, "- [ ] one priority:H", "- [ ] two priority:M")
 	m := keys(New(), " ").(Model)
@@ -308,7 +328,7 @@ func TestHelpPageExplainsTheTwoLayers(t *testing.T) {
 		"take", "hand back", // and the move between them
 		"dump a line", "add, with the form", // what each one asks of you
 		"moving", "choosing", "acting", // one keymap section, headed
-		"j k", "h l", // the aliases the footer deliberately doesn't name
+		"j k", // the one alias the footer deliberately doesn't name
 		"restore", "retake", "delete",
 	} {
 		if !strings.Contains(view, want) {
@@ -371,7 +391,7 @@ func TestMarksKeepRenderingAfterTheyAreCleared(t *testing.T) {
 	}
 
 	// Both paths that clear marks: a tab switch, and an action.
-	m = keys(m, "l", "h").(Model)
+	m = keys(m, "tab", "shift+tab").(Model)
 	if marked(m) {
 		t.Error("switching tabs should clear the marks")
 	}

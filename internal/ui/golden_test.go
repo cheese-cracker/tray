@@ -55,7 +55,7 @@ func TestScreens(t *testing.T) {
 			"- add metrics to the worker +infra",
 			"- chase the landlord about the boiler",
 		)
-		frame(t, New(), "l")
+		frame(t, New(), "tab")
 	})
 
 	t.Run("action_menu", func(t *testing.T) {

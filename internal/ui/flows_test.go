@@ -34,9 +34,9 @@ func TestFlowTakeOpensTheFormAndSaves(t *testing.T) {
 	garage(t, "2026-08", "- add retries to the sync job")
 
 	u := drive(t, New()).waitFor("tray")
-	u.press("l").waitFor("add retries") // to the garage tab
-	u.press("t").waitFor("retake")      // take, which opens the form
-	u.press("down", "left")             // priority field, step it up toward H
+	u.press("tab").waitFor("add retries") // to the garage tab
+	u.press("t").waitFor("retake")        // take, which opens the form
+	u.press("down", "left")               // priority field, step it up toward H
 	u.press("enter")
 	// The status is the form's, not the move's: take runs first, then the form
 	// saves over it. The arrow it left behind is in the file, which is the record.
@@ -134,10 +134,10 @@ func TestFlowTabsCycleBothWays(t *testing.T) {
 	garage(t, "2026-08", "- in the garage")
 
 	u := drive(t, New()).waitFor("on the tray")
-	u.press("l").waitFor("in the garage")
-	u.press("l").waitFor("on the tray") // wrapped forward off the last tab
-	u.press("h").waitFor("in the garage")
-	m := u.press("h").waitFor("on the tray").final() // and back off the first
+	u.press("tab").waitFor("in the garage")
+	u.press("tab").waitFor("on the tray") // wrapped forward off the last tab
+	u.press("shift+tab").waitFor("in the garage")
+	m := u.press("shift+tab").waitFor("on the tray").final() // and back off the first
 
 	if m.active != 0 {
 		t.Errorf("should be back on the tray, active = %d", m.active)
@@ -151,7 +151,7 @@ func TestFlowMoveToCopiesForwardWithAnArrow(t *testing.T) {
 	garage(t, "2026-08", "- not this month after all")
 
 	u := drive(t, New()).waitFor("tray")
-	u.press("l").waitFor("not this month")
+	u.press("tab").waitFor("not this month")
 	u.press(">").waitFor("move 1 to")
 	u.press("j").press("enter") // past the tray, to a month
 	m := u.waitFor("→").final()
@@ -169,11 +169,11 @@ func TestFlowHandBackRevivesTheGarageLine(t *testing.T) {
 	garage(t, "2026-08", "- fix the sync job")
 
 	u := drive(t, New()).waitFor("tray")
-	u.press("l").waitFor("fix the sync job")
+	u.press("tab").waitFor("fix the sync job")
 	u.press("t").waitFor("retake") // take it, and give it a priority on the way
 	u.press("down", "left")
 	u.press("enter").waitFor("retook 1")
-	u.press("h").waitFor("fix the sync job")
+	u.press("shift+tab").waitFor("fix the sync job")
 	u.press("d") // hand it straight back
 	u.final()
 
@@ -196,7 +196,7 @@ func TestFlowGarageAddAsksOnlyForATitle(t *testing.T) {
 	garage(t, "2026-08")
 
 	u := drive(t, New()).waitFor("tray")
-	u.press("l").waitFor("nothing here")
+	u.press("tab").waitFor("nothing here")
 	u.press("a").waitFor("nothing else needed")
 	u.typeIn("that config thing")
 	u.press("enter")
@@ -276,7 +276,7 @@ func TestFlowSweepOpensTheMonthsAsTabs(t *testing.T) {
 	hasNot(t, m.View(), "on the tray")
 
 	// The closing month is one `h` away, and it is a real tab, not a destination.
-	back := keys(m, "h").(Model)
+	back := keys(m, "shift+tab").(Model)
 	if back.layer().month != "2026-07" {
 		t.Errorf("h should reach the closing month, got %q", back.layer().month)
 	}

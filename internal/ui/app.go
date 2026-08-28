@@ -359,11 +359,12 @@ func (m Model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "v":
 		m.showDone = !m.showDone
 		return m, m.reload()
-	// tab switches; ⇧tab goes back but is not advertised. The left and right arrows
-	// are deliberately dead: ↑↓ move within a layer, and nothing moves sideways.
-	case "tab", "l":
+	// tab is the only way across, ⇧tab the only way back, and ⇧tab is not
+	// advertised. ←→ and h l are all deliberately dead: ↑↓ move within a layer,
+	// and nothing here moves sideways.
+	case "tab":
 		return m, m.switchTab(1)
-	case "shift+tab", "h":
+	case "shift+tab":
 		return m, m.switchTab(-1)
 	case "j", "down", "k", "up", "/":
 		return m.toList(msg)
