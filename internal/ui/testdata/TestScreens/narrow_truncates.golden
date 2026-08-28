@@ -6,7 +6,7 @@
 │     task            urg  pri  due  tags    │
 │  ▸  a task with a…  6.8  H         +infra  │
 │                                            │
-│                                            │
-│                                            │
 └────────────────────────────────────────────┘
- j k move · h l tab · enter act · a add …
+ j k move · space mark · h l tab · enter act
+ a add · v show done · / filter · ? help    
+ q quit                                     

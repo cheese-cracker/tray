@@ -266,16 +266,37 @@ func TestFrameShowsRowsMarksAndKeymap(t *testing.T) {
 	}
 }
 
-// The footer sheds keys to stay on one line, so `?` has to be the place they turn
-// up. If a key is in neither, it doesn't exist as far as a new user is concerned.
-func TestHelpOverlayCarriesWhatTheFooterDrops(t *testing.T) {
+// The footer wraps rather than truncating, so every key it knows about is on screen.
+// It used to shed keys for width — and then hid `v` unless it was already on, which
+// is no way to find out a key exists.
+func TestFooterNamesEveryKeyItKnows(t *testing.T) {
+	sandbox(t, "- [ ] one priority:H")
+	for _, width := range []int{80, 120} {
+		out, _ := New().Update(tea.WindowSizeMsg{Width: width, Height: 20})
+		m := out.(Model)
+		view := m.View()
+		for _, b := range m.keys().ShortHelp() {
+			if !strings.Contains(view, b.Help().Key+" "+b.Help().Desc) {
+				t.Errorf("at %d cols the footer omits %q:\n%s", width, b.Help().Key, view)
+			}
+		}
+		// No key may be lost to an ellipsis, which is what truncation did.
+		if strings.Contains(view, "…\n") {
+			t.Errorf("at %d cols the footer truncated:\n%s", width, view)
+		}
+	}
+}
+
+// `?` still expands to the full keymap, grouped, including the action letters the
+// short line cannot name.
+func TestHelpOverlayCarriesTheActionLetters(t *testing.T) {
 	sandbox(t, "- [ ] one priority:H")
 	m := keys(New(), "?").(Model)
 	if !m.help.ShowAll {
 		t.Fatal("? should open the overlay")
 	}
 	view := m.View()
-	for _, want := range []string{"space", "mark", "retake", "hand back", "filter", "quit"} {
+	for _, want := range []string{"retake", "hand back", "top bottom", "quit"} {
 		if !strings.Contains(view, want) {
 			t.Errorf("overlay missing %q:\n%s", want, view)
 		}

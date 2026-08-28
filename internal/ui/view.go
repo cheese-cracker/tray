@@ -194,6 +194,33 @@ func (m Model) renderFilter() string {
 		m.list.FilterValue(), len(m.list.VisibleItems()), len(m.list.Items())))
 }
 
+// shortHelp wraps instead of truncating. bubbles/help cuts the line off with an
+// ellipsis, which silently hides whichever keys sort last — and on an eighty-column
+// terminal that is most of them.
+func (m Model) shortHelp() string {
+	room := 78
+	if m.width > 2 {
+		room = m.width - 2
+	}
+	sep := m.help.Styles.ShortSeparator.Render(m.help.ShortSeparator)
+	var lines []string
+	line := ""
+	for _, b := range m.keys().ShortHelp() {
+		item := m.help.Styles.ShortKey.Render(b.Help().Key) + " " +
+			m.help.Styles.ShortDesc.Render(b.Help().Desc)
+		switch {
+		case line == "":
+			line = item
+		case lipgloss.Width(line)+lipgloss.Width(sep)+lipgloss.Width(item) <= room:
+			line += sep + item
+		default:
+			lines = append(lines, line)
+			line = item
+		}
+	}
+	return strings.Join(append(lines, line), "\n ")
+}
+
 func (m Model) emptyMessage() string {
 	if m.layer().isTray() {
 		return "nothing on the tray — a to add one, or take something from the garage"
@@ -235,11 +262,14 @@ func (m Model) renderFooter() string {
 	if m.mode == editing {
 		return "" // the form carries its own hint
 	}
-	h := m.help
-	if m.width > 0 {
-		h.Width = m.width - 1
+	footer := " " + m.shortHelp()
+	if m.help.ShowAll {
+		h := m.help
+		if m.width > 0 {
+			h.Width = m.width - 1
+		}
+		footer = " " + h.View(m.keys())
 	}
-	footer := " " + h.View(m.keys())
 	if m.status != "" {
 		footer = " " + cursorStyle.Render(m.status) + "\n" + footer
 	}

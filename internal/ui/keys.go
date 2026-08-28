@@ -26,19 +26,21 @@ func (m Model) keys() keyMap {
 		return keyMap{short: picking, full: [][]key.Binding{picking}}
 	}
 
-	// `space mark` is the one key the short line drops: it is the least guessable,
-	// so it earns a row in `?` — which is the whole reason `?` now exists — while
-	// the footer stays inside eighty columns on either layer.
+	// Every key is named here. The footer wraps rather than truncating, so nothing
+	// has to be dropped to fit — the earlier version cut `space mark` for width and
+	// then hid `v` unless it was already on, which is no way to discover a key.
 	short := []key.Binding{
-		bind("j k", "move"), bind("h l", "tab"), bind("enter", "act"), bind("a", "add"),
+		bind("j k", "move"), bind("space", "mark"), bind("h l", "tab"),
+		bind("enter", "act"), bind("a", "add"),
 	}
 	if !m.layer().isTray() {
 		short = append(short, bind("t", "take"))
 	}
-	short = append(short, bind("/", "filter"), bind("?", "help"), bind("q", "quit"))
+	done := bind("v", "show done")
 	if m.showDone {
-		short = append([]key.Binding{bind("v", "hide done")}, short...)
+		done = bind("v", "hide done")
 	}
+	short = append(short, done, bind("/", "filter"), bind("?", "help"), bind("q", "quit"))
 
 	// The action letters come from the layer, so the overlay teaches exactly the
 	// menu you would have got from enter.

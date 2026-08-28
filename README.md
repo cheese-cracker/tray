@@ -148,7 +148,8 @@ handed a UI. Built with [bubbletea](https://github.com/charmbracelet/bubbletea),
 │     Review the deploy checklist  4.7   M                +infra       │
 │                                                                      │
 └──────────────────────────────────────────────────────────────────────┘
- j k move · h l tab · enter act · a add · / filter · ? help · q quit
+ j k move · space mark · h l tab · enter act · a add · v show done · / filter
+ ? help · q quit
 ```
 
 | | |

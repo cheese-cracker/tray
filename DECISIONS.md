@@ -108,7 +108,7 @@ lived in was orphaned, so none of the history came with it — the import is one
 | 57b | **A mark survives a filter** | Hiding a row is not deselecting it. Filter, mark, filter again, act on all of it | live |
 | 58 | The list's `h`/`l`/`d` paging keys are unbound, and its quit keys disabled | `h`/`l` are the tabs and `d` hands back. The cursor keys page on their own | live |
 | 59 | `?` is **`bubbles/help`** over one `keyMap` that also renders the footer | Reverses 47. The overlay and the footer cannot drift apart, because they are the same value rendered at two lengths | live |
-| 59a | The footer drops `space mark`; `?` carries it | It is the least guessable key, and the footer has to stay inside eighty columns on either layer. That trade is only payable because `?` now exists | live |
+| 59a | The footer drops `space mark`; `?` carries it | It is the least guessable key, and the footer has to stay inside eighty columns on either layer | **reversed → 84** |
 | 60 | The form stays **hand-rolled** — no `bubbles/textinput` yet | `←`/`→` on the `due` field shift by a day (25, and documented). A text input would take those keys for cursor movement. 18a's thin ice is still thin — and 67 is what fell through it | open |
 
 ## Flows
@@ -192,3 +192,11 @@ Reported from use: two tasks went done when one was meant to.
 | 81 | Restore leaves **no trace** | Decision 5 is about never deleting a *line*; this deletes nothing. The overwhelming reason to reach for it is a mis-key, and a line stamped with every fumble is worse than one that is simply correct | live |
 | 82 | `tray <ids> restore` resolves ids against **`list --all`** | Numbering the finished rows separately was tidier to implement and a trap to use: you read `2✓` off the screen and 2 meant something else. Caught by trying it once | live |
 | 83 | Nothing was done about the mis-select itself | Considered a footer mark count, confirm-on-batch, and `u` undo. Your call: not a problem worth solving, and simpler is better. Marks still silently win over the cursor row, and a letter pressed from the list still skips the menu's count | open by choice |
+
+## The footer
+
+| # | Decision | Why | Status |
+|---|---|---|---|
+| 84 | The footer **wraps**; it does not truncate | Reverses 59a. `bubbles/help` cuts the line with an ellipsis, which silently hides whichever keys sort last — on an eighty-column terminal that was most of them. Wrapping costs one row and drops nothing | live |
+| 84a | So `space mark` is back, and `v` is named whether it is on or off | Both had been sacrificed to the one-line budget. `v` was worse: it appeared only once already enabled, so the footer could never tell you the key existed | live |
+| 84b | The test asserts **every binding the keymap knows** appears on screen | Asserting specific labels would not have caught this: the footer was correct, it was just cut off. Mutation-checked against the truncating version | live |
