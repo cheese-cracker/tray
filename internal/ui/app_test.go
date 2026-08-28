@@ -118,9 +118,12 @@ func TestCursorMoves(t *testing.T) {
 	if m.list.Index() != 0 {
 		t.Errorf("cursor = %d, want 0", m.list.Index())
 	}
-	m = keys(m, "G").(Model)
-	if m.list.Index() != 2 {
-		t.Errorf("G should go last, got %d", m.list.Index())
+	// ↑↓ and h j k l are the whole of moving now: g, G, home, end and the page keys
+	// were four more ways to do one thing.
+	for _, dead := range []string{"g", "G", "home", "end", "pgup", "pgdown"} {
+		if got := keys(m, dead).(Model).list.Index(); got != m.list.Index() {
+			t.Errorf("%q should not move the cursor, went to %d", dead, got)
+		}
 	}
 }
 
@@ -287,22 +290,39 @@ func TestFooterNamesEveryKeyItKnows(t *testing.T) {
 	}
 }
 
-// `?` still expands to the full keymap, grouped, including the action letters the
-// short line cannot name.
-func TestHelpOverlayCarriesTheActionLetters(t *testing.T) {
+// `?` is a page, not a keymap strip: a keymap tells you which letter does a thing you
+// already understand, and the thing that needs explaining here is why there are two
+// layers at all.
+func TestHelpPageExplainsTheTwoLayers(t *testing.T) {
 	sandbox(t, "- [ ] one priority:H")
 	m := keys(New(), "?").(Model)
 	if !m.help.ShowAll {
-		t.Fatal("? should open the overlay")
+		t.Fatal("? should open the page")
 	}
-	view := m.View()
-	for _, want := range []string{"retake", "hand back", "top bottom", "quit"} {
+	out, _ := m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	view := out.(Model).View()
+
+	for _, want := range []string{
+		"garage", "tray", // the two layers, as boxes
+		"take", "hand back", // and the move between them
+		"dump a line", "add, with the form", // what each one asks of you
+		"moving", "choosing", "acting", // one keymap section, headed
+		"h j k l", // the aliases the footer deliberately doesn't name
+		"restore", "retake", "delete",
+	} {
 		if !strings.Contains(view, want) {
-			t.Errorf("overlay missing %q:\n%s", want, view)
+			t.Errorf("the help page never mentions %q:\n%s", want, view)
 		}
 	}
+	// It replaces the list rather than pushing it up, so it fits a short terminal.
+	if strings.Contains(view, "urg") {
+		t.Errorf("the table should be gone while help is open:\n%s", view)
+	}
+	if keys(m, "esc").(Model).help.ShowAll {
+		t.Error("esc should close it")
+	}
 	if keys(m, "?").(Model).help.ShowAll {
-		t.Error("? should close it again")
+		t.Error("? should close it too")
 	}
 }
 

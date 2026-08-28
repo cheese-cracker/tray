@@ -96,10 +96,12 @@ func start(m Model) Model {
 	m.list.DisableQuitKeybindings() // q and esc mean tray things first
 	m.list.FilterInput.Prompt = ""
 
-	// h and l are the tabs, and d hands back — all three are list paging keys by
-	// default. Unbind them: the cursor keys page on their own anyway.
+	// Four ways to move a cursor is three too many. Paging follows the cursor on its
+	// own, so ↑↓ (and j k) are the whole of it.
 	m.list.KeyMap.PrevPage = key.NewBinding()
 	m.list.KeyMap.NextPage = key.NewBinding()
+	m.list.KeyMap.GoToStart = key.NewBinding()
+	m.list.KeyMap.GoToEnd = key.NewBinding()
 	// `?` is ours. list's own help would advertise list's keymap, not tray's.
 	m.list.KeyMap.ShowFullHelp = key.NewBinding()
 	m.list.KeyMap.CloseFullHelp = key.NewBinding()
@@ -342,6 +344,11 @@ func (m Model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "ctrl+c", "q":
 		return m, tea.Quit
 	case "esc":
+		if m.help.ShowAll {
+			m.help.ShowAll = false
+			m.resize()
+			return m, nil
+		}
 		if m.filtering() {
 			return m.toList(msg) // esc drops the filter before it quits tray
 		}
@@ -356,7 +363,7 @@ func (m Model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, m.switchTab(1)
 	case "shift+tab", "h", "left":
 		return m, m.switchTab(-1)
-	case "j", "down", "k", "up", "g", "G", "/":
+	case "j", "down", "k", "up", "/":
 		return m.toList(msg)
 	case " ":
 		if r, ok := m.list.SelectedItem().(row); ok {

@@ -22,15 +22,17 @@ func bind(keys, help string) key.Binding {
 
 func (m Model) keys() keyMap {
 	if m.mode == acting || m.mode == sending {
-		picking := []key.Binding{bind("j k", "choose"), bind("enter", "apply"), bind("esc", "back")}
+		picking := []key.Binding{bind("↑↓", "choose"), bind("enter", "apply"), bind("esc", "back")}
 		return keyMap{short: picking, full: [][]key.Binding{picking}}
 	}
 
-	// Every key is named here. The footer wraps rather than truncating, so nothing
-	// has to be dropped to fit — the earlier version cut `space mark` for width and
-	// then hid `v` unless it was already on, which is no way to discover a key.
+	// The footer teaches the arrows, because they are the keys someone opening this
+	// for the first time will already try. The vim aliases all work and are named in
+	// `?` — a footer that lists two ways to do one thing teaches neither.
+	//
+	// Every key it names is on screen: the footer wraps rather than truncating.
 	short := []key.Binding{
-		bind("j k", "move"), bind("space", "mark"), bind("h l", "tab"),
+		bind("↑↓", "move"), bind("space", "select"), bind("←→", "tab"),
 		bind("enter", "act"), bind("a", "add"),
 	}
 	if !m.layer().isTray() {
@@ -49,19 +51,11 @@ func (m Model) keys() keyMap {
 		acts = append(acts, bind(a.key, a.label))
 	}
 
-	filter := []key.Binding{bind("/", "filter")}
+	rest := []key.Binding{bind("/", "filter")}
 	if m.filtering() {
-		filter = append(filter, bind("esc", "clear filter"))
+		rest = append(rest, bind("esc", "clear filter"))
 	}
-	filter = append(filter, bind("?", "help"), bind("q", "quit"))
+	rest = append(rest, bind("?", "help"), bind("q", "quit"))
 
-	return keyMap{
-		short: short,
-		full: [][]key.Binding{
-			{bind("j k", "move"), bind("g G", "top bottom"), bind("h l", "tab")},
-			{bind("space", "mark"), bind("enter", "act"), bind("a", "add"), bind("v", "show done")},
-			acts,
-			filter,
-		},
-	}
+	return keyMap{short: short, full: [][]key.Binding{short, acts, rest}}
 }

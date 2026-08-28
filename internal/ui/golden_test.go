@@ -73,9 +73,12 @@ func TestScreens(t *testing.T) {
 		frame(t, New(), "r")
 	})
 
-	t.Run("help_overlay", func(t *testing.T) {
+	// `?` is a page in its own right, so it gets a screen of its own.
+	t.Run("help_page", func(t *testing.T) {
 		sandbox(t, full...)
-		frame(t, New(), "?")
+		out, _ := New().Update(tea.WindowSizeMsg{Width: 80, Height: 26})
+		golden.RequireEqual(t, []byte(ansi.ReplaceAllString(
+			keys(out, "?").(Model).View(), "")))
 	})
 
 	t.Run("filter_typing", func(t *testing.T) {

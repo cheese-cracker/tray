@@ -77,7 +77,7 @@ kept rather than deleted; a decision log that only shows the winners can't be au
 | 44 | `/` search | **Hand off to `fzf` via `tea.ExecProcess`** — no matching code of ours. Check the alt-screen seam first | **reversed → 57** |
 | 45 | Hand-rolled fuzzy matcher, or `sahilm/fuzzy` | Scoring heuristics are a rabbit hole; a dependency for one keystroke | **half stands → 57** |
 | 46 | `u` undo, one level | Copy-forward keeps everything hand-recoverable meanwhile | open |
-| 47 | `?` help | The footer already carries the live keymap | **reversed → 59** |
+| 47 | `?` help | The footer already carries the live keymap | **reversed → 59, then 86** |
 | 48 | Shipping: `go` in `Brewfile.tui`, built at install | Nothing vendored, no release pipeline. Prebuilt binaries if it ever ships wider | live, wants review |
 | 49 | Journal seeding (`- [ ]` scrape) | Only if the recurring-item problem comes back | deferred |
 | 50 | `tray dump` asking for the month on a TTY | The Python version's gum picker; the Go rewrite dropped it. `a` in a garage tab covers it | dropped, re-addable |
@@ -200,3 +200,14 @@ Reported from use: two tasks went done when one was meant to.
 | 84 | The footer **wraps**; it does not truncate | Reverses 59a. `bubbles/help` cuts the line with an ellipsis, which silently hides whichever keys sort last — on an eighty-column terminal that was most of them. Wrapping costs one row and drops nothing | live |
 | 84a | So `space mark` is back, and `v` is named whether it is on or off | Both had been sacrificed to the one-line budget. `v` was worse: it appeared only once already enabled, so the footer could never tell you the key existed | live |
 | 84b | The test asserts **every binding the keymap knows** appears on screen | Asserting specific labels would not have caught this: the footer was correct, it was just cut off. Mutation-checked against the truncating version | live |
+
+## Teaching the interface
+
+| # | Decision | Why | Status |
+|---|---|---|---|
+| 85 | The footer names **the arrows**; `h j k l` work but are written down only in `?` | They are the keys someone opening this for the first time already tries. A footer that lists two ways to do one thing teaches neither | live |
+| 85a | `g` `G` `home` `end` `pgup` `pgdn` are **unbound** | Four more ways to move one cursor. Paging follows the cursor on its own | live |
+| 85b | `mark` is called **select** everywhere now | The menu had said "N selected" since the beginning while the footer said "mark". One of them had to give | live |
+| 86 | `?` is a **page**, not a keymap strip | Narrows 59. A keymap tells you which letter does a thing you already understand; what needs explaining here is why there are two layers at all. So the diagram comes first and the keys come last, as one section | live |
+| 86a | It **replaces the list** rather than pushing it up | It fits a short terminal, and it reads as one page instead of a strip beneath a table | live |
+| 86b | Column widths are 19·19·18·18, not four equal ones | Equal columns broke twice: at 22 the last one wrapped, at 18 "show done" ran into its neighbour. 74 is what a pane leaves on an eighty-column terminal | live |

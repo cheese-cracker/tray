@@ -148,22 +148,24 @@ handed a UI. Built with [bubbletea](https://github.com/charmbracelet/bubbletea),
 │     Review the deploy checklist  4.7   M                +infra       │
 │                                                                      │
 └──────────────────────────────────────────────────────────────────────┘
- j k move · space mark · h l tab · enter act · a add · v show done · / filter
+ ↑↓ move · space select · ←→ tab · enter act · a add · v show done · / filter
  ? help · q quit
 ```
 
 | | |
 |---|---|
-| `j` `k` `↑↓` | move |
-| `h` `l` · `tab` `⇧tab` | switch tab — cycles round at either end |
-| `space` | mark. Every action applies to the marks, or to the row under the cursor |
+| `↑` `↓` | move — `j` `k` also work |
+| `←` `→` · `tab` `⇧tab` | switch tab — cycles round at either end. `h` `l` also work |
+| `space` | select. Every action applies to the selection, or to the row under the cursor |
 | `enter` | the action menu |
 | `a` `n` | add — a title alone in a garage tab, the whole form on the tray |
 | `/` | filter. Fuzzy, over the text and the tags; `esc` clears it |
 | `v` | show what you finished, `✓` done and `✗` dropped, struck through |
-| `g` `G` | first row, last row |
-| `?` | the full keymap. The footer carries the short version |
+| `?` | the help page — what the two layers are, and every key |
 | `q` `esc` | quit |
+
+**The footer names the arrows only.** `h j k l` work and are written down in `?`; a
+footer that lists two ways to do one thing teaches neither.
 
 **Two tabs, day to day**: what you're doing, and what you dumped this month. Someday
 and other months are still reachable through `>`; they just don't earn standing room.

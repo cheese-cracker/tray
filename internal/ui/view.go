@@ -156,6 +156,9 @@ func (m Model) renderTabs() string {
 }
 
 func (m Model) renderBody() string {
+	if m.help.ShowAll {
+		return m.helpPage()
+	}
 	if m.form != nil {
 		return m.form.view()
 	}
@@ -264,11 +267,7 @@ func (m Model) renderFooter() string {
 	}
 	footer := " " + m.shortHelp()
 	if m.help.ShowAll {
-		h := m.help
-		if m.width > 0 {
-			h.Width = m.width - 1
-		}
-		footer = " " + h.View(m.keys())
+		footer = " " + faintStyle.Render("? esc  close")
 	}
 	if m.status != "" {
 		footer = " " + cursorStyle.Render(m.status) + "\n" + footer
