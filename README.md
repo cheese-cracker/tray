@@ -3,8 +3,8 @@
 # 🗒️ tray
 
 **A task tracker in two layers.**
-One to jot anything down, the moment it occurs to you.
-One for the few things you've decided to actually do.
+One for quick one-line thoughts, jotted the moment they occur.
+One for the few tasks actually on the plate.
 
 </div>
 
@@ -16,14 +16,13 @@ answer three questions you can't answer yet, or you don't write it down at all.
 
 tray keeps those two jobs apart:
 
-**🗑️ The garage** takes anything, in any state, for whatever month you think you'll
-get to it. Nothing is asked of you — a half-sentence is a valid entry.
+**🗑️ The garage** — for quick one-line task thoughts, filed under whatever month
+feels right. Nothing else is asked: a half-sentence is a valid entry.
 
-**🍽️ The tray** holds the three to seven things you are actually doing. This is the
-layer that has a priority, a due date and tags.
+**🍽️ The tray** — for the three to seven tasks actually picked up and on the plate.
 
-Moving a line from one to the other is the only moment you organise it, and you only
-do that for the few that graduate.
+Moving a line from one to the other is the one moment it gets organised, and only the
+few that graduate ever need it.
 
 ```sh
 go install github.com/cheese-cracker/tray/cmd/tray@latest
