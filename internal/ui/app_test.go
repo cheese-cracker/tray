@@ -311,10 +311,10 @@ func TestFooterNamesEveryKeyItKnows(t *testing.T) {
 	}
 }
 
-// `?` is a dialog floating over the list, not a page replacing it. A keymap tells
-// you which letter does a thing you already understand; what needs explaining here is
-// why there are two layers at all, so the diagram leads and the keys follow.
-func TestHelpDialogExplainsTheTwoLayers(t *testing.T) {
+// `?` is a screen of its own. A keymap tells you which letter does a thing you
+// already understand; what needs explaining here is why there are two layers at all,
+// so the diagram leads and the keys follow.
+func TestHelpScreenExplainsTheTwoLayers(t *testing.T) {
 	sandbox(t, "- [ ] a task worth seeing behind the dialog priority:H")
 	m := keys(New(), "?").(Model)
 	if !m.help.ShowAll {
@@ -335,13 +335,15 @@ func TestHelpDialogExplainsTheTwoLayers(t *testing.T) {
 			t.Errorf("the help dialog never mentions %q:\n%s", want, view)
 		}
 	}
-	// It floats: the footer below it is untouched, and the list still shows at the
-	// edges. The tabs are fair game — the dialog is wide now, on purpose.
-	if !strings.Contains(view, "↑↓ move") {
-		t.Errorf("the footer should survive the dialog:\n%s", view)
+	// It takes the screen: the list, the tabs and the footer are all gone while it
+	// is open, which is what lets it use the full width.
+	for _, gone := range []string{"↑↓ move · space select", "garage · August", "urg"} {
+		if strings.Contains(view, gone) {
+			t.Errorf("the interface should be gone behind the help, %q showing:\n%s", gone, view)
+		}
 	}
-	if !strings.Contains(view, "╭────────╮") {
-		t.Errorf("the frame should show around the dialog:\n%s", view)
+	if !strings.Contains(view, "any key to go back") {
+		t.Errorf("it should say how to leave:\n%s", view)
 	}
 	// It has to say what tray is, not only how to drive it.
 	for _, want := range []string{"task manager in two layers", "half-thought", "pick it up"} {
@@ -402,14 +404,10 @@ func TestAnyKeyClosesTheHelpDialog(t *testing.T) {
 // labels colliding, a key clipped to "tab  h…". Its widths are measured now, but the
 // measuring is only as good as this check: nothing may exceed the terminal, and no
 // key may be truncated into an ellipsis.
-// Below these the help cannot lay out: the diagram alone is 57 columns and the four
-// sections 18 rows. The overlay clips there rather than wrapping.
-const (
-	minHelpWidth  = 72
-	minHelpHeight = 22
-)
-
-func TestHelpDialogFitsTheTerminal(t *testing.T) {
+// The layout has broken four times now — a wrapped column, two labels colliding, a
+// key clipped to "tab  h…", and a frame that grew while its contents did not. It is
+// measured from the content, and this is what checks the measuring.
+func TestHelpScreenFitsTheTerminal(t *testing.T) {
 	sandbox(t, "- [ ] one priority:H")
 	for _, size := range [][2]int{{80, 24}, {80, 30}, {100, 26}, {110, 34}, {60, 20}} {
 		width, height := size[0], size[1]
@@ -429,16 +427,16 @@ func TestHelpDialogFitsTheTerminal(t *testing.T) {
 		}
 		// It grows with the terminal but never fills it — a box spanning every
 		// column is not floating over anything.
-		// It grows with the terminal and leaves a margin — once the terminal is big
-		// enough for one. The help has a floor it cannot render below; under that
-		// the overlay clips rather than wrapping, which is the part that matters.
-		box := keys(out, "?").(Model).helpDialog()
-		roomy := width >= minHelpWidth && height >= minHelpHeight
-		if w := lipgloss.Width(box); roomy && w >= width {
-			t.Errorf("at %dx%d the dialog is %d wide, no margin left", width, height, w)
-		}
-		if rows := lipgloss.Height(box); roomy && rows > height-2 {
-			t.Errorf("at %dx%d the dialog is %d rows", width, height, rows)
+		// It grows with the terminal: the prose reflows and the boxes spread, so a
+		// wider screen shows a wider help rather than the same block with more air.
+		if width >= minDiagramWidth {
+			wide := 0
+			for _, line := range lines {
+				wide = max(wide, lipgloss.Width(line))
+			}
+			if wide < width-8 {
+				t.Errorf("at %dx%d the help only used %d columns", width, height, wide)
+			}
 		}
 	}
 }

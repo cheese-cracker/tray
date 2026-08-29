@@ -51,6 +51,9 @@ func (m Model) View() string {
 	if m.err != nil {
 		return "tray: " + m.err.Error() + "\n"
 	}
+	if m.help.ShowAll {
+		return "\n  " + strings.ReplaceAll(m.helpScreen(), "\n", "\n  ") + "\n"
+	}
 
 	tabs := m.renderTabs()
 	body := m.renderBody()
@@ -76,9 +79,6 @@ func (m Model) View() string {
 	b.WriteString(tabs + "\n")
 	b.WriteString(style.Render(body) + "\n")
 	b.WriteString(footer)
-	if m.help.ShowAll {
-		return overlay(b.String(), m.helpDialog())
-	}
 	return b.String()
 }
 
@@ -259,7 +259,7 @@ func (m Model) renderDestinations() string {
 	return strings.Join(rows, "\n")
 }
 
-// The footer and the `?` overlay are the same keymap rendered at two lengths, so
+// The footer and the `?` screen are the same keymap rendered at two lengths, so
 // neither can advertise a key the other doesn't.
 func (m Model) renderFooter() string {
 	if m.mode == editing {

@@ -171,7 +171,7 @@ func (m *Model) reload() tea.Cmd {
 	return cmd
 }
 
-// resize keeps the list inside the frame. The filter line and the help overlay both
+// resize keeps the list inside the frame. The filter line and the footer both
 // take rows away from it, so this runs whenever either could have changed — an
 // overflowing pane is what makes the alt screen jitter.
 func (m *Model) resize() {

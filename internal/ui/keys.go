@@ -3,7 +3,7 @@ package ui
 import "github.com/charmbracelet/bubbles/key"
 
 // keyMap is what the footer renders and what `?` expands. Both read the same value,
-// so the one-line hint and the help overlay cannot drift apart — which is the only
+// so the one-line hint and the help screen cannot drift apart — which is the only
 // reason a help screen is worth having when the footer already carries the keymap.
 //
 // These bindings are for display. The list's own keymap does the matching for
@@ -44,7 +44,7 @@ func (m Model) keys() keyMap {
 	}
 	short = append(short, done, bind("/", "filter"), bind("?", "help"), bind("q", "quit"))
 
-	// The action letters come from the layer, so the overlay teaches exactly the
+	// The action letters come from the layer, so the help teaches exactly the
 	// menu you would have got from enter.
 	var acts []key.Binding
 	for _, a := range m.offered() {

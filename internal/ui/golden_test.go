@@ -73,10 +73,18 @@ func TestScreens(t *testing.T) {
 		frame(t, New(), "r")
 	})
 
-	// `?` is a page in its own right, so it gets a screen of its own.
+	// `?` takes the whole screen, so it gets a golden of its own — and a second at a
+	// size where the diagram has to be dropped.
 	t.Run("help_page", func(t *testing.T) {
 		sandbox(t, full...)
 		out, _ := New().Update(tea.WindowSizeMsg{Width: 80, Height: 26})
+		golden.RequireEqual(t, []byte(ansiRe.ReplaceAllString(
+			keys(out, "?").(Model).View(), "")))
+	})
+
+	t.Run("help_page_narrow", func(t *testing.T) {
+		sandbox(t, full...)
+		out, _ := New().Update(tea.WindowSizeMsg{Width: 60, Height: 20})
 		golden.RequireEqual(t, []byte(ansiRe.ReplaceAllString(
 			keys(out, "?").(Model).View(), "")))
 	})

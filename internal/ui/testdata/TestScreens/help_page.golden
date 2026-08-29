@@ -1,26 +1,24 @@
 
-╭────────╮╭───────────────────╮                                                 
-│  tray╭────────────────────────────────────────────────────────────────╮       
-│      │                                                                │───────
-│      │       tray is a task manager in two layers. Dump any task,     │      │
-│     t│       or a half-thought, into the garage for the month you     │      │
-│  ▸  R│       expect to pick it up. Take it onto the tray when ready.  │      │
-│     C│       ╭─ garage ────────────╮       ╭─ tray ──────────────╮    │      │
-│     B│       │ anything, any month │  ────▶│ what you do now     │    │      │
-│     R│       │ no structure asked  │  ◀────│ priority, due, tags │    │      │
-│      │       ╰─────────────────────╯       ╰─────────────────────╯    │      │
-│      │       (a)dd    a line to the layer you are on                  │      │
-│      │       (t)ake   a garage line onto the tray, structured         │      │
-│      │       (d)      hand a tray task back to the garage             │      │
-│      │       (enter)  act on the selection; the menu lists the rest   │      │
-│      │       ───────────────────────────────────────────────────────  │      │
-│      │       keys                  acting                             │      │
-│      │       ↑↓  j k move          a       add     d       hand back  │      │
-│      │       tab     switch layer  t       take    >       move to    │      │
-│      │       space   select        r       retake  D       delete     │      │
-│      │       /       filter        x       done    R       restore    │      │
-│      │       v       show done                                        │      │
-│      │                                                                │      │
-└──────╰────────────────────────────────────────────────────────────────╯──────┘
- ↑↓ move · space select · tab switch · enter act · a add · v show done
- / filter · ? help · q quit                                           
+  tray — a task manager in two layers                     any key to go back
+  
+  Dump any task, or a half-thought, into the garage for the month you expect  
+  to pick it up. Take it onto the tray when you are ready to work on it.      
+  
+  ╭─ garage ─────────────────────╮       ╭─ tray ───────────────────────╮
+  │ anything, any month          │  ────▶│ what you do now              │
+  │ no structure asked           │  ◀────│ priority, due, tags          │
+  ╰──────────────────────────────╯       ╰──────────────────────────────╯
+  
+  (a)dd    a line to the layer you are on
+  (t)ake   a garage line onto the tray, structured
+  (d)      hand a tray task back to the garage
+  (enter)  act on the selection; the menu lists the rest
+  
+  ────────────────────────────────────────────────────────────────────────────
+  
+  keys                  acting                           
+  ↑↓  j k move          a       add     d       hand back
+  tab     switch layer  t       take    >       move to  
+  space   select        r       retake  D       delete   
+  /       filter        x       done    R       restore  
+  v       show done                                      
