@@ -223,12 +223,8 @@ clear day costs a fresh terminal no lines.
 ╰──────────────────────────────────────────────────╯
 ```
 
-## Building it
+---
 
-Needs Go 1.24 or newer. `make install` from a clone; `make check` runs everything:
-`gofmt`, `go vet`, 106 Go tests, and 20 end-to-end flows driving the real binary against
-a sandboxed `$TRAY_HOME`.
-
-Every flow that must keep working is a row in [FLOWS.md](FLOWS.md), and every row names
-the test that holds it. Every choice that isn't obvious from the code is a row in
-[DECISIONS.md](DECISIONS.md). What's next is [ROADMAP.md](ROADMAP.md).
+[FLOWS.md](FLOWS.md) is what must keep working, and the test that holds each promise.
+[DECISIONS.md](DECISIONS.md) is why things are the way they are.
+[ROADMAP.md](ROADMAP.md) is what's next.
