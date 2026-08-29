@@ -301,11 +301,11 @@ when the tray is empty, so a fresh terminal costs nothing on a clear day.
 ```
 
 ```
-╭─ tray ───────────────────────────────────────────────────╮
-│ H  I'll discuss a deposit with Vishal.           3d over │
-│ H  Wire the transfer money to carta                  Mon │
-│ M  Reach out to the people mentioned by Prannay  3d over │
-╰──────────────────────────────────────────────────────────╯
+╭─ tray ───────────────────────────────────────────╮
+│ H  Rotate the api keys                   3d over │
+│ H  Book the flights                          Mon │
+│ M  Review the deploy checklist           3d over │
+╰──────────────────────────────────────────────────╯
 ```
 
 Rows are tinted by priority — H red, M amber, L blue — with overdue in red and every
