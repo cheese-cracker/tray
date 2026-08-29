@@ -2,8 +2,9 @@
 
 # 🗒️ tray
 
-**A task manager in two layers.**
-Dump anything into the **garage**. Take a few things onto the **tray**.
+**A task tracker in two layers.**
+One to jot anything down, the moment it occurs to you.
+One for the few things you've decided to actually do.
 
 </div>
 
@@ -13,11 +14,16 @@ Most task apps ask you to file a thought the moment you have it — a project, a
 priority, a due date — which is exactly when you know least about it. So you either
 answer three questions you can't answer yet, or you don't write it down at all.
 
-tray splits that in two. 🗑️ The **garage** takes anything, in any state, for whatever
-month you think you'll get to it. 🍽️ The **tray** holds the three to seven things you
-are actually doing, and *that* is where a task gets a priority and a date.
+tray keeps those two jobs apart:
 
-You only organise something once, at the moment you decide to work on it.
+**🗑️ The garage** takes anything, in any state, for whatever month you think you'll
+get to it. Nothing is asked of you — a half-sentence is a valid entry.
+
+**🍽️ The tray** holds the three to seven things you are actually doing. This is the
+layer that has a priority, a due date and tags.
+
+Moving a line from one to the other is the only moment you organise it, and you only
+do that for the few that graduate.
 
 ```sh
 go install github.com/cheese-cracker/tray/cmd/tray@latest

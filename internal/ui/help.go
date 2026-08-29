@@ -38,7 +38,7 @@ func (m Model) helpScreen() string {
 	}
 
 	title := helpHead.Render("tray") +
-		faintStyle.Render(" — a task manager in two layers")
+		faintStyle.Render(" — a task tracker in two layers")
 	if gap := width - lipgloss.Width(title) - 20; gap > 0 {
 		title += strings.Repeat(" ", gap) + faintStyle.Render("any key to go back")
 	}

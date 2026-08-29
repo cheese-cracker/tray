@@ -346,7 +346,7 @@ func TestHelpScreenExplainsTheTwoLayers(t *testing.T) {
 		t.Errorf("it should say how to leave:\n%s", view)
 	}
 	// It has to say what tray is, not only how to drive it.
-	for _, want := range []string{"task manager in two layers", "half-thought", "pick it up"} {
+	for _, want := range []string{"task tracker in two layers", "half-thought", "pick it up"} {
 		if !strings.Contains(view, want) {
 			t.Errorf("the dialog should explain the idea, %q missing:\n%s", want, view)
 		}
