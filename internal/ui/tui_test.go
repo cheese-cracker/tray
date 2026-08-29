@@ -11,9 +11,9 @@ import (
 	"github.com/charmbracelet/x/exp/teatest"
 )
 
-// Decision 41 abandoned pty scraping because it hung twice. teatest is not a pty,
-// but it can still hang in exactly one place: WaitFinished with no timeout blocks on
-// a channel forever. So no test calls teatest directly — everything goes through this
+// Driving the real program used to mean scraping a pty, which hung twice and gave one
+// false negative. teatest is not a pty, but it can still hang in exactly one place:
+// WaitFinished with no timeout blocks on a channel forever. So no test calls teatest directly — everything goes through this
 // harness, and every wait it performs is bounded:
 //
 //	press/typeIn   send a key, cannot block

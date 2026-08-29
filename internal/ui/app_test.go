@@ -335,11 +335,13 @@ func TestHelpDialogExplainsTheTwoLayers(t *testing.T) {
 			t.Errorf("the help dialog never mentions %q:\n%s", want, view)
 		}
 	}
-	// It floats: the frame it explains is still on screen around it.
-	for _, behind := range []string{"tray  ", "garage · ", "↑↓ move"} {
-		if !strings.Contains(view, behind) {
-			t.Errorf("the interface should show around the dialog, %q is gone:\n%s", behind, view)
-		}
+	// It floats: the footer below it is untouched, and the list still shows at the
+	// edges. The tabs are fair game — the dialog is wide now, on purpose.
+	if !strings.Contains(view, "↑↓ move") {
+		t.Errorf("the footer should survive the dialog:\n%s", view)
+	}
+	if !strings.Contains(view, "╭────────╮") {
+		t.Errorf("the frame should show around the dialog:\n%s", view)
 	}
 	// It has to say what tray is, not only how to drive it.
 	for _, want := range []string{"task manager in two layers", "half-thought", "pick it up"} {
@@ -400,9 +402,16 @@ func TestAnyKeyClosesTheHelpDialog(t *testing.T) {
 // labels colliding, a key clipped to "tab  h…". Its widths are measured now, but the
 // measuring is only as good as this check: nothing may exceed the terminal, and no
 // key may be truncated into an ellipsis.
+// Below these the help cannot lay out: the diagram alone is 57 columns and the four
+// sections 18 rows. The overlay clips there rather than wrapping.
+const (
+	minHelpWidth  = 72
+	minHelpHeight = 22
+)
+
 func TestHelpDialogFitsTheTerminal(t *testing.T) {
 	sandbox(t, "- [ ] one priority:H")
-	for _, size := range [][2]int{{80, 24}, {80, 30}, {100, 26}} {
+	for _, size := range [][2]int{{80, 24}, {80, 30}, {100, 26}, {110, 34}, {60, 20}} {
 		width, height := size[0], size[1]
 		out, _ := New().Update(tea.WindowSizeMsg{Width: width, Height: height})
 		view := keys(out, "?").(Model).View()
@@ -417,6 +426,19 @@ func TestHelpDialogFitsTheTerminal(t *testing.T) {
 		}
 		if strings.Contains(view, "…") {
 			t.Errorf("at %dx%d something was truncated:\n%s", width, height, view)
+		}
+		// It grows with the terminal but never fills it — a box spanning every
+		// column is not floating over anything.
+		// It grows with the terminal and leaves a margin — once the terminal is big
+		// enough for one. The help has a floor it cannot render below; under that
+		// the overlay clips rather than wrapping, which is the part that matters.
+		box := keys(out, "?").(Model).helpDialog()
+		roomy := width >= minHelpWidth && height >= minHelpHeight
+		if w := lipgloss.Width(box); roomy && w >= width {
+			t.Errorf("at %dx%d the dialog is %d wide, no margin left", width, height, w)
+		}
+		if rows := lipgloss.Height(box); roomy && rows > height-2 {
+			t.Errorf("at %dx%d the dialog is %d rows", width, height, rows)
 		}
 	}
 }

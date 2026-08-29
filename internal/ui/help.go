@@ -79,6 +79,50 @@ func (m Model) helpPage() string {
 	return strings.Join([]string{what, diagram, moves, rule, keys}, "\n")
 }
 
+// helpDialog grows into the terminal. A modal fixed at its content's size reads as
+// a tooltip on a big screen — but it keeps a margin, because a box filling every
+// column is not floating over anything.
+//
+// The block inside stays left-aligned and is centred as a whole: centring each line
+// would scatter the key columns.
+func (m Model) helpDialog() string {
+	content := m.helpPage()
+	w, h := lipgloss.Width(content), lipgloss.Height(content)
+	// Grow, but only into air the content can use. Uncapped it became a vast box
+	// with a paragraph adrift in the middle — larger, and worse.
+	if m.width > 0 {
+		w = max(w, min(m.width*9/10-dialog.GetHorizontalFrameSize(), w+16))
+	}
+	if m.height > 0 {
+		// The four rows the top margin and the footer need, or it covers them.
+		w := m.height - 4 - dialog.GetVerticalFrameSize()
+		h = max(h, min(w, h+4))
+	}
+	return dialog.Render(centre(content, w, h))
+}
+
+// centre indents the block by one amount, rather than centring each line.
+//
+// lipgloss.Place looks like the call for this and is not: for Center it pads by
+// `gap + short`, where short is how far that line falls below the widest — so every
+// line is centred on its own and the key columns come apart. Checked, not assumed.
+func centre(content string, w, h int) string {
+	lines := strings.Split(content, "\n")
+	if gap := (w - lipgloss.Width(content)) / 2; gap > 0 {
+		indent := strings.Repeat(" ", gap)
+		for i := range lines {
+			lines[i] = indent + lines[i]
+		}
+	}
+	if gap := (h - len(lines)) / 2; gap > 0 {
+		lines = append(make([]string, gap), lines...)
+		for len(lines) < h {
+			lines = append(lines, "")
+		}
+	}
+	return strings.Join(lines, "\n")
+}
+
 func verb(key, meaning string) string {
 	return keyStyle.Render(pad(key, 8, 1)) + faintStyle.Render(meaning)
 }
@@ -146,7 +190,10 @@ func overlay(bg, top string) string {
 		if gap := x - ansi.StringWidth(left); gap > 0 {
 			left += strings.Repeat(" ", gap)
 		}
-		rows[row] = left + line + ansi.TruncateLeft(rows[row], x+topW, "")
+		// Clipped to the background: the help has a minimum width it cannot go below,
+		// and on a terminal narrower than that an unclipped row would wrap and
+		// corrupt every line beneath it. Cut off beats scrambled.
+		rows[row] = ansi.Truncate(left+line+ansi.TruncateLeft(rows[row], x+topW, ""), width, "")
 	}
 	return strings.Join(rows, "\n")
 }

@@ -77,7 +77,7 @@ func (m Model) View() string {
 	b.WriteString(style.Render(body) + "\n")
 	b.WriteString(footer)
 	if m.help.ShowAll {
-		return overlay(b.String(), dialog.Render(m.helpPage()))
+		return overlay(b.String(), m.helpDialog())
 	}
 	return b.String()
 }
