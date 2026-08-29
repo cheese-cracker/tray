@@ -17,12 +17,12 @@ import (
 // Colour is stripped, so a CI runner that forces colour on doesn't rewrite them all.
 // Regenerate with `go test ./internal/ui -run TestScreens -update`.
 
-var ansi = regexp.MustCompile(`\x1b\[[0-9;]*[a-zA-Z]`)
+var ansiRe = regexp.MustCompile(`\x1b\[[0-9;]*[a-zA-Z]`)
 
 func frame(t *testing.T, m tea.Model, presses ...string) {
 	t.Helper()
 	out, _ := m.Update(tea.WindowSizeMsg{Width: 84, Height: 20})
-	golden.RequireEqual(t, []byte(ansi.ReplaceAllString(keys(out, presses...).(Model).View(), "")))
+	golden.RequireEqual(t, []byte(ansiRe.ReplaceAllString(keys(out, presses...).(Model).View(), "")))
 }
 
 func TestScreens(t *testing.T) {
@@ -77,7 +77,7 @@ func TestScreens(t *testing.T) {
 	t.Run("help_page", func(t *testing.T) {
 		sandbox(t, full...)
 		out, _ := New().Update(tea.WindowSizeMsg{Width: 80, Height: 26})
-		golden.RequireEqual(t, []byte(ansi.ReplaceAllString(
+		golden.RequireEqual(t, []byte(ansiRe.ReplaceAllString(
 			keys(out, "?").(Model).View(), "")))
 	})
 
@@ -127,7 +127,7 @@ func TestScreens(t *testing.T) {
 
 	t.Run("month_picker", func(t *testing.T) {
 		sandbox(t)
-		golden.RequireEqual(t, []byte(ansi.ReplaceAllString(
+		golden.RequireEqual(t, []byte(ansiRe.ReplaceAllString(
 			picker{months: pickable(), title: "unload the tray to", at: 1}.View(), "")))
 	})
 
@@ -135,6 +135,6 @@ func TestScreens(t *testing.T) {
 	t.Run("narrow_truncates", func(t *testing.T) {
 		sandbox(t, "- [ ] a task with a very long description that will not fit priority:H +infra")
 		out, _ := New().Update(tea.WindowSizeMsg{Width: 46, Height: 12})
-		golden.RequireEqual(t, []byte(ansi.ReplaceAllString(out.(Model).View(), "")))
+		golden.RequireEqual(t, []byte(ansiRe.ReplaceAllString(out.(Model).View(), "")))
 	})
 }

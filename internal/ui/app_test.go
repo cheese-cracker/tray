@@ -311,33 +311,35 @@ func TestFooterNamesEveryKeyItKnows(t *testing.T) {
 	}
 }
 
-// `?` is a page, not a keymap strip: a keymap tells you which letter does a thing you
-// already understand, and the thing that needs explaining here is why there are two
-// layers at all.
-func TestHelpPageExplainsTheTwoLayers(t *testing.T) {
-	sandbox(t, "- [ ] one priority:H")
+// `?` is a dialog floating over the list, not a page replacing it. A keymap tells
+// you which letter does a thing you already understand; what needs explaining here is
+// why there are two layers at all, so the diagram leads and the keys follow.
+func TestHelpDialogExplainsTheTwoLayers(t *testing.T) {
+	sandbox(t, "- [ ] a task worth seeing behind the dialog priority:H")
 	m := keys(New(), "?").(Model)
 	if !m.help.ShowAll {
-		t.Fatal("? should open the page")
+		t.Fatal("? should open the dialog")
 	}
-	out, _ := m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	out, _ := m.Update(tea.WindowSizeMsg{Width: 80, Height: 26})
 	view := out.(Model).View()
 
 	for _, want := range []string{
 		"garage", "tray", // the two layers, as boxes
 		"take", "hand back", // and the move between them
-		"dump a line", "add, with the form", // what each one asks of you
-		"moving", "choosing", "acting", // one keymap section, headed
-		"j k", // the one alias the footer deliberately doesn't name
-		"restore", "retake", "delete",
+		"dump a line", "add, structured", // what each one asks of you
+		"keys", "acting", // one keymap section, headed
+		"j k",                         // the alias the footer doesn't name
+		"restore", "retake", "delete", // the letters only the menu shows
 	} {
 		if !strings.Contains(view, want) {
-			t.Errorf("the help page never mentions %q:\n%s", want, view)
+			t.Errorf("the help dialog never mentions %q:\n%s", want, view)
 		}
 	}
-	// It replaces the list rather than pushing it up, so it fits a short terminal.
-	if strings.Contains(view, "urg") {
-		t.Errorf("the table should be gone while help is open:\n%s", view)
+	// It floats: the frame it explains is still on screen around it.
+	for _, behind := range []string{"tray  ", "garage · ", "↑↓ move"} {
+		if !strings.Contains(view, behind) {
+			t.Errorf("the interface should show around the dialog, %q is gone:\n%s", behind, view)
+		}
 	}
 	if keys(m, "esc").(Model).help.ShowAll {
 		t.Error("esc should close it")
@@ -347,22 +349,27 @@ func TestHelpPageExplainsTheTwoLayers(t *testing.T) {
 	}
 }
 
-// The help page's layout has broken three times in a row — a wrapped column, two
+// The dialog's layout has broken three times in a row — a wrapped column, two
 // labels colliding, a key clipped to "tab  h…". Its widths are measured now, but the
 // measuring is only as good as this check: nothing may exceed the terminal, and no
 // key may be truncated into an ellipsis.
-func TestHelpPageFitsTheTerminal(t *testing.T) {
+func TestHelpDialogFitsTheTerminal(t *testing.T) {
 	sandbox(t, "- [ ] one priority:H")
-	for _, width := range []int{80, 100} {
-		out, _ := New().Update(tea.WindowSizeMsg{Width: width, Height: 26})
+	for _, size := range [][2]int{{80, 24}, {80, 30}, {100, 26}} {
+		width, height := size[0], size[1]
+		out, _ := New().Update(tea.WindowSizeMsg{Width: width, Height: height})
 		view := keys(out, "?").(Model).View()
-		for _, line := range strings.Split(view, "\n") {
+		lines := strings.Split(strings.TrimRight(view, "\n"), "\n")
+		for _, line := range lines {
 			if got := lipgloss.Width(line); got > width {
-				t.Errorf("at %d cols a help line is %d wide: %q", width, got, line)
+				t.Errorf("at %dx%d a line is %d wide: %q", width, height, got, line)
 			}
 		}
+		if len(lines) > height {
+			t.Errorf("at %dx%d the view is %d rows", width, height, len(lines))
+		}
 		if strings.Contains(view, "…") {
-			t.Errorf("at %d cols something in the help was truncated:\n%s", width, view)
+			t.Errorf("at %dx%d something was truncated:\n%s", width, height, view)
 		}
 	}
 }

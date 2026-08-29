@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 )
 
 // `?` is a page, not a keymap strip. A keymap tells you which letter does a thing you
@@ -13,28 +14,34 @@ import (
 // It replaces the list rather than pushing it up, which is what makes it fit on a
 // short terminal and lets it be read as one thing.
 
+// dialog is the frame `?` floats in. It is drawn over the list rather than replacing
+// it, so the interface stays on screen behind what is explaining it.
+var dialog = lipgloss.NewStyle().
+	Border(lipgloss.RoundedBorder()).BorderForeground(accent).
+	Padding(0, 2)
+
 var (
 	helpBox = lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).BorderForeground(subtle).
-		Padding(0, 1).Width(26)
+		Padding(0, 1).Width(22)
 	helpHead = lipgloss.NewStyle().Bold(true).Foreground(accent)
 )
 
 func (m Model) helpPage() string {
 	garage := helpBox.Render(strings.Join([]string{
 		helpHead.Render("garage"),
-		faintStyle.Render("anything, half-formed."),
-		faintStyle.Render("nothing is asked of you"),
+		faintStyle.Render("anything, unformed"),
+		faintStyle.Render("nothing is asked"),
 		"",
 		keyStyle.Render("a") + faintStyle.Render("  dump a line"),
 	}, "\n"))
 
 	tray := helpBox.Render(strings.Join([]string{
 		helpHead.Render("tray"),
-		faintStyle.Render("three to seven things"),
-		faintStyle.Render("you are doing now"),
-		faintStyle.Render("priority · due · tags"),
-		keyStyle.Render("a") + faintStyle.Render("  add, with the form"),
+		faintStyle.Render("three to seven you"),
+		faintStyle.Render("are doing now"),
+		faintStyle.Render("priority, due, tags"),
+		keyStyle.Render("a") + faintStyle.Render("  add, structured"),
 	}, "\n"))
 
 	// The gutter is the whole point of the picture: `take` is the one moment
@@ -49,11 +56,11 @@ func (m Model) helpPage() string {
 
 	var b strings.Builder
 	b.WriteString(faintStyle.Render(
-		"Dump anything into the garage; take a few things onto the tray.") + "\n\n")
+		"Dump anything into the garage; take a few onto the tray.") + "\n\n")
 	b.WriteString(lipgloss.JoinHorizontal(lipgloss.Top, garage, gutter, tray) + "\n\n")
 	b.WriteString(faintStyle.Render(
-		"Structure is paid for once, when something graduates — never at capture.") + "\n\n")
-	b.WriteString(helpKeys() + "\n")
+		"Structure is paid for once, when something graduates.") + "\n")
+	b.WriteString(helpKeys())
 	return b.String()
 }
 
@@ -62,9 +69,14 @@ func (m Model) helpPage() string {
 // at 22, "show done" collided with its neighbour at 18, and "tab  h l" was clipped to
 // "tab  h…" by a key column sized for a shorter key.
 func helpKeys() string {
+	// Three columns, not four: a popup that spans the whole terminal is not a popup,
+	// and the fourth column was what pushed it there.
 	cols := [][][2]string{
-		{{"", "moving"}, {"↑↓  j k", "move"}, {"tab", "switch layer"}},
-		{{"", "choosing"}, {"space", "select"}, {"enter", "the menu"}, {"/", "filter"}, {"v", "show done"}},
+		{
+			{"", "keys"},
+			{"↑↓  j k", "move"}, {"tab", "switch layer"}, {"space", "select"},
+			{"enter", "the menu"}, {"/", "filter"}, {"v", "show done"},
+		},
 		{{"", "acting"}, {"a", "add"}, {"t", "take"}, {"r", "retake"}, {"x", "done"}},
 		{{"", ""}, {"d", "hand back"}, {">", "move to"}, {"D", "delete"}, {"R", "restore"}},
 	}
@@ -95,4 +107,30 @@ func helpKeys() string {
 		rendered[i] = lipgloss.NewStyle().Width(width).Render(strings.Join(rows, "\n"))
 	}
 	return lipgloss.JoinHorizontal(lipgloss.Top, rendered...)
+}
+
+// overlay splices top over bg, centred, keeping whatever of bg still shows at the
+// edges. lipgloss has no compositor, so the slicing is done cell-wise with ansi —
+// cutting a styled line by byte offset would shred the escape sequences.
+func overlay(bg, top string) string {
+	rows := strings.Split(bg, "\n")
+	over := strings.Split(top, "\n")
+	width, height := lipgloss.Width(bg), len(rows)
+	topW := lipgloss.Width(top)
+
+	x := max(0, (width-topW)/2)
+	y := max(0, (height-len(over))/2)
+
+	for i, line := range over {
+		row := y + i
+		if row < 0 || row >= len(rows) {
+			continue
+		}
+		left := ansi.Truncate(rows[row], x, "")
+		if gap := x - ansi.StringWidth(left); gap > 0 {
+			left += strings.Repeat(" ", gap)
+		}
+		rows[row] = left + line + ansi.TruncateLeft(rows[row], x+topW, "")
+	}
+	return strings.Join(rows, "\n")
 }

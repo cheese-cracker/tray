@@ -1,26 +1,26 @@
 
 ╭────────╮╭───────────────────╮                                                 
 │  tray  ││  garage · August  │                                                 
-│        └┴───────────────────┴─────────────────────────────────────────────────
-│                                                                              │
-│  Dump anything into the garage; take a few things onto the tray.             │
-│                                                                              │
-│  ╭──────────────────────────╮        ╭──────────────────────────╮            │
-│  │ garage                   │        │ tray                     │            │
-│  │ anything, half-formed.   │  t take│ three to seven things    │            │
-│  │ nothing is asked of you  │  ─────▶│ you are doing now        │            │
-│  │                          │  ◀─────│ priority · due · tags    │            │
-│  │ a  dump a line           │  d back│ a  add, with the form    │            │
-│  ╰──────────────────────────╯        ╰──────────────────────────╯            │
-│                                                                              │
-│  Structure is paid for once, when something graduates — never at capture.    │
-│                                                                              │
-│  moving                choosing           acting                             │
-│  ↑↓  j k move          space   select     a       add     d       hand back  │
-│  tab     switch layer  enter   the menu   t       take    >       move to    │
-│                        /       filter     r       retake  D       delete     │
-│                        v       show done  x       done    R       restore    │
-│                                                                              │
-│                                                                              │
+│        ╭────────────────────────────────────────────────────────────╮─────────
+│        │  Dump anything into the garage; take a few onto the tray.  │        │
+│     tas│                                                            │        │
+│  ▸  Rot│  ╭──────────────────────╮        ╭──────────────────────╮  │        │
+│     Cha│  │ garage               │        │ tray                 │  │        │
+│     Boo│  │ anything, unformed   │  t take│ three to seven you   │  │        │
+│     Rev│  │ nothing is asked     │  ─────▶│ are doing now        │  │        │
+│        │  │                      │  ◀─────│ priority, due, tags  │  │        │
+│        │  │ a  dump a line       │  d back│ a  add, structured   │  │        │
+│        │  ╰──────────────────────╯        ╰──────────────────────╯  │        │
+│        │                                                            │        │
+│        │  Structure is paid for once, when something graduates.     │        │
+│        │  keys                  acting                              │        │
+│        │  ↑↓  j k move          a       add     d       hand back   │        │
+│        │  tab     switch layer  t       take    >       move to     │        │
+│        │  space   select        r       retake  D       delete      │        │
+│        │  enter   the menu      x       done    R       restore     │        │
+│        │  /       filter                                            │        │
+│        │  v       show done                                         │        │
+│        ╰────────────────────────────────────────────────────────────╯        │
 └──────────────────────────────────────────────────────────────────────────────┘
- ? esc  close
+ ↑↓ move · space select · tab switch · enter act · a add · v show done
+ / filter · ? help · q quit                                           

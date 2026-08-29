@@ -76,6 +76,9 @@ func (m Model) View() string {
 	b.WriteString(tabs + "\n")
 	b.WriteString(style.Render(body) + "\n")
 	b.WriteString(footer)
+	if m.help.ShowAll {
+		return overlay(b.String(), dialog.Render(m.helpPage()))
+	}
 	return b.String()
 }
 
@@ -156,9 +159,6 @@ func (m Model) renderTabs() string {
 }
 
 func (m Model) renderBody() string {
-	if m.help.ShowAll {
-		return m.helpPage()
-	}
 	if m.form != nil {
 		return m.form.view()
 	}
@@ -266,9 +266,6 @@ func (m Model) renderFooter() string {
 		return "" // the form carries its own hint
 	}
 	footer := " " + m.shortHelp()
-	if m.help.ShowAll {
-		footer = " " + faintStyle.Render("? esc  close")
-	}
 	if m.status != "" {
 		footer = " " + cursorStyle.Render(m.status) + "\n" + footer
 	}
