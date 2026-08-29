@@ -3,8 +3,8 @@
 # 🗒️ tray
 
 **A task tracker in two layers.**
-One for quick one-line thoughts, jotted the moment they occur.
-One for the few tasks actually on the plate.
+One for quick one-line thoughts.
+One for tasks you pick onto your tray.
 
 </div>
 
