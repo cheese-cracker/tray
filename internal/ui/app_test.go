@@ -326,7 +326,7 @@ func TestHelpDialogExplainsTheTwoLayers(t *testing.T) {
 	for _, want := range []string{
 		"garage", "tray", // the two layers, as boxes
 		"take", "hand back", // and the move between them
-		"dump a line", "add, structured", // what each one asks of you
+		"(a)dd a line", "(a)dd, structured", // what each one asks of you
 		"keys", "acting", // one keymap section, headed
 		"j k",                         // the alias the footer doesn't name
 		"restore", "retake", "delete", // the letters only the menu shows
@@ -347,12 +347,18 @@ func TestHelpDialogExplainsTheTwoLayers(t *testing.T) {
 			t.Errorf("the dialog should explain the idea, %q missing:\n%s", want, view)
 		}
 	}
-	// Letters in the diagram are parenthesised: bare ones read as prose there, and
-	// `a` means a different thing in each box.
-	for _, want := range []string{"(a)", "(t)", "(d)"} {
+	// The letter sits inside the verb, so it reads as a word and marks the key at
+	// once. Bare letters in prose read as prose, and `a` means a different thing in
+	// each box. `(d)` has no d-word to sit in: `D` already owns delete.
+	for _, want := range []string{"(a)dd", "(t)ake", "(d)", "(enter)"} {
 		if !strings.Contains(view, want) {
-			t.Errorf("the diagram should parenthesise %q:\n%s", want, view)
+			t.Errorf("the diagram should show %q:\n%s", want, view)
 		}
+	}
+	// Progressive disclosure: prose, then the picture, then the full keymap below a
+	// rule. The keymap must come last, or a newcomer meets twenty letters first.
+	if strings.Index(view, "two layers") > strings.Index(view, "hand back") {
+		t.Error("the explanation should come before the keymap")
 	}
 }
 
