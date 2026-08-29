@@ -20,55 +20,59 @@ var dialog = lipgloss.NewStyle().
 	Border(lipgloss.RoundedBorder()).BorderForeground(accent).
 	Padding(0, 2)
 
-var (
-	helpBox = lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).BorderForeground(subtle).
-		Padding(0, 1).Width(22)
-	helpHead = lipgloss.NewStyle().Bold(true).Foreground(accent)
-)
+var helpHead = lipgloss.NewStyle().Bold(true).Foreground(accent)
+
+// titled draws a box with its name set into the top edge, which buys back the row a
+// name-as-first-line costs. The dialog has to fit twenty rows to stay clear of the
+// footer on a short terminal, and every row is spent.
+func titled(name string, lines []string, inner int) string {
+	edge := lipgloss.NewStyle().Foreground(subtle)
+	out := []string{
+		edge.Render("╭─ ") + helpHead.Render(name) +
+			edge.Render(" "+strings.Repeat("─", inner-lipgloss.Width(name)-1)+"╮"),
+	}
+	for _, l := range lines {
+		out = append(out, edge.Render("│")+" "+pad(l, inner, 0)+" "+edge.Render("│"))
+	}
+	return strings.Join(append(out,
+		edge.Render("╰"+strings.Repeat("─", inner+2)+"╯")), "\n")
+}
 
 func (m Model) helpPage() string {
-	garage := helpBox.Render(strings.Join([]string{
-		helpHead.Render("garage"),
-		faintStyle.Render("anything, unformed"),
-		faintStyle.Render("nothing is asked"),
-		keyStyle.Render("a") + faintStyle.Render("  dump a line"),
-	}, "\n"))
+	garage := titled("garage", []string{
+		faintStyle.Render("anything, any month"),
+		keyStyle.Render("(a)") + faintStyle.Render(" dump a line"),
+	}, 19)
 
-	tray := helpBox.Render(strings.Join([]string{
-		helpHead.Render("tray"),
-		faintStyle.Render("three to seven, now"),
-		faintStyle.Render("priority, due, tags"),
-		keyStyle.Render("a") + faintStyle.Render("  add, structured"),
-	}, "\n"))
+	tray := titled("tray", []string{
+		faintStyle.Render("what you do now"),
+		keyStyle.Render("(a)") + faintStyle.Render(" add, structured"),
+	}, 19)
 
-	// The gutter is the whole point of the picture: `take` is the one moment
-	// structure gets paid for, and `d` is the way back.
+	// The gutter is the whole point of the picture: (t) is the one moment structure
+	// gets paid for, and (d) is the way back.
 	gutter := strings.Join([]string{
-		"", // the box's top border
-		"  " + keyStyle.Render("t") + faintStyle.Render(" take"),
-		"  " + cursorStyle.Render("─────▶"),
-		"  " + cursorStyle.Render("◀─────"),
-		"  " + keyStyle.Render("d") + faintStyle.Render(" back"),
-	}, "\n")
-
-	// What the thing is, before how it works. The diagram answers "why two layers";
-	// nothing answered "what am I even looking at".
-	what := helpHead.Render("tray") + faintStyle.Render(" — a task list kept in plain markdown, in") +
-		"\n" + faintStyle.Render("~/task-garage. Yours to edit in any editor.")
-
-	concept := strings.Join([]string{
-		what,
 		"",
-		lipgloss.JoinHorizontal(lipgloss.Top, garage, gutter, tray),
-		faintStyle.Render("Structure is paid for once, when something graduates."),
+		" " + keyStyle.Render("(t)") + " " + cursorStyle.Render("────▶"),
+		" " + keyStyle.Render("(d)") + " " + cursorStyle.Render("◀────"),
+		"",
 	}, "\n")
 
-	keys := helpKeys()
-	rule := faintStyle.Render(strings.Repeat("─",
-		max(lipgloss.Width(concept), lipgloss.Width(keys))))
+	// What the thing is, before how it works. Nothing here answered "what am I even
+	// looking at" — the diagram only ever answered "why two layers".
+	what := strings.Join([]string{
+		helpHead.Render("tray") + faintStyle.Render(" is a task manager in two layers. Dump any"),
+		faintStyle.Render("task, or a half-thought, into the garage for the month"),
+		faintStyle.Render("you expect to pick it up. When you are ready to work on"),
+		faintStyle.Render("it, take it onto the tray."),
+	}, "\n")
 
-	return strings.Join([]string{concept, rule, keys}, "\n")
+	diagram := lipgloss.JoinHorizontal(lipgloss.Top, garage, gutter, tray)
+	keys := helpKeys()
+	rule := faintStyle.Render(strings.Repeat("─", max(
+		max(lipgloss.Width(what), lipgloss.Width(diagram)), lipgloss.Width(keys))))
+
+	return strings.Join([]string{what, "", diagram, "", rule, keys}, "\n")
 }
 
 // The lower section: keys, in three columns. Four spanned the whole terminal, and a

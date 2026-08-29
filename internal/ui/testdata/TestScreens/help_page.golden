@@ -2,16 +2,16 @@
 ╭────────╮╭───────────────────╮                                                 
 │  tray  ││  garage · August  │                                                 
 │        ╭────────────────────────────────────────────────────────────╮─────────
-│        │  tray — a task list kept in plain markdown, in             │        │
-│     tas│  ~/task-garage. Yours to edit in any editor.               │        │
-│  ▸  Rot│                                                            │        │
-│     Cha│  ╭──────────────────────╮        ╭──────────────────────╮  │        │
-│     Boo│  │ garage               │  t take│ tray                 │  │        │
-│     Rev│  │ anything, unformed   │  ─────▶│ three to seven, now  │  │        │
-│        │  │ nothing is asked     │  ◀─────│ priority, due, tags  │  │        │
-│        │  │ a  dump a line       │  d back│ a  add, structured   │  │        │
-│        │  ╰──────────────────────╯        ╰──────────────────────╯  │        │
-│        │  Structure is paid for once, when something graduates.     │        │
+│        │  tray is a task manager in two layers. Dump any            │        │
+│     tas│  task, or a half-thought, into the garage for the month    │        │
+│  ▸  Rot│  you expect to pick it up. When you are ready to work on   │        │
+│     Cha│  it, take it onto the tray.                                │        │
+│     Boo│                                                            │        │
+│     Rev│  ╭─ garage ────────────╮          ╭─ tray ──────────────╮  │        │
+│        │  │ anything, any month │ (t) ────▶│ what you do now     │  │        │
+│        │  │ (a) dump a line     │ (d) ◀────│ (a) add, structured │  │        │
+│        │  ╰─────────────────────╯          ╰─────────────────────╯  │        │
+│        │                                                            │        │
 │        │  ────────────────────────────────────────────────────────  │        │
 │        │  keys                  acting                              │        │
 │        │  ↑↓  j k move          a       add     d       hand back   │        │

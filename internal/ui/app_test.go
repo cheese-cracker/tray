@@ -341,8 +341,18 @@ func TestHelpDialogExplainsTheTwoLayers(t *testing.T) {
 			t.Errorf("the interface should show around the dialog, %q is gone:\n%s", behind, view)
 		}
 	}
-	if !strings.Contains(view, "task list kept in plain markdown") {
-		t.Errorf("the dialog should say what tray is:\n%s", view)
+	// It has to say what tray is, not only how to drive it.
+	for _, want := range []string{"task manager in two layers", "half-thought", "pick it up"} {
+		if !strings.Contains(view, want) {
+			t.Errorf("the dialog should explain the idea, %q missing:\n%s", want, view)
+		}
+	}
+	// Letters in the diagram are parenthesised: bare ones read as prose there, and
+	// `a` means a different thing in each box.
+	for _, want := range []string{"(a)", "(t)", "(d)"} {
+		if !strings.Contains(view, want) {
+			t.Errorf("the diagram should parenthesise %q:\n%s", want, view)
+		}
 	}
 }
 
