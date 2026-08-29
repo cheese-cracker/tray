@@ -39,44 +39,48 @@ func titled(name string, lines []string, inner int) string {
 }
 
 func (m Model) helpPage() string {
+	// The picture says what the two layers *are*. Keys live under it, not inside it:
+	// a diagram carrying its own keybindings is doing two jobs and neither well.
 	garage := titled("garage", []string{
 		faintStyle.Render("anything, any month"),
 		faintStyle.Render("no structure asked"),
-		keyStyle.Render("(a)dd") + faintStyle.Render(" a line"),
 	}, 19)
 
 	tray := titled("tray", []string{
 		faintStyle.Render("what you do now"),
 		faintStyle.Render("priority, due, tags"),
-		keyStyle.Render("(a)dd") + faintStyle.Render(", structured"),
 	}, 19)
 
-	// The gutter is the whole point of the picture: take is the one moment structure
-	// gets paid for, and d is the way back out of it.
-	gutter := strings.Join([]string{
-		"", "",
-		" " + keyStyle.Render("(t)ake") + " " + cursorStyle.Render("──▶"),
-		" " + cursorStyle.Render("◀──") + " " + keyStyle.Render("(d)"),
-		"",
-	}, "\n")
+	gutter := strings.Join([]string{"", "  " + cursorStyle.Render("────▶"),
+		"  " + cursorStyle.Render("◀────"), ""}, "\n")
 
-	// Three lines on the idea, then the picture, then one line on how to do anything
-	// at all. The full keymap waits below the rule for whoever wants it.
 	what := strings.Join([]string{
 		helpHead.Render("tray") + faintStyle.Render(" is a task manager in two layers. Dump any task,"),
 		faintStyle.Render("or a half-thought, into the garage for the month you"),
 		faintStyle.Render("expect to pick it up. Take it onto the tray when ready."),
 	}, "\n")
 
-	act := keyStyle.Render("(enter)") +
-		faintStyle.Render(" acts on the selection; the menu lists the rest.")
+	// The four moves, in the order you meet them.
+	moves := strings.Join([]string{
+		verb("(a)dd", "a line to the layer you are on"),
+		verb("(t)ake", "a garage line onto the tray, structured"),
+		verb("(d)", "hand a tray task back to the garage"),
+		verb("(enter)", "act on the selection; the menu lists the rest"),
+	}, "\n")
 
 	diagram := lipgloss.JoinHorizontal(lipgloss.Top, garage, gutter, tray)
 	keys := helpKeys()
 	rule := faintStyle.Render(strings.Repeat("─", max(
-		max(lipgloss.Width(what), lipgloss.Width(diagram)), lipgloss.Width(keys))))
+		max(lipgloss.Width(what), lipgloss.Width(diagram)),
+		max(lipgloss.Width(moves), lipgloss.Width(keys)))))
 
-	return strings.Join([]string{what, "", diagram, act, rule, keys}, "\n")
+	// No blank before the diagram: its top border already separates it, and the
+	// dialog has exactly twenty rows before it starts covering the footer.
+	return strings.Join([]string{what, diagram, moves, rule, keys}, "\n")
+}
+
+func verb(key, meaning string) string {
+	return keyStyle.Render(pad(key, 8, 1)) + faintStyle.Render(meaning)
 }
 
 // The lower section: keys, in three columns. Four spanned the whole terminal, and a
@@ -87,7 +91,7 @@ func helpKeys() string {
 		{
 			{"", "keys"},
 			{"↑↓  j k", "move"}, {"tab", "switch layer"}, {"space", "select"},
-			{"enter", "the menu"}, {"/", "filter"}, {"v", "show done"},
+			{"/", "filter"}, {"v", "show done"},
 		},
 		{{"", "acting"}, {"a", "add"}, {"t", "take"}, {"r", "retake"}, {"x", "done"}},
 		{{"", ""}, {"d", "hand back"}, {">", "move to"}, {"D", "delete"}, {"R", "restore"}},

@@ -326,7 +326,7 @@ func TestHelpDialogExplainsTheTwoLayers(t *testing.T) {
 	for _, want := range []string{
 		"garage", "tray", // the two layers, as boxes
 		"take", "hand back", // and the move between them
-		"(a)dd a line", "(a)dd, structured", // what each one asks of you
+		"a line to the layer", "onto the tray, structured", // what each move does
 		"keys", "acting", // one keymap section, headed
 		"j k",                         // the alias the footer doesn't name
 		"restore", "retake", "delete", // the letters only the menu shows
@@ -348,11 +348,19 @@ func TestHelpDialogExplainsTheTwoLayers(t *testing.T) {
 		}
 	}
 	// The letter sits inside the verb, so it reads as a word and marks the key at
-	// once. Bare letters in prose read as prose, and `a` means a different thing in
-	// each box. `(d)` has no d-word to sit in: `D` already owns delete.
+	// once. `(d)` has no d-word to sit in: `D` already owns delete.
 	for _, want := range []string{"(a)dd", "(t)ake", "(d)", "(enter)"} {
 		if !strings.Contains(view, want) {
-			t.Errorf("the diagram should show %q:\n%s", want, view)
+			t.Errorf("the help should show %q:\n%s", want, view)
+		}
+	}
+	// The diagram says what the layers are and nothing else. Keys live under it: a
+	// picture carrying its own keybindings is doing two jobs and neither well.
+	for _, line := range strings.Split(view, "\n") {
+		if strings.Contains(line, "─ garage ") || strings.Contains(line, "any month") {
+			if strings.Contains(line, "(") {
+				t.Errorf("the diagram should carry no keys:\n%s", line)
+			}
 		}
 	}
 	// Progressive disclosure: prose, then the picture, then the full keymap below a

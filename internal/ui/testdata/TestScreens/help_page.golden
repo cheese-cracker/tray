@@ -1,26 +1,26 @@
 
 ╭────────╮╭───────────────────╮                                                 
 │  tray  ││  garage · August  │                                                 
-│       ╭─────────────────────────────────────────────────────────────╮─────────
-│       │  tray is a task manager in two layers. Dump any task,       │        │
-│     ta│  or a half-thought, into the garage for the month you       │        │
-│  ▸  Ro│  expect to pick it up. Take it onto the tray when ready.    │        │
-│     Ch│                                                             │        │
-│     Bo│  ╭─ garage ────────────╮           ╭─ tray ──────────────╮  │        │
-│     Re│  │ anything, any month │           │ what you do now     │  │        │
-│       │  │ no structure asked  │ (t)ake ──▶│ priority, due, tags │  │        │
-│       │  │ (a)dd a line        │ ◀── (d)   │ (a)dd, structured   │  │        │
-│       │  ╰─────────────────────╯           ╰─────────────────────╯  │        │
-│       │  (enter) acts on the selection; the menu lists the rest.    │        │
-│       │  ─────────────────────────────────────────────────────────  │        │
-│       │  keys                  acting                               │        │
-│       │  ↑↓  j k move          a       add     d       hand back    │        │
-│       │  tab     switch layer  t       take    >       move to      │        │
-│       │  space   select        r       retake  D       delete       │        │
-│       │  enter   the menu      x       done    R       restore      │        │
-│       │  /       filter                                             │        │
-│       │  v       show done                                          │        │
-│       ╰─────────────────────────────────────────────────────────────╯        │
+│        ╭───────────────────────────────────────────────────────────╮──────────
+│        │  tray is a task manager in two layers. Dump any task,     │         │
+│     tas│  or a half-thought, into the garage for the month you     │         │
+│  ▸  Rot│  expect to pick it up. Take it onto the tray when ready.  │         │
+│     Cha│  ╭─ garage ────────────╮       ╭─ tray ──────────────╮    │         │
+│     Boo│  │ anything, any month │  ────▶│ what you do now     │    │         │
+│     Rev│  │ no structure asked  │  ◀────│ priority, due, tags │    │         │
+│        │  ╰─────────────────────╯       ╰─────────────────────╯    │         │
+│        │  (a)dd    a line to the layer you are on                  │         │
+│        │  (t)ake   a garage line onto the tray, structured         │         │
+│        │  (d)      hand a tray task back to the garage             │         │
+│        │  (enter)  act on the selection; the menu lists the rest   │         │
+│        │  ───────────────────────────────────────────────────────  │         │
+│        │  keys                  acting                             │         │
+│        │  ↑↓  j k move          a       add     d       hand back  │         │
+│        │  tab     switch layer  t       take    >       move to    │         │
+│        │  space   select        r       retake  D       delete     │         │
+│        │  /       filter        x       done    R       restore    │         │
+│        │  v       show done                                        │         │
+│        ╰───────────────────────────────────────────────────────────╯         │
 └──────────────────────────────────────────────────────────────────────────────┘
  ↑↓ move · space select · tab switch · enter act · a add · v show done
  / filter · ? help · q quit                                           
