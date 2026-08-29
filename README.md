@@ -16,10 +16,9 @@ answer three questions you can't answer yet, or you don't write it down at all.
 
 tray keeps those two jobs apart:
 
-**🗑️ The garage** — for quick one-line task thoughts, filed under whatever month
-feels right. Nothing else is asked: a half-sentence is a valid entry.
+**🗑️ The garage** — for quick one-line task thoughts for later.
 
-**🍽️ The tray** — for the three to seven tasks actually picked up and on the plate.
+**🍽️ The tray** — for tasks on your plate right now.
 
 Moving a line from one to the other is the one moment it gets organised, and only the
 few that graduate ever need it.
@@ -35,11 +34,13 @@ tray                           # open it
 ## 🎯 What it's for
 
 - **🖥️ One tool, two interfaces.** A full-screen TUI for you; a plain-text CLI for your
-  agents. Same files, same rules, neither one a second-class citizen.
+  agents.
 - **📅 Structure only when it helps.** A line starts as a scribble and becomes a real
-  task — priority, due date, tags — at the moment you pick it up. Never before.
+  task — priority, due date, tags — at the moment you pick it up.
 - **🔌 Plays with what you already use.** Calendars, trackers, other task tools, via
-  plugins. *Not built yet — see [ROADMAP.md](ROADMAP.md).*
+  plugins. *Not built yet.*
+- **🎯 Few things well.** Inspired by the Eisenhower matrix. The tray is meant to be
+  the small list of deliberate tasks.
 
 ## The interface
 
