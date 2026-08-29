@@ -32,14 +32,12 @@ func (m Model) helpPage() string {
 		helpHead.Render("garage"),
 		faintStyle.Render("anything, unformed"),
 		faintStyle.Render("nothing is asked"),
-		"",
 		keyStyle.Render("a") + faintStyle.Render("  dump a line"),
 	}, "\n"))
 
 	tray := helpBox.Render(strings.Join([]string{
 		helpHead.Render("tray"),
-		faintStyle.Render("three to seven you"),
-		faintStyle.Render("are doing now"),
+		faintStyle.Render("three to seven, now"),
 		faintStyle.Render("priority, due, tags"),
 		keyStyle.Render("a") + faintStyle.Render("  add, structured"),
 	}, "\n"))
@@ -47,30 +45,36 @@ func (m Model) helpPage() string {
 	// The gutter is the whole point of the picture: `take` is the one moment
 	// structure gets paid for, and `d` is the way back.
 	gutter := strings.Join([]string{
-		"", "", // clear the box's top border and title row
+		"", // the box's top border
 		"  " + keyStyle.Render("t") + faintStyle.Render(" take"),
 		"  " + cursorStyle.Render("─────▶"),
 		"  " + cursorStyle.Render("◀─────"),
 		"  " + keyStyle.Render("d") + faintStyle.Render(" back"),
 	}, "\n")
 
-	var b strings.Builder
-	b.WriteString(faintStyle.Render(
-		"Dump anything into the garage; take a few onto the tray.") + "\n\n")
-	b.WriteString(lipgloss.JoinHorizontal(lipgloss.Top, garage, gutter, tray) + "\n\n")
-	b.WriteString(faintStyle.Render(
-		"Structure is paid for once, when something graduates.") + "\n")
-	b.WriteString(helpKeys())
-	return b.String()
+	// What the thing is, before how it works. The diagram answers "why two layers";
+	// nothing answered "what am I even looking at".
+	what := helpHead.Render("tray") + faintStyle.Render(" — a task list kept in plain markdown, in") +
+		"\n" + faintStyle.Render("~/task-garage. Yours to edit in any editor.")
+
+	concept := strings.Join([]string{
+		what,
+		"",
+		lipgloss.JoinHorizontal(lipgloss.Top, garage, gutter, tray),
+		faintStyle.Render("Structure is paid for once, when something graduates."),
+	}, "\n")
+
+	keys := helpKeys()
+	rule := faintStyle.Render(strings.Repeat("─",
+		max(lipgloss.Width(concept), lipgloss.Width(keys))))
+
+	return strings.Join([]string{concept, rule, keys}, "\n")
 }
 
-// One section, four columns. The widths are measured from the labels rather than
-// picked by hand: hand-picked ones broke three times running — the last column wrapped
-// at 22, "show done" collided with its neighbour at 18, and "tab  h l" was clipped to
-// "tab  h…" by a key column sized for a shorter key.
+// The lower section: keys, in three columns. Four spanned the whole terminal, and a
+// popup that fills the screen is not a popup. Widths are measured from the labels
+// rather than picked by hand — hand-picked ones broke three times running.
 func helpKeys() string {
-	// Three columns, not four: a popup that spans the whole terminal is not a popup,
-	// and the fourth column was what pushed it there.
 	cols := [][][2]string{
 		{
 			{"", "keys"},

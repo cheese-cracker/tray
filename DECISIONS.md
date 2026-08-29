@@ -214,3 +214,6 @@ Reported from use: two tasks went done when one was meant to.
 | 86b | Help column widths are **measured from the labels**, not chosen | Hand-picked widths broke three times running: the last column wrapped at 22, "show done" collided at 18, and "tab  h l" was clipped to "tab  h…" by a key column sized for a shorter key | live |
 | 86c | A test asserts the dialog fits the terminal in both directions and nothing is truncated | The measuring is only as good as the check. Three layout regressions reached a golden before this existed — goldens record what happened, they do not object to it | live |
 | 86d | The dialog is sized so the frame shows around it | A popup spanning the whole terminal is not a popup. That cost the fourth keymap column and two words per box line | live |
+| 86e | **Any key dismisses it**, and the key is spent doing so | You should never have to work out which key closes a thing that is in your way. `ctrl+c` still quits | live |
+| 86f | It opens by saying **what tray is** — two lines, before the diagram | The diagram answers "why two layers"; nothing answered "what am I looking at". It names `~/task-garage`, which is the other thing a newcomer needs | live |
+| 86g | Keys are a **separate lower section**, under a rule | The concept half and the reference half are read at different times and by different people | live |

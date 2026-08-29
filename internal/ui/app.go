@@ -336,6 +336,17 @@ func (m *Model) switchTab(by int) tea.Cmd {
 }
 
 func (m Model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	// The help dialog is modal: anything at all dismisses it, and the key is spent
+	// doing so. Only ctrl+c still means what it always means.
+	if m.help.ShowAll {
+		if msg.String() == "ctrl+c" {
+			return m, tea.Quit
+		}
+		m.help.ShowAll = false
+		m.resize()
+		return m, nil
+	}
+
 	// With the filter box focused every keystroke is text, `q` and `j` included.
 	if m.list.SettingFilter() {
 		return m.toList(msg)
@@ -344,11 +355,6 @@ func (m Model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "ctrl+c", "q":
 		return m, tea.Quit
 	case "esc":
-		if m.help.ShowAll {
-			m.help.ShowAll = false
-			m.resize()
-			return m, nil
-		}
 		if m.filtering() {
 			return m.toList(msg) // esc drops the filter before it quits tray
 		}

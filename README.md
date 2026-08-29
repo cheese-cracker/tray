@@ -161,7 +161,7 @@ handed a UI. Built with [bubbletea](https://github.com/charmbracelet/bubbletea),
 | `a` `n` | add — a title alone in a garage tab, the whole form on the tray |
 | `/` | filter. Fuzzy, over the text and the tags; `esc` clears it |
 | `v` | show what you finished, `✓` done and `✗` dropped, struck through |
-| `?` | the help dialog — what the two layers are, and every key |
+| `?` | the help dialog — what tray is, what the two layers are, and every key. Any key closes it |
 | `q` `esc` | quit |
 
 **The footer names the arrows only.** `j` `k` also move and are written down in `?`;

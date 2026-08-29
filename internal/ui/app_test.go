@@ -341,11 +341,34 @@ func TestHelpDialogExplainsTheTwoLayers(t *testing.T) {
 			t.Errorf("the interface should show around the dialog, %q is gone:\n%s", behind, view)
 		}
 	}
-	if keys(m, "esc").(Model).help.ShowAll {
-		t.Error("esc should close it")
+	if !strings.Contains(view, "task list kept in plain markdown") {
+		t.Errorf("the dialog should say what tray is:\n%s", view)
 	}
-	if keys(m, "?").(Model).help.ShowAll {
-		t.Error("? should close it too")
+}
+
+// It is modal: anything at all dismisses it, and the key is spent doing so — you
+// should never have to work out which key closes a thing that is in your way.
+func TestAnyKeyClosesTheHelpDialog(t *testing.T) {
+	sandbox(t, "- [ ] one priority:H", "- [ ] two priority:M")
+	open := keys(New(), "?").(Model)
+
+	for _, k := range []string{"?", "esc", "j", "x", "q", "a", "tab", " ", "/", "R"} {
+		after := keys(open, k).(Model)
+		if after.help.ShowAll {
+			t.Errorf("%q should close the dialog", k)
+		}
+		// Spent closing, not also acted on: `x` must not finish anything, `a` must
+		// not open a form, `j` must not move.
+		if after.form != nil || after.mode != browsing || after.list.Index() != 0 {
+			t.Errorf("%q did something besides closing", k)
+		}
+		if got := trayFile(t); strings.Contains(got, "~~") {
+			t.Fatalf("%q acted on a task while dismissing:\n%s", k, got)
+		}
+	}
+	// ctrl+c still means what it always means.
+	if _, cmd := open.Update(keyMsg("ctrl+c")); cmd == nil {
+		t.Error("ctrl+c should still quit from the dialog")
 	}
 }
 

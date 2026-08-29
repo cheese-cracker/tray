@@ -2,17 +2,17 @@
 ╭────────╮╭───────────────────╮                                                 
 │  tray  ││  garage · August  │                                                 
 │        ╭────────────────────────────────────────────────────────────╮─────────
-│        │  Dump anything into the garage; take a few onto the tray.  │        │
-│     tas│                                                            │        │
-│  ▸  Rot│  ╭──────────────────────╮        ╭──────────────────────╮  │        │
-│     Cha│  │ garage               │        │ tray                 │  │        │
-│     Boo│  │ anything, unformed   │  t take│ three to seven you   │  │        │
-│     Rev│  │ nothing is asked     │  ─────▶│ are doing now        │  │        │
-│        │  │                      │  ◀─────│ priority, due, tags  │  │        │
+│        │  tray — a task list kept in plain markdown, in             │        │
+│     tas│  ~/task-garage. Yours to edit in any editor.               │        │
+│  ▸  Rot│                                                            │        │
+│     Cha│  ╭──────────────────────╮        ╭──────────────────────╮  │        │
+│     Boo│  │ garage               │  t take│ tray                 │  │        │
+│     Rev│  │ anything, unformed   │  ─────▶│ three to seven, now  │  │        │
+│        │  │ nothing is asked     │  ◀─────│ priority, due, tags  │  │        │
 │        │  │ a  dump a line       │  d back│ a  add, structured   │  │        │
 │        │  ╰──────────────────────╯        ╰──────────────────────╯  │        │
-│        │                                                            │        │
 │        │  Structure is paid for once, when something graduates.     │        │
+│        │  ────────────────────────────────────────────────────────  │        │
 │        │  keys                  acting                              │        │
 │        │  ↑↓  j k move          a       add     d       hand back   │        │
 │        │  tab     switch layer  t       take    >       move to     │        │
