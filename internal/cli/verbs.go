@@ -99,7 +99,7 @@ func missing(t core.Task) string {
 	if len(wants) == 0 {
 		return ""
 	}
-	return " — no " + strings.Join(wants, " or ") + "; add with `tray 1 modify " +
+	return " — no " + strings.Join(wants, " or ") + "; add with `tray 1 rewrite " +
 		strings.Join(wants, " ") + "`"
 }
 
@@ -207,7 +207,7 @@ func cmdRewrite(req request) (string, error) {
 		return "no match", nil
 	}
 	if len(req.tail) == 0 {
-		return "the pickers land with the TUI — for now: tray N modify pri:M due:2026-08-20", nil
+		return "the pickers land with the TUI — for now: tray N rewrite pri:M due:2026-08-20", nil
 	}
 	mods := core.SplitMods(req.tail)
 	for _, t := range picked {

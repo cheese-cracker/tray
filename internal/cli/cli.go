@@ -24,11 +24,6 @@ var verbs = []string{
 	"restore", "help",
 }
 
-// Verbs that were renamed. They stay recognised so the old name fails loudly: dropped
-// from the list entirely, `tray 1 modify pri:M` would parse `modify` as a filter and
-// print an empty report — a silent wrong answer, which is worse than a name that's gone.
-var renamed = map[string]string{"retake": "rewrite", "modify": "rewrite"}
-
 var idSpec = regexp.MustCompile(`^\d+([,-]\d+)*$`)
 
 const usage = `tray — two layers of markdown. Dump to the garage, take onto the tray.
@@ -111,7 +106,7 @@ type request struct {
 func parse(args []string) request {
 	at := -1
 	for i, a := range args {
-		if contains(verbs, a) || renamed[a] != "" {
+		if contains(verbs, a) {
 			at = i
 			break
 		}
@@ -191,10 +186,6 @@ func Run(args []string) int {
 }
 
 func dispatch(req request) (string, error) {
-	if to, ok := renamed[req.verb]; ok {
-		return "", fmt.Errorf("%s is now %s — try: %s", req.verb, to,
-			strings.TrimSpace("tray "+req.ids+" "+to))
-	}
 	switch req.verb {
 	case "init":
 		return cmdInit()

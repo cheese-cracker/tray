@@ -311,11 +311,6 @@ tray unload >/dev/null 2>&1 && bad "bare unload should fail when piped" \
   || pass "unload refuses to guess the month"
 tray garage list --nope >/dev/null 2>&1 && bad "an unknown flag was swallowed" \
   || pass "an unknown flag is an error, not a silence"
-for old in retake modify; do
-  out=$(tray 1 $old pri:M 2>&1)
-  case $out in *"now rewrite"*) pass "$old fails loudly and names rewrite" ;;
-    *) bad "$old did not point at rewrite: $out" ;; esac
-done
 teardown
 
 # --- F19 · the terminal header ------------------------------------------------
