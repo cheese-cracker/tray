@@ -175,7 +175,7 @@ func TestTakeFromGarageMovesAndOpensTheForm(t *testing.T) {
 		t.Errorf("source should be annotated, not removed:\n%s", got)
 	}
 	if m.mode != editing || m.form == nil {
-		t.Error("take should open the retake form on what landed")
+		t.Error("take should open the rewrite form on what landed")
 	}
 	if m.form.month != "" {
 		t.Errorf("the form should be editing the tray, got month %q", m.form.month)
@@ -342,11 +342,11 @@ func TestHandBackReturnsTheLineItCameFrom(t *testing.T) {
 	}
 }
 
-func TestRetakeIsTheDefaultOnTheTray(t *testing.T) {
+func TestRewriteIsTheDefaultOnTheTray(t *testing.T) {
 	sandbox(t, "- [ ] a thing priority:M")
 	m := keys(New(), "enter").(Model)
 	if got := m.offered()[m.menuAt].key; got != "r" {
-		t.Errorf("the default action is %q, want retake", got)
+		t.Errorf("the default action is %q, want rewrite", got)
 	}
 }
 

@@ -35,12 +35,12 @@ func TestFlowTakeOpensTheFormAndSaves(t *testing.T) {
 
 	u := drive(t, New()).waitFor("tray")
 	u.press("tab").waitFor("add retries") // to the garage tab
-	u.press("t").waitFor("retake")        // take, which opens the form
+	u.press("t").waitFor("rewrite")       // take, which opens the form
 	u.press("down", "left")               // priority field, step it up toward H
 	u.press("enter")
 	// The status is the form's, not the move's: take runs first, then the form
 	// saves over it. The arrow it left behind is in the file, which is the record.
-	m := u.waitFor("retook 1").final()
+	m := u.waitFor("rewrote 1").final()
 
 	if m.mode != browsing {
 		t.Errorf("the form should have closed, mode = %v", m.mode)
@@ -52,14 +52,14 @@ func TestFlowTakeOpensTheFormAndSaves(t *testing.T) {
 
 // T2 · with several marked the form skips the title: one name for many is never the
 // intent. The batch still has to reach every task.
-func TestFlowBatchRetakeSkipsTheTitle(t *testing.T) {
+func TestFlowBatchRewriteSkipsTheTitle(t *testing.T) {
 	sandbox(t, "- [ ] one priority:L", "- [ ] two priority:L")
 
 	u := drive(t, New()).waitFor("one")
 	u.press(" ", "j", " ") // mark both
-	u.press("r").waitFor("retake 2 tasks")
+	u.press("r").waitFor("rewrite 2 tasks")
 	u.press("left", "enter") // priority L -> M, save
-	m := u.waitFor("retook 2").final()
+	m := u.waitFor("rewrote 2").final()
 
 	if len(m.marked) != 0 {
 		t.Errorf("marks should clear after the form, got %v", m.marked)
@@ -170,9 +170,9 @@ func TestFlowHandBackRevivesTheGarageLine(t *testing.T) {
 
 	u := drive(t, New()).waitFor("tray")
 	u.press("tab").waitFor("fix the sync job")
-	u.press("t").waitFor("retake") // take it, and give it a priority on the way
+	u.press("t").waitFor("rewrite") // take it, and give it a priority on the way
 	u.press("down", "left")
-	u.press("enter").waitFor("retook 1")
+	u.press("enter").waitFor("rewrote 1")
 	u.press("shift+tab").waitFor("fix the sync job")
 	u.press("d") // hand it straight back
 	u.final()
@@ -381,5 +381,61 @@ func TestFlowFinishedRowOffersOnlyRestore(t *testing.T) {
 	mixed := keys(New(), "v", " ", "j", " ").(Model)
 	if mixed.allFinished() {
 		t.Error("a selection spanning both kinds is not all finished")
+	}
+}
+
+// T16 · a rewrite in the garage is the words and nothing else. A garage line may
+// still *carry* a priority — one handed back from the tray keeps what it was given —
+// but there is no way to set one here. Wanting to is what take is for.
+func TestFlowGarageRewriteIsTextOnly(t *testing.T) {
+	sandbox(t)
+	garage(t, "2026-08", "- fix the sync job priority:H due:2026-08-20 +work")
+
+	u := drive(t, New()).waitFor("tray")
+	u.press("tab").waitFor("fix the sync job")
+	u.press("r").waitFor("rewrite")
+	m := u.press("q").final()
+
+	if got := m.form.fields(); len(got) != 1 || got[0] != fTitle {
+		t.Errorf("the garage form offered %v, want the title alone", got)
+	}
+
+	// Rewriting the words must not strip what the line already carries.
+	u = drive(t, New()).waitFor("tray")
+	u.press("tab").waitFor("fix the sync job")
+	u.press("r").waitFor("rewrite")
+	u.typeIn(" now")
+	u.press("enter")
+	u.waitFor("rewrote 1").final()
+
+	month := monthFile(t, "2026-08")
+	has(t, month, "fix the sync job now")
+	has(t, month, "priority:H")
+	has(t, month, "due:2026-08-20")
+	has(t, month, "+work")
+}
+
+// T17 · one name for many is never the intent, and in the garage the name is all
+// there is — so a batch rewrite has nothing left to change. It says so rather than
+// opening a form with no fields in it.
+func TestFlowGarageRewriteRefusesABatch(t *testing.T) {
+	sandbox(t)
+	garage(t, "2026-08", "- first line", "- second line")
+
+	u := drive(t, New()).waitFor("tray")
+	u.press("tab").waitFor("first line")
+	u.press(" ", "j", " ") // mark both
+	u.press("r")
+	m := u.waitFor("one line at a time").final()
+
+	if m.form != nil {
+		t.Error("no form should have opened for a garage batch")
+	}
+	if m.mode != browsing {
+		t.Errorf("mode = %v, want browsing", m.mode)
+	}
+	// The tray still takes a batch: there, the attributes are the point.
+	if got := len(keys(New(), " ", "j", " ", "r").(Model).offered()); got == 0 {
+		t.Error("the tray should still offer a batch rewrite")
 	}
 }

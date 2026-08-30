@@ -52,7 +52,7 @@ suite rather than hanging it.
 | # | Must keep working | Held by |
 |---|---|---|
 | T1 | `take` moves the line onto the tray **and then** opens the form, prefilled | `TestFlowTakeOpensTheFormAndSaves` |
-| T2 | With several marked, the form skips the title and still reaches every task | `TestFlowBatchRetakeSkipsTheTitle` |
+| T2 | With several marked, the form skips the title and still reaches every task | `TestFlowBatchRewriteSkipsTheTitle` |
 | T3 | An action applies to the row a filter left visible, not to the pre-filter cursor | `TestFlowFilterThenActOnAFilteredRow` |
 | T4 | **Marks survive a filter.** Filter, mark, filter again, act on all of them | `TestFlowMarksSurviveAFilter` |
 | T5 | Tabs cycle at both ends rather than stopping | `TestFlowTabsCycleBothWays` |
@@ -64,13 +64,15 @@ suite rather than hanging it.
 | T11 | `carryover` opens four month tabs — prev · this · next · someday — no tray tab, focused on the current month | `TestFlowSweepOpensTheMonthsAsTabs` |
 | T12 | `?` opens and closes without disturbing the list underneath | `TestFlowHelpOverlayToggles` |
 | T14 | A finished task is hidden until `v`, and `R` says it wasn't finished after all | `TestFlowViewDoneThenRestore` |
+| T16 | A garage rewrite edits the words alone, and keeps whatever the line already carries | `TestFlowGarageRewriteIsTextOnly` |
+| T17 | A garage rewrite refuses a batch — there is nothing left for it to change | `TestFlowGarageRewriteRefusesABatch` |
 | T15 | A finished row offers restore and nothing else; a mixed selection keeps the normal menu | `TestFlowFinishedRowOffersOnlyRestore` |
 | T13 | A pasted title lands whole, and a pasted newline collapses rather than splitting the line | `TestFlowPasteIntoTheTitle` |
 
 ## Screens
 
 `TestScreens` keeps one golden frame per distinct screen — tray, empty tray, marked
-rows, garage, action menu, destination picker, retake form, help overlay, active
+rows, garage, action menu, destination picker, rewrite form, help overlay, active
 filter, a paged long list, and a narrow terminal that must truncate rather than wrap.
 
 They are not flows and hold no behaviour. They catch the class of thing a behaviour

@@ -68,7 +68,7 @@ func TestScreens(t *testing.T) {
 		frame(t, New(), ">")
 	})
 
-	t.Run("retake_form", func(t *testing.T) {
+	t.Run("rewrite_form", func(t *testing.T) {
 		sandbox(t, full...)
 		frame(t, New(), "r")
 	})

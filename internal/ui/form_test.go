@@ -7,7 +7,7 @@ import (
 	"github.com/cheese-cracker/tray/internal/store"
 )
 
-func openRetake(t *testing.T, presses ...string) Model {
+func openRewrite(t *testing.T, presses ...string) Model {
 	t.Helper()
 	m := keys(New(), append([]string{"r"}, presses...)...).(Model)
 	if m.form == nil {
@@ -18,7 +18,7 @@ func openRetake(t *testing.T, presses ...string) Model {
 
 func TestFormOpensPrefilled(t *testing.T) {
 	sandbox(t, "- [ ] rotate the api keys priority:M due:2026-08-12 +infra")
-	f := openRetake(t).form
+	f := openRewrite(t).form
 
 	if f.title != "rotate the api keys" {
 		t.Errorf("title = %q", f.title)
@@ -33,7 +33,7 @@ func TestFormOpensPrefilled(t *testing.T) {
 
 func TestUntouchedFieldsAreLeftAlone(t *testing.T) {
 	sandbox(t, "- [ ] rotate the api keys priority:M due:2026-08-12 +infra")
-	keys(openRetake(t), "enter") // save immediately, having changed nothing
+	keys(openRewrite(t), "enter") // save immediately, having changed nothing
 
 	got := trayFile(t)
 	for _, want := range []string{"rotate the api keys", "priority:M", "due:2026-08-12", "+infra"} {
@@ -45,7 +45,7 @@ func TestUntouchedFieldsAreLeftAlone(t *testing.T) {
 
 func TestCyclePriority(t *testing.T) {
 	sandbox(t, "- [ ] a thing priority:M")
-	m := openRetake(t)
+	m := openRewrite(t)
 	m.form.at = fPriority
 
 	m = keys(m, "h").(Model) // M → H, leftward, because the radio reads H · M · L
@@ -66,7 +66,7 @@ func TestCyclePriority(t *testing.T) {
 // reads as medium.
 func TestPriorityHasNoNoneAndDefaultsToMedium(t *testing.T) {
 	sandbox(t, "- [ ] no priority yet")
-	m := openRetake(t)
+	m := openRewrite(t)
 	if m.form.prio != "M" {
 		t.Errorf("an unset priority should read as M, got %q", m.form.prio)
 	}
@@ -91,7 +91,7 @@ func TestNewTrayTaskIsMediumByDefault(t *testing.T) {
 
 func TestTypingRenames(t *testing.T) {
 	sandbox(t, "- [ ] ab priority:H")
-	m := openRetake(t)
+	m := openRewrite(t)
 	m = keys(m, "c", "d").(Model) // title field is first
 	if m.form.title != "abcd" {
 		t.Errorf("title = %q", m.form.title)
@@ -110,7 +110,7 @@ func TestTypingRenames(t *testing.T) {
 // are picked rather than typed.
 func TestVimKeysTypeIntoTheTitle(t *testing.T) {
 	sandbox(t, "- [ ] x")
-	m := openRetake(t, "h", "j", "k", "l")
+	m := openRewrite(t, "h", "j", "k", "l")
 	if m.form.title != "xhjkl" {
 		t.Errorf("title = %q, want the letters typed", m.form.title)
 	}
@@ -118,7 +118,7 @@ func TestVimKeysTypeIntoTheTitle(t *testing.T) {
 
 func TestDueShiftsByADay(t *testing.T) {
 	sandbox(t, "- [ ] a thing due:2026-08-12")
-	m := openRetake(t)
+	m := openRewrite(t)
 	m.form.at = fDue
 	m = keys(m, "right").(Model)
 	if got := m.form.due; got != "2026-08-13" {
@@ -132,7 +132,7 @@ func TestDueShiftsByADay(t *testing.T) {
 
 func TestEmptyDueShiftsFromToday(t *testing.T) {
 	sandbox(t, "- [ ] a thing")
-	m := openRetake(t)
+	m := openRewrite(t)
 	m.form.at = fDue
 	m = keys(m, "right").(Model)
 	if got := m.form.due; got != "2026-08-07" {
@@ -144,7 +144,7 @@ func TestEmptyDueShiftsFromToday(t *testing.T) {
 // menu — so a new one costs nothing but is still an act, not an accident.
 func TestTagIsTyped(t *testing.T) {
 	sandbox(t, "- [ ] a thing +infra", "- [ ] another +ops")
-	m := openRetake(t)
+	m := openRewrite(t)
 	m.form.at = fTag
 	m.form.tag = ""
 
@@ -170,7 +170,7 @@ func TestTagIsTyped(t *testing.T) {
 
 func TestEscCancelsEverything(t *testing.T) {
 	sandbox(t, "- [ ] keep me priority:M")
-	m := openRetake(t, "z", "z", "z")
+	m := openRewrite(t, "z", "z", "z")
 	m = keys(m, "esc").(Model)
 	if m.form != nil {
 		t.Error("esc should close the form")
@@ -182,7 +182,7 @@ func TestEscCancelsEverything(t *testing.T) {
 
 func TestPriorityClampsAtTheTop(t *testing.T) {
 	sandbox(t, "- [ ] a thing priority:H")
-	m := openRetake(t)
+	m := openRewrite(t)
 	m.form.at = fPriority
 	m = keys(m, "h", "h").(Model)
 	if m.form.prio != "H" {
@@ -192,7 +192,7 @@ func TestPriorityClampsAtTheTop(t *testing.T) {
 
 func TestBatchSkipsTheTitle(t *testing.T) {
 	sandbox(t, "- [ ] one priority:M", "- [ ] two priority:M")
-	m := keys(New(), " ", "j", " ", "r").(Model) // mark both, retake
+	m := keys(New(), " ", "j", " ", "r").(Model) // mark both, rewrite
 	if m.form == nil || !m.form.batch {
 		t.Fatal("two marks should open a batch form")
 	}
@@ -215,8 +215,8 @@ func TestBatchSkipsTheTitle(t *testing.T) {
 
 func TestFormViewShowsFieldsAndHint(t *testing.T) {
 	sandbox(t, "- [ ] a thing priority:M due:2026-08-12 +infra")
-	view := openRetake(t).View()
-	for _, want := range []string{"retake", "title", "priority", "due", "tag", "enter save", "esc cancel"} {
+	view := openRewrite(t).View()
+	for _, want := range []string{"rewrite", "title", "priority", "due", "tag", "enter save", "esc cancel"} {
 		if !strings.Contains(view, want) {
 			t.Errorf("form view missing %q:\n%s", want, view)
 		}
@@ -281,7 +281,7 @@ func TestAddCreatesNothingWhenAbandoned(t *testing.T) {
 // are editing, or the next keystroke would append to it.
 func TestWeekdayIsShownButNotEdited(t *testing.T) {
 	sandbox(t, "- [ ] a thing due:2026-08-12")
-	m := openRetake(t)
+	m := openRewrite(t)
 	m.form.at = fDue
 
 	if !strings.Contains(m.View(), "2026-08-12 Wed") {
@@ -306,7 +306,7 @@ func TestWeekdayIsShownButNotEdited(t *testing.T) {
 // orders, so l moved the dot left.
 func TestPriorityStepsTheWayTheRadioReads(t *testing.T) {
 	sandbox(t, "- [ ] a thing priority:M")
-	m := openRetake(t)
+	m := openRewrite(t)
 	m.form.at = fPriority
 
 	dot := func(m Model) int { return strings.Index(m.View(), "(•)") }

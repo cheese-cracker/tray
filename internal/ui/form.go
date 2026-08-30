@@ -12,7 +12,7 @@ import (
 	"github.com/cheese-cracker/tray/internal/store"
 )
 
-// retake is one form with every field already at its current value, so only what
+// rewrite is one form with every field already at its current value, so only what
 // you touch changes. No sequence, no question you must answer to reach another.
 
 type field int
@@ -81,7 +81,11 @@ func newEntry(month string, today time.Time) form {
 }
 
 func (f form) fields() []field {
-	if f.creating && f.month != "" {
+	// The garage asks for the words and nothing else — when a line is new, and just
+	// as much when it is rewritten. A garage line *may* carry a priority, because one
+	// handed back from the tray keeps what it was given; there is simply no way to
+	// set one here. Wanting to is what `take` is for.
+	if f.month != "" {
 		return []field{fTitle}
 	}
 	if f.batch {
@@ -231,7 +235,7 @@ func (f form) apply() (string, error) {
 	if len(f.touched) == 0 {
 		return "unchanged", nil
 	}
-	return fmt.Sprintf("retook %d", len(f.tasks)), nil
+	return fmt.Sprintf("rewrote %d", len(f.tasks)), nil
 }
 
 func (f form) create(doc *store.Doc) (string, error) {
@@ -326,14 +330,14 @@ func (f form) update(key tea.KeyMsg) (form, bool, bool) {
 
 func (f form) view() string {
 	var b strings.Builder
-	title := "retake"
+	title := "rewrite"
 	switch {
 	case f.creating && f.month != "":
 		title = "dump — a line for later, nothing else needed"
 	case f.creating:
 		title = "add to the tray"
 	case f.batch:
-		title = fmt.Sprintf("retake %d tasks", len(f.tasks))
+		title = fmt.Sprintf("rewrite %d tasks", len(f.tasks))
 	}
 	b.WriteString("\n  " + titleStyle.Render(title) + "\n\n")
 

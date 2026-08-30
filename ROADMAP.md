@@ -5,7 +5,7 @@ is one line in [DECISIONS.md](DECISIONS.md).
 
 ## Next
 
-- [ ] **The retake form drops every tag but the first** — `core` has held `Tags []string`
+- [ ] **The rewrite form drops every tag but the first** — `core` has held `Tags []string`
   all along and urgency already damps by count, so the grammar was never the limit. The
   form is what flattens it: it reads `first.Tags[0]` (`internal/ui/form.go:64`) and writes
   `[]string{tag}` back (`:223`, `:253`), so retaking a two-tag task silently loses one.
@@ -14,7 +14,7 @@ is one line in [DECISIONS.md](DECISIONS.md).
 
 - [ ] **`tray install`** — the nag has no home until this exists. See below.
 
-- [ ] **`bubbles/textinput` in the retake form** — hand-rolled text editing is the thin ice:
+- [ ] **`bubbles/textinput` in the rewrite form** — hand-rolled text editing is the thin ice:
   no cursor and no word motions. The blocker is that `←`/`→` on the `due` field shift by a
   day, which a text input would claim for cursor movement. Needs a decision before it needs
   code.

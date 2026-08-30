@@ -68,7 +68,7 @@ Bare `tray` on a terminal opens it.
 | `↑` `↓` | move — `j` `k` also work |
 | `tab` | switch layer, cycling at either end. `⇧tab` goes back |
 | `space` | select. Actions apply to your selection, or to the row under the cursor |
-| `enter` | the action menu — take, retake, done, hand back, move, delete |
+| `enter` | the action menu — take, rewrite, done, hand back, move, delete |
 | `a` | add — a bare line in the garage, the full form on the tray |
 | `t` | take a garage line onto the tray, and give it structure |
 | `/` | filter · `v` show what you finished · `?` help · `q` quit |
@@ -143,7 +143,7 @@ it. This is the same tool and the same files — just the half you don't have to
 | | |
 |---|---|
 | `tray 3 take [pri:H +infra]` | Garage → tray. Where a jotted pointer becomes a real task. |
-| `tray 2 retake` | Restructure something already on the tray. |
+| `tray 2 rewrite` | Restructure something already on the tray. In the garage this is the text alone — a priority there is what `take` is for. |
 | `tray unload --to 2026-09` | Hand the whole tray back to a month. **The month is never guessed** — bare `tray unload` picks it on a terminal and errors when piped. Finished items land struck through; open ones keep what the tray gave them. |
 | `tray 2 unload --to 2026-09` | One item. |
 

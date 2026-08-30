@@ -22,7 +22,7 @@ const (
 	browsing mode = iota
 	acting        // the enter menu
 	sending       // choosing where `>` moves things
-	editing       // the retake form
+	editing       // the rewrite form
 )
 
 // action is one row of the enter menu. Its key also works straight from the list.
@@ -40,7 +40,7 @@ var actions = []action{
 		apply: func(m *Model, p []core.Task) string { return m.finish(p, "done") }},
 	{key: "d", label: "hand back", tray: true, apply: (*Model).handBack},
 	{key: ">", label: "move to", tray: true, rest: true, apply: (*Model).chooseDestination},
-	{key: "r", label: "retake", tray: true, rest: true, apply: (*Model).openForm},
+	{key: "r", label: "rewrite", tray: true, rest: true, apply: (*Model).openForm},
 	{key: "D", label: "delete", tray: true, rest: true,
 		apply: func(m *Model, p []core.Task) string { return m.finish(p, "dropped") }},
 	{key: "R", label: "restore", tray: true, rest: true, apply: (*Model).restore},
@@ -494,8 +494,15 @@ func (m *Model) chooseDestination(picked []core.Task) string {
 	return ""
 }
 
-// openForm hands the selection to the retake form, on whichever layer it came from.
+// openForm hands the selection to the rewrite form, on whichever layer it came from.
+//
+// In the garage a rewrite is the words and nothing else, and one name for many is
+// never the intent — so a batch there has nothing left to change. Say so rather than
+// opening a form with no fields in it.
 func (m *Model) openForm(picked []core.Task) string {
+	if !m.layer().isTray() && len(picked) > 1 {
+		return "rewrite takes one line at a time"
+	}
 	f := newForm(picked, m.layer().month, m.today)
 	m.form, m.mode = &f, editing
 	return ""

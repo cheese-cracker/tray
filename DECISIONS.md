@@ -39,7 +39,7 @@ audit trail, and it is a better one than a row that has to be read past every ti
 | 20 | Bare `tray` is the TUI **only when both ends are a terminal** | Piped, an agent must never be handed a UI | live |
 | 22 | bubbletea, with tabs and a real pane | A picker can select a line; it can't do in-place editing or panes | live |
 | 24 | `enter` opens a menu whose letters **also work from the list** | Discoverable on day one, one keystroke by week two | live |
-| 25 | `retake` is **one form, every field prefilled** | Only what you touch changes; no wizard | live |
+| 25 | `rewrite` is **one form, every field prefilled** | Only what you touch changes; no wizard | live |
 | 26 | `d` hands back to the garage, `D` deletes | Your mapping | live |
 | 27 | `D` strikes through rather than removing the line | Consistent with 5. Flagged as overridable | live |
 | 28 | Two tabs day to day; **`tray carryover` opens the months as tabs** | The sweep is the one ritual that's about months | live, widened by 73 |
@@ -48,7 +48,7 @@ audit trail, and it is a better one than a row that has to be read past every ti
 | 32 | Priority is a **radio `H · M · L`, defaulting to M** | No "none": an unset task reads as medium | live |
 | 33 | The garage form asks for the title alone; the tray form asks for everything | Structure is expected on the tray, nowhere else | live |
 | 34 | `tray add`/`take` **warn** what's missing rather than prompting | The CLI is the agent surface; it can't start asking questions | live |
-| 34a | The menu leads with the layer's primary action: `retake` on the tray, `take` in the garage | `enter enter` should do the obvious thing | live |
+| 34a | The menu leads with the layer's primary action: `rewrite` on the tray, `take` in the garage | `enter enter` should do the obvious thing | live |
 | 35 | Full-page layout, list windows around the cursor | Overflow makes the alt screen jitter | live |
 | 36 | Dates **display** with the weekday (`2026-08-12 Wed`); files and JSON stay ISO | The day is what tells you whether something is soon | live |
 
@@ -172,3 +172,13 @@ Reported from use: two tasks went done when one was meant to.
 | 86n | On a terminal too small for it, the **diagram is what goes** | Something has to give, and losing the keymap or clipping mid-sentence would both be worse. It is the decorative half | live |
 | 86m | `?` takes **the whole screen** | As an overlay it grew a frame but never grew its contents, so it read the same size however big the terminal was. Full screen means the prose reflows, the boxes spread, and there is no ceiling to design the content against — and any key still goes back, so it costs nothing to open | live |
 | 86k | **Progressive disclosure**: prose, then the picture, then the keymap under a rule | A newcomer who meets twenty letters first has learnt nothing. A test asserts the order, because it is the kind of thing an edit quietly reverses | live |
+
+## Rewriting a line
+
+| # | Decision | Why | Status |
+|---|---|---|---|
+| 87 | `retake` is called **`rewrite`** | `retake` named the mechanism — the inverse of `take` — not the thing you wanted to do. `r` stays: it is where the vim hand already is | live |
+| 87a | The old verb **errors** rather than being dropped | Removed from the verb list it parses as a filter, so `tray 1 retake pri:M` prints "tray empty". A silent wrong answer is worse than a name that is gone | live |
+| 88 | A garage rewrite edits **the words alone** | Setting a priority in the garage is wanting a tray task, and `take` is how you say that. Same rule 33 already applies to `a`dd, now applied to `r` | live |
+| 88a | It **keeps** whatever the line already carries | A line handed back from the tray arrives with a priority (68). Not offering the field is different from clearing it, and the form only ever writes what you touched | live |
+| 88b | A garage batch rewrite is **refused** | The words are all there is, and one name for many is never the intent (25) — so a batch has nothing left to change. Better to say so than open a form with no fields | live |

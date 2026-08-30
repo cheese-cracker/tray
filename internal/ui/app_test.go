@@ -328,8 +328,8 @@ func TestHelpScreenExplainsTheTwoLayers(t *testing.T) {
 		"take", "hand back", // and the move between them
 		"a line to the layer", "onto the tray, structured", // what each move does
 		"keys", "acting", // one keymap section, headed
-		"j k",                         // the alias the footer doesn't name
-		"restore", "retake", "delete", // the letters only the menu shows
+		"j k",                          // the alias the footer doesn't name
+		"restore", "rewrite", "delete", // the letters only the menu shows
 	} {
 		if !strings.Contains(view, want) {
 			t.Errorf("the help dialog never mentions %q:\n%s", want, view)

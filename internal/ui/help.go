@@ -98,7 +98,7 @@ func helpKeys() string {
 			{"↑↓  j k", "move"}, {"tab", "switch layer"}, {"space", "select"},
 			{"/", "filter"}, {"v", "show done"},
 		},
-		{{"", "acting"}, {"a", "add"}, {"t", "take"}, {"r", "retake"}, {"x", "done"}},
+		{{"", "acting"}, {"a", "add"}, {"t", "take"}, {"r", "rewrite"}, {"x", "done"}},
 		{{"", ""}, {"d", "hand back"}, {">", "move to"}, {"D", "delete"}, {"R", "restore"}},
 	}
 

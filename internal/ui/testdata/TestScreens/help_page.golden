@@ -16,9 +16,9 @@
   
   ────────────────────────────────────────────────────────────────────────────
   
-  keys                  acting                           
-  ↑↓  j k move          a       add     d       hand back
-  tab     switch layer  t       take    >       move to  
-  space   select        r       retake  D       delete   
-  /       filter        x       done    R       restore  
-  v       show done                                      
+  keys                  acting                            
+  ↑↓  j k move          a       add      d       hand back
+  tab     switch layer  t       take     >       move to  
+  space   select        r       rewrite  D       delete   
+  /       filter        x       done     R       restore  
+  v       show done                                       
