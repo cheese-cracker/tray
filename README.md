@@ -69,9 +69,13 @@ Bare `tray` on a terminal opens it.
 | `tab` | switch layer, cycling at either end. `⇧tab` goes back |
 | `space` | select. Actions apply to your selection, or to the row under the cursor |
 | `enter` | the action menu — take, rewrite, done, hand back, move, delete |
+| `r` | rewrite. On the tray that's every field; **in the garage it's the words alone** |
 | `a` | add — a bare line in the garage, the full form on the tray |
 | `t` | take a garage line onto the tray, and give it structure |
 | `/` | filter · `v` show what you finished · `?` help · `q` quit |
+
+Setting a priority on a garage line means you want it on the tray — so the garage
+form doesn't offer one. `t` is how you say that, and it carries the line across.
 
 Press **`?`** for a full-screen explainer: what the two layers are, and every key.
 
@@ -143,7 +147,7 @@ it. This is the same tool and the same files — just the half you don't have to
 | | |
 |---|---|
 | `tray 3 take [pri:H +infra]` | Garage → tray. Where a jotted pointer becomes a real task. |
-| `tray 2 rewrite` | Restructure something already on the tray. In the garage this is the text alone — a priority there is what `take` is for. |
+| `tray 2 rewrite` | Restructure a task, every current value kept. Identical to `modify`. |
 | `tray unload --to 2026-09` | Hand the whole tray back to a month. **The month is never guessed** — bare `tray unload` picks it on a terminal and errors when piped. Finished items land struck through; open ones keep what the tray gave them. |
 | `tray 2 unload --to 2026-09` | One item. |
 
@@ -160,6 +164,11 @@ it. This is the same tool and the same files — just the half you don't have to
 | | |
 |---|---|
 | `tray 2 modify pri:M +blocked -infra` | Exact and scriptable. What agents use. |
+
+Both will set a priority on a garage line, where the TUI's form won't offer one. That
+asymmetry is deliberate: the interface guides a habit, the CLI doesn't police it — the
+files are yours either way, and an agent tidying one shouldn't have to argue with the
+tool.
 | `tray 2 edit <new text>` | Rewrite one line's text, attributes untouched. |
 | `tray edit` · `tray garage edit` | Open the file in `$EDITOR`. |
 
