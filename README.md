@@ -147,7 +147,7 @@ it. This is the same tool and the same files — just the half you don't have to
 | | |
 |---|---|
 | `tray 3 take [pri:H +infra]` | Garage → tray. Where a jotted pointer becomes a real task. |
-| `tray 2 rewrite` | Restructure a task, every current value kept. Identical to `modify`. |
+| `tray 2 rewrite pri:M +blocked -infra` | Restructure a task — the verb the TUI's `r` runs. Exact and scriptable; what agents use. |
 | `tray unload --to 2026-09` | Hand the whole tray back to a month. **The month is never guessed** — bare `tray unload` picks it on a terminal and errors when piped. Finished items land struck through; open ones keep what the tray gave them. |
 | `tray 2 unload --to 2026-09` | One item. |
 
@@ -163,12 +163,11 @@ it. This is the same tool and the same files — just the half you don't have to
 
 | | |
 |---|---|
-| `tray 2 modify pri:M +blocked -infra` | Exact and scriptable. What agents use. |
 
-Both will set a priority on a garage line, where the TUI's form won't offer one. That
-asymmetry is deliberate: the interface guides a habit, the CLI doesn't police it — the
-files are yours either way, and an agent tidying one shouldn't have to argue with the
-tool.
+`rewrite` will set a priority on a garage line, where the TUI's form won't offer one.
+That asymmetry is deliberate: the interface guides a habit, the CLI doesn't police it —
+the files are yours either way, and an agent tidying one shouldn't have to argue with
+the tool.
 | `tray 2 edit <new text>` | Rewrite one line's text, attributes untouched. |
 | `tray edit` · `tray garage edit` | Open the file in `$EDITOR`. |
 

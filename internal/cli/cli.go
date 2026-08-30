@@ -19,10 +19,15 @@ import (
 const Version = "0.2.0"
 
 var verbs = []string{
-	"init", "dump", "add", "take", "rewrite", "retake", "edit", "done", "drop", "modify",
+	"init", "dump", "add", "take", "rewrite", "edit", "done", "drop",
 	"unload", "carryover", "list", "head", "find", "print", "export", "status",
 	"restore", "help",
 }
+
+// Verbs that were renamed. They stay recognised so the old name fails loudly: dropped
+// from the list entirely, `tray 1 modify pri:M` would parse `modify` as a filter and
+// print an empty report — a silent wrong answer, which is worse than a name that's gone.
+var renamed = map[string]string{"retake": "rewrite", "modify": "rewrite"}
 
 var idSpec = regexp.MustCompile(`^\d+([,-]\d+)*$`)
 
@@ -35,10 +40,9 @@ const usage = `tray — two layers of markdown. Dump to the garage, take onto th
   tray dump to:2026-11 +infra <text>
   tray add <desc> pri:H due:2026-08-12
   tray 3 take [pri:H due:...]        garage → tray, the structuring step
-  tray 2 rewrite                     restructure it, current values prefilled
   tray 1 done  ·  tray 3 drop  ·  tray 2,5-7 done
   tray --all list  ·  tray 4 restore       see the finished; say one wasn't
-  tray 2 modify pri:M                exact, scriptable form of rewrite
+  tray 2 rewrite pri:M               what the TUI runs on r
   tray 2 edit <new text>  ·  tray edit      one line, or the file in $EDITOR
   tray unload --to 2026-09           hand the tray back to a month, whole
   tray unload                        ... picks the month on a terminal
@@ -107,7 +111,7 @@ type request struct {
 func parse(args []string) request {
 	at := -1
 	for i, a := range args {
-		if contains(verbs, a) {
+		if contains(verbs, a) || renamed[a] != "" {
 			at = i
 			break
 		}
@@ -187,6 +191,10 @@ func Run(args []string) int {
 }
 
 func dispatch(req request) (string, error) {
+	if to, ok := renamed[req.verb]; ok {
+		return "", fmt.Errorf("%s is now %s — try: %s", req.verb, to,
+			strings.TrimSpace("tray "+req.ids+" "+to))
+	}
 	switch req.verb {
 	case "init":
 		return cmdInit()
@@ -202,13 +210,8 @@ func dispatch(req request) (string, error) {
 		return cmdRestore(req)
 	case "drop":
 		return cmdFinish(req, "dropped")
-	case "retake":
-		// Kept only so the old name fails loudly. Dropped from the verb list it
-		// would parse as a filter, and `tray 1 retake pri:M` would print "tray
-		// empty" — a silent wrong answer, which is worse than an error.
-		return "", fmt.Errorf("retake is now rewrite — try: tray %s rewrite", req.ids)
-	case "modify", "rewrite":
-		return cmdModify(req)
+	case "rewrite":
+		return cmdRewrite(req)
 	case "edit":
 		return cmdEdit(req)
 	case "unload":

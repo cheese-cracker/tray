@@ -178,7 +178,8 @@ Reported from use: two tasks went done when one was meant to.
 | # | Decision | Why | Status |
 |---|---|---|---|
 | 87 | `retake` is called **`rewrite`** | `retake` named the mechanism — the inverse of `take` — not the thing you wanted to do. `r` stays: it is where the vim hand already is | live |
-| 87a | The old verb **errors** rather than being dropped | Removed from the verb list it parses as a filter, so `tray 1 retake pri:M` prints "tray empty". A silent wrong answer is worse than a name that is gone | live |
+| 87a | Renamed verbs **error** rather than being dropped | Removed entirely they parse as a *filter*, so `tray 1 modify pri:M` prints an empty report — a silent wrong answer, worse than a name that is gone. One `renamed` table, checked in `parse` as well as `dispatch`: miss the parse half and the error never fires | live |
+| 87b | **`modify` is gone; `rewrite` is the verb** | Two CLI names for one TUI action. TUI-first: the interface names the concept and the CLI takes the same word. Costs Taskwarrior's `modify` spelling — familiar, but verb names were never part of the import contract that 4 protects | live |
 | 88 | A garage rewrite edits **the words alone** | Setting a priority in the garage is wanting a tray task, and `take` is how you say that. Same rule 33 already applies to `a`dd, now applied to `r` | live |
 | 88a | It **keeps** whatever the line already carries | A line handed back from the tray arrives with a priority (68). Not offering the field is different from clearing it, and the form only ever writes what you touched | live |
 | 88b | A garage batch rewrite is **refused** | The words are all there is, and one name for many is never the intent (25) — so a batch has nothing left to change. Better to say so than open a form with no fields | live |

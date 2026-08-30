@@ -197,7 +197,7 @@ func cmdRestore(req request) (string, error) {
 	return "restored: " + strings.Join(names, " · "), nil
 }
 
-func cmdModify(req request) (string, error) {
+func cmdRewrite(req request) (string, error) {
 	doc, items, err := view(req, false)
 	if err != nil {
 		return "", err
@@ -220,7 +220,7 @@ func cmdModify(req request) (string, error) {
 	if err := doc.Save(); err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("modified %d", len(picked)), nil
+	return fmt.Sprintf("rewrote %d", len(picked)), nil
 }
 
 // cmdEdit hands the file to your editor — Hand B, made explicit.
@@ -235,7 +235,7 @@ func cmdEdit(req request) (string, error) {
 	if len(req.tail) == 0 {
 		return "nothing to write", nil
 	}
-	return cmdModify(req)
+	return cmdRewrite(req)
 }
 
 func openEditor(path string) error {
