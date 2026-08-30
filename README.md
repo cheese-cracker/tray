@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🗒️ tray
+# 🍽️ tray
 
 **A task tracker in two layers.**
 One for quick one-line thoughts.
@@ -37,9 +37,12 @@ tray                           # open it
   agents.
 - **📅 Structure only when it helps.** A line starts as a scribble and becomes a real
   task — priority, due date, tags — at the moment you pick it up.
+- **📐 Standard shapes, not invented ones.** One task per line with `+tags` and
+  `key:value` fields, in the spirit of todo.txt; field names and urgency from
+  Taskwarrior, so an export imports cleanly. The database is a markdown file.
 - **🔌 Plays with what you already use.** Calendars, trackers, other task tools, via
   plugins. *Not built yet.*
-- **🎯 Few things well.** Inspired by the Eisenhower matrix. The tray is meant to be
+- **⚖️ Few things well.** Inspired by the Eisenhower matrix. The tray is meant to be
   the small list of deliberate tasks.
 
 ## The interface
@@ -94,7 +97,7 @@ Press **`?`** for a full-screen explainer: what the two layers are, and every ke
 - ✍️ **One form to restructure**, every field prefilled, so only what you touch changes.
 - 📊 **Taskwarrior's urgency formula and field names**, so `tray export | task import`
   just works.
-- 🖥️ **`tray head` for your shell profile** — the top few tasks on every new terminal,
+- 🐚 **`tray head` for your shell profile** — the top few tasks on every new terminal,
   and completely silent when the tray is empty.
 - 📦 **One static binary.** Nothing needed at runtime.
 
