@@ -93,8 +93,22 @@ is a guess about packaging rather than a requirement.
 
 Not features. Each is a decision, and none of them is made.
 
-- [ ] **A different task format?** — today it is Taskwarrior's field names on markdown lines
-  (2, 4, 17).
+- [ ] **A config file, so the row format is a choice** — todo.txt or the default, which today
+  is Taskwarrior's field names on markdown lines (2, 4, 17). Two things sit on this. There is
+  no config file at all right now, deliberately — 18 keeps the tag vocabulary in the files
+  rather than in a registry, and a config is the first crack in that. And todo.txt is a
+  different grammar, not a flag: `x ` for done, `(A)` for priority, `@context` alongside
+  `+project`, dates in positional slots. So `core.Line` and the parser both fork, and a
+  directory holding rows in both shapes cannot be read back unambiguously — which is 17's
+  whole job.
+- [ ] **A store that isn't markdown** — Taskwarrior's CLI as a backend, say, with `store`
+  becoming an interface rather than a concrete thing. This contradicts 2 and 3 head-on: the
+  files being the truth is what makes them hand-editable, and 3 rejected TW precisely because
+  `taskchampion.sqlite3` cannot be. Worth writing down because the question people actually
+  ask is "can it drive the setup I already have", and `tray export | task import` (4) already
+  answers that for nothing. Worth naming what a swap would take with it, too: `find` as a rot
+  detector across months, month files as an immutable record (6), and every promise about
+  editing with no tool in the loop.
 - [ ] **`project`, `description` and other detail fields** — would this even match the ethos?
   `project` already has a row in Rejected below, and DECISIONS 9 is the live one. Reopening
   either is allowed — a rejected option is kept written down precisely because it can be
