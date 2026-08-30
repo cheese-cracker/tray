@@ -1,10 +1,13 @@
 # tray — decision log
 
 Every choice that isn't obvious from the code, one line each. A losing option is kept
-only where it **still tempts** — 3 is the example: a Taskwarrior store is a reasonable
-thing to propose again, so the reason it isn't one has to stay written down. Reversals
-nobody will re-propose are deleted rather than carried; `git log -p DECISIONS.md` is the
-audit trail, and it is a better one than a row that has to be read past every time.
+only where it **still tempts** — 9 is the example: `project` is a reasonable thing to
+ask for again, so the reason there isn't one has to stay written down. Reversals nobody
+will re-propose are deleted rather than carried; `git log -p DECISIONS.md` is the audit
+trail, and it is a better one than a row that has to be read past every time.
+
+A row here is a decision, not a wall. Where one is genuinely open the roadmap says so,
+and the two are meant to agree.
 
 ## Shape
 
@@ -12,7 +15,6 @@ audit trail, and it is a better one than a row that has to be read past every ti
 |---|---|---|---|
 | 1 | Two layers: **garage** (dump) and **tray** (worklist) | Classifying at capture costs you the thought you were having | live |
 | 2 | Markdown files are the truth | You must be able to edit them with no tool in the loop | live |
-| 3 | **Not** Taskwarrior as the store | TW 3.x is `taskchampion.sqlite3` — a binary store can't be hand-edited | live |
 | 4 | Keep TW's field names and urgency coefficients | `tray export \| task import` stays a one-way hatch | live |
 | 5 | **Nothing is ever deleted.** `done`/`drop` strike through in place | The file is the record; that's what makes `find` a rot detector | live |
 | 6 | Copy-forward with an arrow: the source line stays, annotated `→ 2026-09` | Month files stay a record, and nothing can move twice | live |

@@ -101,14 +101,36 @@ Not features. Each is a decision, and none of them is made.
   `+project`, dates in positional slots. So `core.Line` and the parser both fork, and a
   directory holding rows in both shapes cannot be read back unambiguously — which is 17's
   whole job.
-- [ ] **A store that isn't markdown** — Taskwarrior's CLI as a backend, say, with `store`
-  becoming an interface rather than a concrete thing. This contradicts 2 and 3 head-on: the
-  files being the truth is what makes them hand-editable, and 3 rejected TW precisely because
-  `taskchampion.sqlite3` cannot be. Worth writing down because the question people actually
-  ask is "can it drive the setup I already have", and `tray export | task import` (4) already
-  answers that for nothing. Worth naming what a swap would take with it, too: `find` as a rot
-  detector across months, month files as an immutable record (6), and every promise about
-  editing with no tool in the loop.
+- [ ] **A store that isn't markdown** — Taskwarrior driven through its own CLI, say.
+  There used to be a decision saying no to this because sqlite cannot be hand-edited; that
+  was never the question, since nobody would touch the sqlite — `task add`, `task modify`
+  and `task export` would be the whole interface. It is gone. 2 stays and keeps applying to
+  the markdown store, which stays the default; a second backend is a thing you would opt
+  into, knowing what it costs.
+
+  What it would actually take:
+
+  - `store` becomes an interface. Ten methods on `Doc` — `Tasks` `Live` `Texts` `LiveTexts`
+    `Add` `Set` `Remove` `Revive` `Reclaim` `Save` — plus the month helpers in `paths.go`
+    and `search.go`. `core` and `ui` open no files at all, so neither would move (16).
+  - **An encoding for the garage.** Taskwarrior has one list; tray has two layers and a
+    month per garage. A `+garage` tag and a month UDA would carry it, but `task add` gives
+    every jotted line a uuid, an entry date, a status and an urgency whether you wanted them
+    or not — and the garage's whole claim is that nothing is asked of you (1, 33).
+  - **A parser that wants the opposite of 17.** tray reads attributes off the *end* of a
+    line and only for known keys, so a colon mid-sentence survives and the garage can hold
+    prose. Taskwarrior parses `+tag` and `key:value` from anywhere in the description.
+  - **Latency, measured first.** `tray head` runs on every new terminal in ~4ms today.
+    Every read becomes `task export` plus a JSON parse, per invocation. That number is the
+    thing to get before anything else — it decides whether the shell-profile line survives.
+  - **A second FLOWS suite.** Twenty shell flows and seventeen TUI flows assert on markdown
+    file contents. Either they parameterise over the backend or the promises quietly only
+    hold for one of them.
+
+  And what a swap takes with it: `find` as a rot detector across months, and month files as
+  an immutable record (5, 6). Both are properties of *having files per month*, not of the
+  data — Taskwarrior has one task that gets modified, not four lines in four months.
+
 - [ ] **`project`, `description` and other detail fields** — would this even match the ethos?
   `project` already has a row in Rejected below, and DECISIONS 9 is the live one. Reopening
   either is allowed — a rejected option is kept written down precisely because it can be
@@ -129,5 +151,4 @@ Not features. Each is a decision, and none of them is made.
 |---|---|
 | `fzf` shell-out for `/` | A runtime dependency and an alt-screen seam, for a keystroke `bubbles/list` already does in-process |
 | Hand-rolled fuzzy matcher | Scoring heuristics are a rabbit hole |
-| Taskwarrior as the store | TW 3.x is `taskchampion.sqlite3`; a binary store can't be hand-edited |
 | `project` as a second axis | Tags are the only axis — one dimension, nothing to decide twice |
