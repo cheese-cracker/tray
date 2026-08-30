@@ -120,7 +120,7 @@ func TestScreens(t *testing.T) {
 			"- [ ] Rotate the api keys priority:H due:2026-08-12 entry:2026-08-01 +infra",
 			"- [x] ~~Renew the passport~~ priority:H entry:2026-08-02 done:2026-08-06",
 			"- [ ] Chase the invoice priority:M due:2026-08-25 entry:2026-08-05 +admin",
-			"- [x] ~~Book the flights~~ priority:L entry:2026-08-03 dropped:2026-08-05",
+			"- [ ] ~~Book the flights~~ priority:L entry:2026-08-03 dropped:2026-08-05",
 		)
 		frame(t, New(), "v")
 	})

@@ -186,3 +186,14 @@ Reported from use: two tasks went done when one was meant to.
 | 88a | It **keeps** whatever the line already carries | A line handed back from the tray arrives with a priority (68). Not offering the field is different from clearing it, and the form only ever writes what you touched | live |
 | 88b | A garage batch rewrite is **refused** | The words are all there is, and one name for many is never the intent (25) — so a batch has nothing left to change. Better to say so than open a form with no fields | live |
 | 88c | The **CLI does not enforce 88**; `rewrite` and `modify` will set a priority on a garage line | Your call. 19 says the TUI is the product and the CLI is the agent surface: the interface teaches a habit, the CLI stays the exact scriptable thing it is documented as. `dump +infra` already writes a tag to the garage, so "no structure here" was never quite true either | live |
+
+## The checkbox
+
+| # | Decision | Why | Status |
+|---|---|---|---|
+| 89 | The tray rows draw a **markdown checkbox**: `[ ]` `[x]` `[-]` | `- [x]` is the most understood task idiom there is, and the tray file already writes one — the screen was the only place the two disagreed about shape. The column width is measured from the box rather than assumed | live |
+| 89a | The **garage keeps a one-character mark** | Its file writes `- a jotted line` with no box, and 2 says the file is the truth. Drawing one there would show something the line does not contain — and the absence is part of what says the garage asks nothing of you | live |
+| 89b | Dropped is `[-]`, which markdown has no box for | Obsidian's spelling for cancelled, and it reads instantly beside `[x]`. Mirroring the file exactly would draw an empty box, leaving strikethrough — styling, which vanishes when piped — as the only difference from unfinished work | live |
+| 89e | Ballot glyphs `☐ ☑ ☒` were tried and **reverted** | One column instead of three, and a third glyph for dropped that markdown lacks — but brackets look like the file they came from, and are not ambiguous-width under a CJK locale, where a terminal and `go-runewidth` can disagree and skew the table | live |
+| 89c | State moved to **its own column**, beside selection | They shared one cell, so a row that was both selected and finished lost its dot. Found by giving the box somewhere to live | live |
+| 89d | Purely visual: **`x` does not toggle** | A box invites ticking and unticking with one key, which would fold `R` into `x`. Worth considering, but changing what a key does is not the same change as changing how it looks | open |

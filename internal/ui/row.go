@@ -29,6 +29,7 @@ func (r row) FilterValue() string {
 const (
 	cPoint = iota
 	cMark
+	cBox
 	cTask
 	cUrg
 	cPri
@@ -37,7 +38,7 @@ const (
 	nCols
 )
 
-var colPad = [nCols]int{cMark: 1, cTask: 2, cUrg: 2, cPri: 2, cDue: 2}
+var colPad = [nCols]int{cMark: 1, cBox: 1, cTask: 2, cUrg: 2, cPri: 2, cDue: 2}
 
 // rowDelegate renders a task as a table row. bubbles/list owns scrolling, paging and
 // filtering; the columns stay ours, so adopting it did not cost the table.
@@ -63,16 +64,40 @@ func (d *rowDelegate) Render(w io.Writer, m list.Model, i int, item list.Item) {
 	if i == m.Index() {
 		cells[cPoint] = "▸"
 	}
+	// Selection and state used to share one cell, so a selected row that was also
+	// finished lost its dot. They are separate columns now.
 	if d.marked[r.Text] {
 		cells[cMark] = "●"
 	}
-	if r.Terminal() {
-		cells[cMark] = "✓"
-		if r.Dropped {
-			cells[cMark] = "✗"
+	cells[cBox] = d.state(r.Task)
+	fmt.Fprint(w, d.render(cells, i == m.Index(), false, r.Terminal()))
+}
+
+// state is the checkbox the tray file already writes — `[x]` done, `[ ]` open — with
+// `[-]` for dropped, which markdown has no box for and Obsidian spells this way.
+//
+// Ballot glyphs (☐ ☑ ☒) were tried and read worse: a box drawn from brackets looks like
+// the file it came from, and is not ambiguous-width under a CJK locale. The garage has
+// no checkbox in its file, so it keeps a one-character mark instead.
+func (d *rowDelegate) state(t core.Task) string {
+	if !d.tray {
+		switch {
+		case t.Done:
+			return "✓"
+		case t.Dropped:
+			return "✗"
+		default:
+			return " "
 		}
 	}
-	fmt.Fprint(w, d.render(cells, i == m.Index(), false, r.Terminal()))
+	switch {
+	case t.Done:
+		return "[x]"
+	case t.Dropped:
+		return "[-]"
+	default:
+		return "[ ]"
+	}
 }
 
 func (d *rowDelegate) headers() [nCols]string {
@@ -90,6 +115,7 @@ func (d *rowDelegate) header() string { return d.render(d.headers(), false, true
 func (d *rowDelegate) cells(t core.Task) [nCols]string {
 	var c [nCols]string
 	c[cPoint], c[cMark] = " ", " "
+	c[cBox] = d.state(t)
 	c[cTask] = t.Text
 	if d.tray {
 		c[cUrg] = fmt.Sprintf("%.1f", core.Urgency(t, d.today))
@@ -108,6 +134,10 @@ func (d *rowDelegate) cells(t core.Task) [nCols]string {
 // table instead of leaving it padded for rows that are no longer there.
 func (d *rowDelegate) measure(items []list.Item, avail int) {
 	w := [nCols]int{cPoint: 1, cMark: 1}
+	for _, box := range []string{d.state(core.Task{}), d.state(core.Task{Done: true}),
+		d.state(core.Task{Dropped: true})} {
+		w[cBox] = max(w[cBox], lipgloss.Width(box))
+	}
 	h := d.headers()
 	for i := cTask; i < nCols; i++ {
 		w[i] = lipgloss.Width(h[i])
@@ -153,6 +183,8 @@ func (d *rowDelegate) render(cells [nCols]string, selected, header, finished boo
 			cell = cursorStyle.Render(cell)
 		case i == cMark:
 			cell = markStyle.Render(cell)
+		case i == cBox:
+			cell = faintStyle.Render(cell)
 		case selected:
 			cell = titleStyle.Render(cell)
 		case i >= cUrg: // the attribute columns stay quiet

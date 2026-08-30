@@ -3,9 +3,9 @@
 │  tray  ││  garage · August  │                                                     
 │        └┴───────────────────┴─────────────────────────────────────────────────────
 │                                                                                  │
-│     task                 urg  pri  due  tags                                     │
-│     Rotate the api keys  6.0  H                                                  │
-│  ▸✓ Renew the passport   6.0  H                                                  │
+│         task                 urg  pri  due  tags                                 │
+│     [ ] Rotate the api keys  6.0  H                                              │
+│  ▸  [x] Renew the passport   6.0  H                                              │
 │                                                                                  │
 │                                                                                  │
 │                                                                                  │

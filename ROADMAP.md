@@ -145,6 +145,14 @@ Not features. Each is a decision, and none of them is made.
   described as comfort rather than safety — which is true exactly as long as no line can
   leave the file, and stops being true the moment one can.
 
+## Shipped
+
+Kept collapsed, so a thing that was once a question does not read as still open.
+
+- [x] **Markdown checkboxes in the tray rows** — `[ ]` `[x]` `[-]`, the box the tray file
+  already writes. Garage rows keep a plain mark; its file has no checkbox. Decisions 89–89e,
+  including the ballot glyphs that were tried and reverted.
+
 ## Rejected
 
 | | Why |

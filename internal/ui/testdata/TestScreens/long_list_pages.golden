@@ -3,17 +3,17 @@
 │  tray  ││  garage · August  │                                                     
 │        └┴───────────────────┴─────────────────────────────────────────────────────
 │                                                                                  │
-│     task    urg  pri  due  tags                                                  │
-│  ▸  task a  3.9  M                                                               │
-│     task b  3.9  M                                                               │
-│     task c  3.9  M                                                               │
-│     task d  3.9  M                                                               │
-│     task e  3.9  M                                                               │
-│     task f  3.9  M                                                               │
-│     task g  3.9  M                                                               │
-│     task h  3.9  M                                                               │
-│     task i  3.9  M                                                               │
-│     task j  3.9  M                                                               │
+│         task    urg  pri  due  tags                                              │
+│  ▸  [ ] task a  3.9  M                                                           │
+│     [ ] task b  3.9  M                                                           │
+│     [ ] task c  3.9  M                                                           │
+│     [ ] task d  3.9  M                                                           │
+│     [ ] task e  3.9  M                                                           │
+│     [ ] task f  3.9  M                                                           │
+│     [ ] task g  3.9  M                                                           │
+│     [ ] task h  3.9  M                                                           │
+│     [ ] task i  3.9  M                                                           │
+│     [ ] task j  3.9  M                                                           │
 │                                                                                  │
 └──────────────────────────────────────────────────────────────────────────────────┘
  ↑↓ move · space select · tab switch · enter act · a add · v show done · / filter

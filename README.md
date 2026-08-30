@@ -64,7 +64,9 @@ Bare `tray` on a terminal opens it.
  / filter · ? help · q quit
 ```
 
-**Two tabs, day to day:** what you're doing, and what you dumped this month.
+**Two tabs, day to day:** what you're doing, and what you dumped this month. Tray rows
+carry the same checkbox their file does — `[ ]`, `[x]` done, `[-]` dropped. Garage lines
+have no checkbox in the file, so they don't grow one on screen.
 
 | | |
 |---|---|

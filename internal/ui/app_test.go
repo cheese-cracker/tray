@@ -480,3 +480,42 @@ func TestMarksKeepRenderingAfterTheyAreCleared(t *testing.T) {
 		t.Errorf("marks must still draw after an action cleared them:\n%s", m.View())
 	}
 }
+
+// The tray file writes a checkbox, so the tray rows show one. `[-]` for dropped is
+// Obsidian's spelling of a state markdown has no box for. The garage file has no
+// checkbox, so its rows keep a one-character mark instead.
+func TestTrayShowsCheckboxesAndTheGarageDoesNot(t *testing.T) {
+	sandbox(t,
+		"- [ ] still open priority:M",
+		"- [x] ~~finished~~ priority:M done:2026-08-06",
+		"- [ ] ~~abandoned~~ priority:M dropped:2026-08-06",
+	)
+	garage(t, "2026-08", "- a jotting", "- ~~a finished jotting~~ done:2026-08-06")
+
+	tray := keys(New(), "v").(Model).View()
+	for _, want := range []string{"[ ] still open", "[x] finished", "[-] abandoned"} {
+		if !strings.Contains(tray, want) {
+			t.Errorf("the tray should show %q:\n%s", want, tray)
+		}
+	}
+
+	garageView := keys(New(), "tab", "v").(Model).View()
+	if strings.Contains(garageView, "[ ]") || strings.Contains(garageView, "[x]") {
+		t.Errorf("the garage file has no checkbox, so its rows must not draw one:\n%s", garageView)
+	}
+	for _, want := range []string{"✓ a finished jotting", "a jotting"} {
+		if !strings.Contains(garageView, want) {
+			t.Errorf("the garage should show %q:\n%s", want, garageView)
+		}
+	}
+}
+
+// Selection and state used to share a cell, so a selected row that was also finished
+// lost its dot. They are separate columns now.
+func TestASelectedFinishedRowShowsBoth(t *testing.T) {
+	sandbox(t, "- [x] ~~finished~~ priority:M done:2026-08-06")
+	view := keys(New(), "v", " ").(Model).View()
+	if !strings.Contains(view, "● [x]") {
+		t.Errorf("a selected finished row should show both:\n%s", view)
+	}
+}
