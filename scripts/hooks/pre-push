@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# Refuses a push straight to main. GitHub cannot do this for us: branch protection and
+# rulesets both need Pro on a private repo, so the guard has to live here.
+#
+# Enable it in a fresh clone with `make hooks`, or:
+#   git config core.hooksPath scripts/hooks
+#
+# To push to main anyway — a revert, say — say so out loud:
+#   ALLOW_MAIN_PUSH=1 git push
+set -euo pipefail
+
+protected="refs/heads/main"
+zero="0000000000000000000000000000000000000000"
+
+while read -r _local_ref local_sha remote_ref _remote_sha; do
+  [ "$remote_ref" = "$protected" ] || continue
+  [ "${ALLOW_MAIN_PUSH:-}" = "1" ] && continue
+
+  if [ "$local_sha" = "$zero" ]; then
+    echo "pre-push: refusing to delete $protected" >&2
+  else
+    echo "pre-push: refusing to push straight to $protected" >&2
+    echo "          open a PR, or: ALLOW_MAIN_PUSH=1 git push" >&2
+  fi
+  exit 1
+done
+
+exit 0

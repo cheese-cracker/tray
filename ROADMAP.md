@@ -63,7 +63,10 @@ is one line in [DECISIONS.md](DECISIONS.md).
   notices.
 - [ ] **Prebuilt binaries** — goreleaser. `go install` is the only path today, so a Go
   toolchain is a hard requirement for anyone who wants this.
-- [ ] **CI** — `make check` is the whole suite; no workflow is wired up yet.
+- [ ] **CI** — `make check` is the whole suite; no workflow is wired up yet. It is also
+  what would make main properly protected: a required status check needs GitHub Pro on a
+  private repo, so today the guard is `scripts/hooks/pre-push` and it only binds this
+  machine. Going public would enable rulesets for free.
 - [ ] **Journal seeding** (`- [ ]` scrape) — only if the recurring-item problem comes back.
 - [ ] **`tray dump` asking for the month on a TTY** — the pre-Go version had a picker. `a` in
   a garage tab covers it, so this is re-addable rather than missing.
