@@ -422,6 +422,52 @@ case $out in *"nothing finished"*) pass "an open id says so rather than lying" ;
   *) bad "got: $out" ;; esac
 teardown
 
+# --- F23 · plugin ----------------------------------------------------------------
+# A plugin is a folder holding an executable, and the folder name is the whole
+# manifest. Nothing here runs one: this asserts what tray is willing to believe.
+head_ "F23 · plugin lists what is installed"
+setup
+
+out=$(tray plugin)
+case $out in *"no plugins"*) pass "no plugins is not an error" ;;
+  *) bad "got: $out" ;; esac
+
+# Installing one is opt-in, so until you do, tray is the tray you already had: the
+# help does not advertise a verb whose only possible answer is "no plugins".
+tray help | grep -q "tray plugin" && bad "help advertises plugin with none installed" \
+  || pass "help is untouched until a plugin exists"
+
+mkdir -p "$TRAY_HOME/plugins/notion" "$TRAY_HOME/plugins/halfdone"
+printf '#!/bin/sh\n' > "$TRAY_HOME/plugins/notion/run"; chmod +x "$TRAY_HOME/plugins/notion/run"
+printf '#!/bin/sh\n' > "$TRAY_HOME/plugins/halfdone/run"   # deliberately not executable
+
+out=$(tray plugin list)
+case $out in *notion*) pass "an installed plugin is listed" ;;
+  *) bad "got: $out" ;; esac
+tray help | grep -q "tray plugin" && pass "and now the help says so" \
+  || bad "help still silent with a plugin installed"
+case $out in *halfdone*) bad "a non-executable run counted as a plugin: $out" ;;
+  *) pass "a folder without an executable run is half an install" ;; esac
+case $out in *"never pulled"*) pass "a garage never written says so" ;;
+  *) bad "got: $out" ;; esac
+
+# The garage a plugin owns is an ordinary markdown file, so it reads with no plugin
+# involved at all — which is what keeps a deleted plugin from taking your tasks.
+printf '# notion\n\n- ship the billing migration +infra\n' > "$TRAY_HOME/notion.md"
+tray garage --month notion list | grep -q "billing migration" \
+  && pass "a plugin garage reads as a plain garage" || bad "not readable: $(tray garage --month notion list)"
+
+tray garage --month notion 1 take pri:H >/dev/null
+has notion.md "→ tray" && pass "take leaves the source annotated, never removed (6)" \
+  || bad "source line lost: $(cat "$TRAY_HOME/notion.md")"
+has notion.md "ship the billing migration" && pass "the line itself stays on the board" \
+  || bad "line gone: $(cat "$TRAY_HOME/notion.md")"
+
+out=$(tray plugin sync 2>&1)
+case $out in *carryover*) pass "sync is refused, and says where syncing happens" ;;
+  *) bad "got: $out" ;; esac
+teardown
+
 printf '\n'
 [ "$fail" = 0 ] && printf '\033[32mtray flows pass\033[0m\n' || printf '\033[31mtray flows FAILED\033[0m\n'
 exit "$fail"

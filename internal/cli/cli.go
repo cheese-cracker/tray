@@ -12,6 +12,7 @@ import (
 	"github.com/charmbracelet/x/term"
 
 	"github.com/cheese-cracker/tray/internal/core"
+	"github.com/cheese-cracker/tray/internal/plugin"
 	"github.com/cheese-cracker/tray/internal/store"
 	"github.com/cheese-cracker/tray/internal/ui"
 )
@@ -21,7 +22,7 @@ const Version = "0.2.0"
 var verbs = []string{
 	"init", "dump", "add", "take", "rewrite", "edit", "note", "done", "erase",
 	"unload", "carryover", "list", "head", "find", "print", "export", "status",
-	"restore", "help",
+	"restore", "plugin", "help",
 }
 
 var idSpec = regexp.MustCompile(`^\d+([,-]\d+)*$`)
@@ -164,12 +165,22 @@ func merge(into *options, from options) {
 	}
 }
 
+// pluginUsage advertises `tray plugin` only once you have one. Installing a plugin is
+// opt-in, so until you do, the help is the help tray has always printed — a verb that
+// can only ever answer "no plugins" has not earned a line in a usage block this short.
+func pluginUsage() string {
+	if len(plugin.List()) == 0 {
+		return ""
+	}
+	return "\n\n  tray plugin                       what is installed, and when it last pulled"
+}
+
 // Run dispatches one invocation and returns an exit code.
 func Run(args []string) int {
 	req := parse(args)
 
 	if req.opts.help || req.verb == "help" {
-		fmt.Println(usage)
+		fmt.Println(usage + pluginUsage())
 		return 0
 	}
 	if req.opts.version {
@@ -227,6 +238,8 @@ func dispatch(req request) (string, error) {
 		return cmdReport(req, true)
 	case "status":
 		return cmdStatus(req)
+	case "plugin":
+		return cmdPlugin(req)
 	case "list":
 		return cmdReport(req, true)
 	case "head":
