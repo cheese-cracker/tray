@@ -109,8 +109,6 @@ func (m Model) rowRoom() int {
 		chrome += len(m.offered()) + 2
 	case sending:
 		chrome += len(m.dests) + 2
-	case erasing:
-		chrome += 3
 	}
 	return max(1, m.height-chrome)
 }
@@ -175,11 +173,11 @@ func (m Model) renderBody() string {
 	}
 
 	var b strings.Builder
-	// The done view replaces the list wholesale, so it says so above the table. The
-	// tabs still name the layer; this names what you are looking at within it.
+	// Review mode changes both what is listed and what the keys do, so it says so
+	// above the table. The tabs still name the layer; this names the mode within it.
 	if m.viewing {
-		b.WriteString(cursorStyle.Render("✓ done") +
-			faintStyle.Render(" — what you finished here") + "\n")
+		b.WriteString(cursorStyle.Render("review") +
+			faintStyle.Render(" — everything on this layer, done and not") + "\n")
 	}
 	if m.filtering() {
 		b.WriteString(m.renderFilter() + "\n")
@@ -199,8 +197,6 @@ func (m Model) renderBody() string {
 		b.WriteString("\n\n" + m.renderMenu())
 	case sending:
 		b.WriteString("\n\n" + m.renderDestinations())
-	case erasing:
-		b.WriteString("\n\n" + m.renderErase())
 	}
 	return b.String()
 }
@@ -245,7 +241,7 @@ func (m Model) shortHelp() string {
 
 func (m Model) emptyMessage() string {
 	if m.viewing {
-		return "nothing finished here — v goes back"
+		return "nothing on this layer at all — v goes back"
 	}
 	if m.layer().isTray() {
 		return "nothing on the tray — a to add one, or take something from the garage"
@@ -283,18 +279,6 @@ func (m Model) renderDestinations() string {
 
 // The footer and the `?` screen are the same keymap rendered at two lengths, so
 // neither can advertise a key the other doesn't.
-// The only prompt in the interface, on the only action that cannot be undone.
-func (m Model) renderErase() string {
-	picked := m.picked()
-	what, them := picked[0].Text, "it"
-	if len(picked) > 1 {
-		what, them = fmt.Sprintf("%d lines", len(picked)), "them"
-	}
-	return cursorStyle.Render("erase ") + titleStyle.Render(what) +
-		faintStyle.Render("?  this removes "+them+" from the file — ") +
-		keyStyle.Render("y") + faintStyle.Render(" to erase, any other key to keep")
-}
-
 func (m Model) renderFooter() string {
 	if m.mode == editing {
 		return "" // the form carries its own hint

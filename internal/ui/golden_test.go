@@ -114,8 +114,8 @@ func TestScreens(t *testing.T) {
 		frame(t, NewSweep(""))
 	})
 
-	// `v` is its own room: only the finished lines, and only two things to do to one.
-	t.Run("done_view", func(t *testing.T) {
+	// `v` is a mode: everything on the layer, live first, and only the rare verbs.
+	t.Run("review", func(t *testing.T) {
 		sandbox(t,
 			"- [ ] Rotate the api keys priority:H due:2026-08-12 entry:2026-08-01 +infra",
 			"- [x] ~~Renew the TLS certificate~~ priority:H entry:2026-08-02 done:2026-08-06",
@@ -125,21 +125,12 @@ func TestScreens(t *testing.T) {
 		frame(t, New(), "v")
 	})
 
-	t.Run("done_view_menu", func(t *testing.T) {
+	t.Run("review_menu", func(t *testing.T) {
 		sandbox(t,
 			"- [ ] Rotate the api keys priority:H entry:2026-08-01",
 			"- [x] ~~Renew the TLS certificate~~ priority:H entry:2026-08-02 done:2026-08-06",
 		)
-		frame(t, New(), "v", "enter")
-	})
-
-	// The only prompt in the interface, on the only action that removes a line.
-	t.Run("erase_confirm", func(t *testing.T) {
-		sandbox(t,
-			"- [ ] Rotate the api keys priority:H entry:2026-08-01",
-			"- [x] ~~Renew the TLS certificate~~ priority:H entry:2026-08-02 done:2026-08-06",
-		)
-		frame(t, New(), "v", "E")
+		frame(t, New(), "v", "j", "enter")
 	})
 
 	t.Run("month_picker", func(t *testing.T) {

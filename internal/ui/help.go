@@ -68,7 +68,7 @@ func (m Model) helpScreen() string {
 		verb("(a)dd", "a line to the layer you are on"),
 		verb("(t)ake", "a garage line onto the tray, structured"),
 		verb("(d)", "hand a tray task back to the garage"),
-		verb("(v)iew", "what you finished — restore or erase it"),
+		verb("(v)iew", "everything, done and not — where you restore or erase"),
 	}, "\n")
 
 	diagram := lipgloss.JoinHorizontal(lipgloss.Top, garage, arrows, tray)
@@ -105,7 +105,7 @@ func helpKeys() string {
 		{
 			{"", "keys"},
 			{"↑↓  j k", "move"}, {"tab", "switch layer"}, {"space", "select"},
-			{"enter", "act"}, {"/", "filter"}, {"v", "done view"},
+			{"enter", "act"}, {"/", "filter"}, {"v", "review"},
 		},
 		{
 			{"", "acting"},
@@ -113,7 +113,7 @@ func helpKeys() string {
 			{"x", "done"}, {"d", "hand back"}, {">", "move to"},
 		},
 		// Headed by the key that reaches them, because they are reachable nowhere else.
-		{{"", "done view"}, {"R", "restore"}, {"E", "erase"}},
+		{{"", "in review"}, {"R", "restore"}, {"E", "erase"}},
 	}
 
 	keyW := 0

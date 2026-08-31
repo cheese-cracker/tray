@@ -7,10 +7,10 @@
   
   ────────────────────────────────────────────────────────
   
-  keys                  acting             done view      
+  keys                  acting             in review      
   ↑↓  j k move          a       add        R       restore
   tab     switch layer  t       take       E       erase  
   space   select        r       rewrite                   
   enter   act           x       done                      
   /       filter        d       hand back                 
-  v       done view     >       move to                   
+  v       review        >       move to                   

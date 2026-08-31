@@ -37,9 +37,10 @@ is one line in [DECISIONS.md](DECISIONS.md).
   *move* is the item above; moving it means `←`/`→`, already promised to the priority radio
   and the `due` day-shift (`:107`).
 - [ ] **`u` undo, one level** — needs a snapshot in `store`, so not free. It was comfort
-  rather than safety while nothing could leave the file; `E` erase changed that, and the
-  `y`/`n` prompt is the only thing standing in for it. Everything else is still recoverable
-  by hand, because copy-forward leaves the source line where it was.
+  rather than safety while nothing could leave the file; `E` erase changed that. The status
+  line naming what was erased is the stand-in until this exists — enough to retype a line,
+  not enough to undo one. Everything else stays recoverable by hand, because copy-forward
+  leaves the source line where it was.
 - [ ] **`tray install`** — self-installing subcommand in Go (`charmbracelet/huh` for the
   prompts, `--yes` for headless): PATH check, binary placement, shell init block. Lands
   behind a runtime feature flag (`internal/feature`, env + config), which is why that package
@@ -117,10 +118,11 @@ is one line in [DECISIONS.md](DECISIONS.md).
   including the ballot glyphs that were tried and reverted.
 - [x] **The dropped state is gone, and `E` erases for real** — `dropped:` was a second way to
   say finished that no report ever told apart, and it left a line you could neither act on nor
-  remove. One terminal state now, and one verb that actually removes a line. Erase lives in
-  the done view alone, so a live line still cannot leave the file. Decisions 90–94.
-- [x] **`v` is a room, not an overlay** — it swaps the list for the finished lines instead of
-  mixing them in, which is what lets its keymap shrink to restore and erase. Decisions 92, 93.
+  remove. One terminal state now, and one verb that actually removes a line — reachable in
+  review mode alone. Decisions 90–94.
+- [x] **`v` is a mode, not a filter** — it widens the list to everything on the layer and
+  narrows the keymap to the two rare verbs. The split is by how often you reach for a verb:
+  a monthly one stays out of the flow you drive daily. Decisions 92–94.
 
 ## Rejected
 

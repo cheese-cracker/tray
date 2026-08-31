@@ -4,6 +4,7 @@ package ui
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/charmbracelet/bubbles/help"
@@ -22,7 +23,6 @@ const (
 	browsing mode = iota
 	acting        // the enter menu
 	sending       // choosing where `>` moves things
-	erasing       // confirming the one action that removes a line
 	editing       // the rewrite form
 )
 
@@ -42,7 +42,7 @@ var actions = []action{
 	{key: "d", label: "hand back", tray: true, apply: (*Model).handBack},
 	{key: ">", label: "move to", tray: true, rest: true, apply: (*Model).chooseDestination},
 	{key: "r", label: "rewrite", tray: true, rest: true, apply: (*Model).openForm},
-	{key: "E", label: "erase", tray: true, rest: true, apply: (*Model).confirmErase},
+	{key: "E", label: "erase", tray: true, rest: true, apply: (*Model).erase},
 	{key: "R", label: "restore", tray: true, rest: true, apply: (*Model).restore},
 }
 
@@ -63,7 +63,7 @@ type Model struct {
 	status  string
 	today   time.Time
 	err     error
-	viewing bool   // v: the done view — see below
+	viewing bool   // v: review mode — see below
 	sweep   bool   // the month-turn ritual: months get the tabs, not the tray
 	closing string // which month is being swept
 	width   int    // 0 until the terminal tells us, so the view must cope without
@@ -153,7 +153,7 @@ func (m *Model) reload() tea.Cmd {
 	}
 	var live []core.Task
 	for _, t := range doc.Tasks() {
-		if t.Parsed() && t.Terminal() == m.viewing {
+		if t.Parsed() && (m.viewing || t.Live()) {
 			live = append(live, t)
 		}
 	}
@@ -189,9 +189,19 @@ func (m *Model) resize() {
 	m.deleg.measure(m.list.VisibleItems(), width)
 }
 
+// A finished line still carries a priority and a due date, so it still computes an
+// urgency — which in review mode would float a done H task above live work. Terminal
+// lines sink, and rank among themselves by the same measure. Outside review mode
+// nothing terminal is listed, so this is the plain urgency sort it always was.
 func sortByUrgency(items []core.Task, today time.Time) {
+	before := func(a, b core.Task) bool {
+		if a.Terminal() != b.Terminal() {
+			return b.Terminal()
+		}
+		return core.Urgency(a, today) > core.Urgency(b, today)
+	}
 	for i := 1; i < len(items); i++ {
-		for j := i; j > 0 && core.Urgency(items[j], today) > core.Urgency(items[j-1], today); j-- {
+		for j := i; j > 0 && before(items[j], items[j-1]); j-- {
 			items[j], items[j-1] = items[j-1], items[j]
 		}
 	}
@@ -223,11 +233,13 @@ var order = map[bool][]string{
 	false: {"t", "r", ">", "x"}, // a garage month
 }
 
-// review is the whole of the done view, and the only place either key appears. A
-// finished line is a record, and there are exactly two things to say about a record:
-// that it was not finished after all, and that it should never have been written.
-// Everything else — done, hand back, take, move — is meaningless on one or quietly
-// destructive, and `E` being reachable nowhere else is what keeps a live line safe.
+// review is the whole of `v`'s keymap, and the only place either key appears.
+//
+// The split is by how often you reach for a verb, not by what it acts on. Restore and
+// erase are the rare ones — a correction and a removal — and a verb you use twice a
+// month has no business sitting in the footer you read all day, one key away from the
+// ones you use constantly. `v` is where they live, along with the whole picture they
+// need: done lines as well as live ones.
 var review = []string{"R", "E"}
 
 func (m Model) offered() []action {
@@ -269,6 +281,9 @@ func (m *Model) restore(picked []core.Task) string {
 	if err := doc.Save(); err != nil {
 		return err.Error()
 	}
+	if n == 0 {
+		return "nothing to restore — those are not finished" // R on live rows
+	}
 	return plural(n, "restored")
 }
 
@@ -288,8 +303,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.updateMenu(msg)
 		case sending:
 			return m.updateDestinations(msg)
-		case erasing:
-			return m.updateErase(msg)
 		default:
 			return m.updateList(msg)
 		}
@@ -373,7 +386,7 @@ func (m Model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	case "a", "n":
 		if m.viewing {
-			m.status = "nothing is added in here — v goes back"
+			m.status = "review reads and prunes — v goes back to add"
 			return m, nil
 		}
 		f := newEntry(m.layer().month, m.today)
@@ -392,10 +405,11 @@ func (m Model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// `v` is a room, not an overlay. It swaps the list for the finished lines of the
-// same layer instead of mixing the two, so every row in it is the same kind of thing
-// and the keymap can shrink to the two verbs that make sense there. A mixed list
-// could only offer an action once it had worked out what you had selected.
+// `v` is a mode, not a filter. It widens the list to everything on the layer — what
+// you finished as well as what you have not — and narrows the keymap to the two rare
+// verbs. Both halves are the same idea: an operation you reach for monthly should not
+// sit in the way of the flow you drive daily, and it needs the whole picture when you
+// do reach for it.
 func (m *Model) toggleView() tea.Cmd {
 	m.viewing = !m.viewing
 	m.list.ResetFilter() // a filter was about the rows you were looking at
@@ -486,7 +500,7 @@ func (m *Model) run(a action) tea.Cmd {
 		return nil
 	}
 	m.status = a.apply(m, picked)
-	if m.mode == editing || m.mode == sending || m.mode == erasing {
+	if m.mode == editing || m.mode == sending {
 		m.resize()
 		return nil // those modes own the selection until they are done
 	}
@@ -495,37 +509,25 @@ func (m *Model) run(a action) tea.Cmd {
 	return m.reload()
 }
 
-// erase is the only thing here that removes a line, so it is the only thing that
-// asks. Everything else marks: done strikes through, a move leaves an arrow. A
-// mis-key on the others is visible and undoable by hand; this one is not.
-func (m *Model) confirmErase(picked []core.Task) string {
-	m.mode = erasing // run() resizes; doing it here is an init cycle through offered()
-	return ""
-}
-
-func (m Model) updateErase(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	if msg.String() != "y" {
-		m.mode = browsing
-		m.resize()
-		return m, nil
-	}
+// erase is the only thing here that removes a line rather than marking it, and it
+// asked `y`/`n` for a while. The prompt came out: it was the one modal in the whole
+// interface, guarding a verb you can only reach by entering review mode first. Saying
+// what went replaces it — enough to retype a line erased in error, which was all the
+// recovery the prompt bought either way.
+func (m *Model) erase(picked []core.Task) string {
 	doc, err := m.layer().open()
 	if err != nil {
-		m.status, m.mode = err.Error(), browsing
-		return m, nil
+		return err.Error()
 	}
-	picked := m.picked()
+	names := make([]string, 0, len(picked))
 	for _, t := range picked {
 		doc.Remove(t)
+		names = append(names, `"`+t.Text+`"`)
 	}
 	if err := doc.Save(); err != nil {
-		m.status = err.Error()
-	} else {
-		m.status = plural(len(picked), "erased")
+		return err.Error()
 	}
-	m.mode = browsing
-	clear(m.marked)
-	return m, m.reload()
+	return "erased " + strings.Join(names, " · ")
 }
 
 func (m *Model) chooseDestination(picked []core.Task) string {

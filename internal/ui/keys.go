@@ -21,19 +21,15 @@ func bind(keys, help string) key.Binding {
 }
 
 func (m Model) keys() keyMap {
-	if m.mode == erasing {
-		asking := []key.Binding{bind("y", "erase"), bind("any other key", "keep it")}
-		return keyMap{short: asking, full: [][]key.Binding{asking}}
-	}
 	if m.mode == acting || m.mode == sending {
 		picking := []key.Binding{bind("↑↓", "choose"), bind("enter", "apply"), bind("esc", "back")}
 		return keyMap{short: picking, full: [][]key.Binding{picking}}
 	}
 
-	// The done view has its own two verbs and none of the others, so it gets its own
+	// Review mode has its own two verbs and none of the others, so it gets its own
 	// footer rather than a shared one with half the keys greyed out. `E` appears here
-	// and in `?`, and in no other footer: it is the one key that removes a line, and
-	// it should be found deliberately rather than met while browsing.
+	// and in `?`, and in no other footer: a verb you reach for twice a month should not
+	// sit in the line you read all day, a key away from the ones you use constantly.
 	if m.viewing {
 		short := []key.Binding{
 			bind("↑↓", "move"), bind("space", "select"), bind("tab", "switch"),
@@ -55,7 +51,7 @@ func (m Model) keys() keyMap {
 	if !m.layer().isTray() {
 		short = append(short, bind("t", "take"))
 	}
-	short = append(short, bind("v", "done view"), bind("/", "filter"),
+	short = append(short, bind("v", "review"), bind("/", "filter"),
 		bind("?", "help"), bind("q", "quit"))
 
 	// The action letters come from the layer, so the help teaches exactly the

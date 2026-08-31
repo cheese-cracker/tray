@@ -16,8 +16,8 @@ and the two are meant to agree.
 | 1 | Two layers: **garage** (dump) and **tray** (worklist) | Classifying at capture costs you the thought you were having | live |
 | 2 | Markdown files are the truth | You must be able to edit them with no tool in the loop | live |
 | 4 | Keep TW's field names and urgency coefficients | `tray export \| task import` stays a one-way hatch | live |
-| 5 | **Nothing is ever deleted.** `done`/`drop` strike through in place | The file is the record; that's what makes `find` a rot detector | superseded by 91 |
-| 5a | **Nothing live is ever deleted.** Finishing still strikes through in place; `E` erase removes a line, and reaches only a finished one | 5 held for a year of use and then failed on the one case it never covered: a line that should not have been written. Narrowing it keeps what it was protecting — a record you can trust `find` against — and gives up only the part that was protecting typos | live |
+| 5 | **Nothing is ever deleted.** `done`/`drop` strike through in place | The file is the record; that's what makes `find` a rot detector | superseded by 5a |
+| 5a | **A line only leaves the file from review mode.** Finishing still strikes through in place; `E` erase is the one verb that removes one | 5 covered every case but one: a line that should not have been written. Narrowing it keeps what it was protecting — a record you can trust `find` against — and gives up only the part that was protecting typos | live |
 | 6 | Copy-forward with an arrow: the source line stays, annotated `→ 2026-09` | Month files stay a record, and nothing can move twice | live |
 | 7 | take · hand back · carry forward are **one operation** | Three rituals were three code paths for the same move | live — but see 71: sharing the *move* is not sharing the *command* |
 | 8 | Ids are positional and ephemeral, never stored | A hand-edit can then never desync them | live |
@@ -200,7 +200,7 @@ Reported from use: two tasks went done when one was meant to.
 | 89c | State moved to **its own column**, beside selection | They shared one cell, so a row that was both selected and finished lost its dot. Found by giving the box somewhere to live | live |
 | 89d | Purely visual: **`x` does not toggle** | A box invites ticking and unticking with one key, which would fold `R` into `x`. Worth considering, but changing what a key does is not the same change as changing how it looks | open |
 
-## Erase, and the done view
+## Erase, and review mode
 
 | # | Decision | Why | Status |
 |---|---|---|---|
@@ -208,10 +208,15 @@ Reported from use: two tasks went done when one was meant to.
 | 90a | A legacy `dropped:` is still **read**, and rewritten as `done:` | Attributes are read off the end of a line and only for known keys (17), so retiring the key from the read set would not delete it — it would absorb it into the task's own text. The read list is deliberately wider than the write list | live |
 | 91 | **`E` erases**: it removes the line from the file | Marking is right for everything with a history worth keeping. A line typed twice has none. Nothing else in the tool could remove one, so the file was the only place to do it | live |
 | 91a | The key is **`E`**, not `delete` or `backspace` | Your call. A letter you have to reach for suits a verb you should reach for; `backspace` is next to the keys you use most | live |
-| 91b | It **asks** — `y`, or any other key keeps it | The only prompt in the interface, on the only action that cannot be undone by hand. Everything else leaves a line behind to un-strike or an arrow to follow | live |
-| 92 | **`v` is a room, not an overlay.** It swaps the list for the finished lines rather than mixing them into the live ones | A mixed list could only offer an action after working out what you had selected, and the menu changed under you as the cursor moved. Homogeneous rows mean the keymap can be two verbs and stay two verbs | live |
-| 92a | `a` writes nothing there, and the footer drops the other keys | Adding in the done view would write a line the room cannot show. Take, done, hand back and move are all meaningless on a record | live |
-| 93 | **Erase is reachable only from the done view** | This is what 5a rests on: to remove a line you must first have said it was finished, which is one deliberate step before the destructive one. It also keeps `E` out of the footer you read all day | live |
+| 91b | It **asks** — `y`, or any other key keeps it | The only prompt in the interface, on the only action that cannot be undone by hand | reverted by 91c |
+| 91c | The prompt **came out** | It was the one modal in the whole interface, guarding a verb you can only reach by entering review mode first — a step you do not take by accident. The status line names what went instead, which is enough to retype a line erased in error, and was all the recovery the prompt bought either way | live |
+| 92 | **`v` is a mode, not a filter.** It widens the list to everything on the layer and narrows the keymap to two verbs | The split is by **how often you reach for a verb**, not by what it acts on. A correction and a removal are monthly; they have no business in the footer you read all day, one key from the ones you use constantly. And when you do reach for them you want the whole picture, not half of it | live |
+| 92a | It first shipped as a **done-only room**, and that was wrong | Splitting by row state made the mode an archive, which the tool explicitly is not for. Splitting by how rare the verb is makes it a review pass — and a review pass has to show what you finished *next to* what you did not | reverted into 92 |
+| 92d | Live lines sort **above** finished ones there | A finished line still carries a priority and a due date, so it still computes an urgency — and ranking on that alone floats a done `H` task over the work you have left | live |
+| 92e | `a` writes nothing there, and the footer drops the daily keys | Review reads and prunes. Add, take, done, hand back and move are the flow this mode exists to stay out of | live |
+| 93 | **Erase is reachable only in review mode** | One deliberate step before the destructive one, and `E` never appears in the footer you read all day. With the prompt gone (91c) this is the whole of the guard | live |
 | 93a | The CLI does **not** enforce 93 — `tray <id> erase` reaches any line | 19 again: the interface teaches a habit, the CLI is the exact scriptable thing. Same split as 88c | live |
 | 93b | CLI `erase` resolves ids against **`list --all`**, as `restore` does | It has to reach a finished line, and only the `--all` id space names one. Both destructive-ish verbs read the same space, so they cannot disagree | live |
-| 94 | The room is called the **done view**, not "show done" | `v show done` sat in a footer next to `x done`, which read as a second way to mark something finished. Naming a place instead of an action removes the collision | live |
+| 92b | Review keeps **the same columns** as the working list | `urg` on a finished task is noise, so a finished-on date was the obvious swap. Rejected: one table shape everywhere is worth more than one mode reading slightly better, and the date is already in the file | live |
+| 92c | `enter` still opens a menu there, of the two verbs | Both are in the footer, so the menu adds nothing — but it costs no code, and `enter` doing nothing in one place is its own small surprise | live |
+| 94 | It is called **review**, not "show done" | `v show done` sat in a footer next to `x done` and read as a second way to mark something finished. Naming the mode removes the collision, and "review" says what you go there to do | live |

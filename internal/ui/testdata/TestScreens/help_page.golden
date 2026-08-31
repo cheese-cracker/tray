@@ -12,14 +12,14 @@
   (a)dd    a line to the layer you are on
   (t)ake   a garage line onto the tray, structured
   (d)      hand a tray task back to the garage
-  (v)iew   what you finished — restore or erase it
+  (v)iew   everything, done and not — where you restore or erase
   
   ────────────────────────────────────────────────────────────────────────────
   
-  keys                  acting             done view      
+  keys                  acting             in review      
   ↑↓  j k move          a       add        R       restore
   tab     switch layer  t       take       E       erase  
   space   select        r       rewrite                   
   enter   act           x       done                      
   /       filter        d       hand back                 
-  v       done view     >       move to                   
+  v       review        >       move to                   

@@ -200,26 +200,23 @@ func TestHandBackMovesToTheGarage(t *testing.T) {
 	}
 }
 
-// The negative half of T18, which the flow cannot assert from inside the done view:
-// on a live line the key does nothing, the menu does not list it, and the footer does
-// not name it. Erase should be found deliberately, not met while browsing.
-func TestEraseIsUnreachableOnALiveLine(t *testing.T) {
+// The negative half of T18: outside review mode the key does nothing, the menu does
+// not list it, and the footer does not name it. A verb you reach for twice a month
+// should be found deliberately, not met while working.
+func TestEraseIsUnreachableOutsideReview(t *testing.T) {
 	sandbox(t, "- [ ] one priority:H")
 
 	m := keys(New(), "E").(Model)
-	if m.mode == erasing {
-		t.Fatal("E must do nothing on a live line")
-	}
 	for _, a := range m.offered() {
 		if a.key == "E" {
-			t.Error("the live menu must not offer erase")
+			t.Error("the working list must not offer erase")
 		}
 	}
 	if got := m.View(); strings.Contains(got, "erase") {
-		t.Errorf("the live footer must not name erase:\n%s", got)
+		t.Errorf("the working footer must not name erase:\n%s", got)
 	}
 	if got := trayFile(t); !strings.Contains(got, "one") {
-		t.Errorf("and nothing may have been removed:\n%s", got)
+		t.Errorf("and the key must not have removed anything:\n%s", got)
 	}
 }
 
@@ -500,32 +497,22 @@ func TestTrayShowsCheckboxesAndTheGarageDoesNot(t *testing.T) {
 	)
 	garage(t, "2026-08", "- a jotting", "- ~~a finished jotting~~ done:2026-08-06")
 
-	for _, c := range []struct {
-		keys []string
-		want string
-	}{
-		{nil, "[ ] still open"},
-		{[]string{"v"}, "[x] finished"},
-	} {
-		if got := keys(New(), c.keys...).(Model).View(); !strings.Contains(got, c.want) {
-			t.Errorf("the tray should show %q:\n%s", c.want, got)
+	// Review mode lists both kinds, so one frame carries both boxes.
+	trayView := keys(New(), "v").(Model).View()
+	for _, want := range []string{"[ ] still open", "[x] finished"} {
+		if !strings.Contains(trayView, want) {
+			t.Errorf("the tray should show %q:\n%s", want, trayView)
 		}
 	}
 
-	for _, c := range []struct {
-		keys []string
-		want string
-	}{
-		{[]string{"tab"}, "a jotting"},
-		{[]string{"tab", "v"}, "✓ a finished jotting"},
-	} {
-		got := keys(New(), c.keys...).(Model).View()
-		if !strings.Contains(got, c.want) {
-			t.Errorf("the garage should show %q:\n%s", c.want, got)
+	garageView := keys(New(), "tab", "v").(Model).View()
+	for _, want := range []string{"a jotting", "✓ a finished jotting"} {
+		if !strings.Contains(garageView, want) {
+			t.Errorf("the garage should show %q:\n%s", want, garageView)
 		}
-		if strings.Contains(got, "[ ]") || strings.Contains(got, "[x]") {
-			t.Errorf("the garage file has no checkbox, so its rows must not draw one:\n%s", got)
-		}
+	}
+	if strings.Contains(garageView, "[ ]") || strings.Contains(garageView, "[x]") {
+		t.Errorf("the garage file has no checkbox, so its rows must not draw one:\n%s", garageView)
 	}
 }
 

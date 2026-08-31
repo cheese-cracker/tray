@@ -67,9 +67,9 @@ suite rather than hanging it.
 | T14 | A finished task is hidden until `v`, and `R` says it wasn't finished after all | `TestFlowViewDoneThenRestore` |
 | T16 | A garage rewrite edits the words alone, and keeps whatever the line already carries | `TestFlowGarageRewriteIsTextOnly` |
 | T17 | A garage rewrite refuses a batch — there is nothing left for it to change | `TestFlowGarageRewriteRefusesABatch` |
-| T15 | The done view holds the finished lines alone and offers restore and erase alone; `a` writes nothing there | `TestFlowTheDoneViewIsARoomOfItsOwn` |
+| T15 | `v` lists everything on the layer, live lines first, and offers restore and erase alone; `a` writes nothing there | `TestFlowReviewShowsEverythingAndOffersTheRareVerbs` |
 | T13 | A pasted title lands whole, and a pasted newline collapses rather than splitting the line | `TestFlowPasteIntoTheTitle` |
-| T18 | `E` asks before it removes a line, keeps it on any other key, and is reachable only from the done view | `TestFlowEraseAsksThenRemovesTheLine` |
+| T18 | `E` removes a line outright and names it in the status, and is reachable only in review mode | `TestFlowEraseRemovesTheLineAndSaysWhatWent` |
 
 ## Screens
 

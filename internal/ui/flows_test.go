@@ -328,7 +328,7 @@ func TestFlowPasteIntoTheTitle(t *testing.T) {
 	}
 }
 
-// T14 · a finished task is invisible until you ask for it, and the only thing you can
+// T14 · a finished task is invisible in the working list, and the only thing you can
 // say about one is that it wasn't finished after all.
 func TestFlowViewDoneThenRestore(t *testing.T) {
 	sandbox(t,
@@ -343,7 +343,7 @@ func TestFlowViewDoneThenRestore(t *testing.T) {
 
 	u = drive(t, New()).waitFor("still open")
 	u.press("v").waitFor("done by mistake")
-	u.press("enter").waitFor("restore")
+	u.press("j").press("enter").waitFor("restore")
 	u.press("R").waitFor("1 restored")
 	m := u.press("v").waitFor("done by mistake").final()
 
@@ -357,10 +357,10 @@ func TestFlowViewDoneThenRestore(t *testing.T) {
 	}
 }
 
-// T15 · the done view is a room of its own. It swaps the list for the finished lines
-// rather than mixing them into the live ones, which is what lets its keymap shrink to
-// the two verbs a record can take.
-func TestFlowTheDoneViewIsARoomOfItsOwn(t *testing.T) {
+// T15 · `v` is a mode, not a filter: it widens the list to everything on the layer and
+// narrows the keymap to the two rare verbs. The split is by how often you reach for a
+// verb, so that a monthly one never sits in the way of the daily flow.
+func TestFlowReviewShowsEverythingAndOffersTheRareVerbs(t *testing.T) {
 	sandbox(t,
 		"- [ ] still open priority:H entry:2026-08-01",
 		"- [x] ~~already done~~ priority:M entry:2026-08-02 done:2026-08-06",
@@ -370,20 +370,26 @@ func TestFlowTheDoneViewIsARoomOfItsOwn(t *testing.T) {
 	u.press("v").waitFor("already done")
 	m := u.press("q").final()
 
-	if len(m.items()) != 1 || m.items()[0].Text != "already done" {
-		t.Fatalf("the done view holds %+v, want the finished line alone", m.items())
+	var texts []string
+	for _, it := range m.items() {
+		texts = append(texts, it.Text)
+	}
+	// Live work first: a finished line still computes an urgency, and sorting on that
+	// alone would float a done H task above the work you have left.
+	if strings.Join(texts, "|") != "still open|already done" {
+		t.Fatalf("review holds %v, want everything with the live line first", texts)
 	}
 	var offered []string
 	for _, a := range m.offered() {
 		offered = append(offered, a.key)
 	}
 	if strings.Join(offered, "") != "RE" {
-		t.Errorf("the done view offers %v, want restore and erase alone", offered)
+		t.Errorf("review offers %v, want restore and erase alone", offered)
 	}
 
-	// `a` here would write a line the room cannot show, so it declines and says so.
+	// The daily verbs are not here, and neither is adding: this mode reads and prunes.
 	if got := keys(m, "a").(Model); got.mode == editing {
-		t.Error("add must not open a form in the done view")
+		t.Error("add must not open a form in review mode")
 	}
 	back := keys(m, "v").(Model)
 	if back.viewing || len(back.items()) != 1 || back.items()[0].Text != "still open" {
@@ -391,10 +397,10 @@ func TestFlowTheDoneViewIsARoomOfItsOwn(t *testing.T) {
 	}
 }
 
-// T18 · erase is the one action that removes a line rather than marking it, so it is
-// the one action that asks first — and it is reachable only from the done view, which
-// is what keeps a live line safe from a mis-key.
-func TestFlowEraseAsksThenRemovesTheLine(t *testing.T) {
+// T18 · erase is the one action that removes a line rather than marking it. There is
+// no prompt: entering review mode is the deliberate step, and naming what went is the
+// recovery — enough to retype a line erased in error.
+func TestFlowEraseRemovesTheLineAndSaysWhatWent(t *testing.T) {
 	sandbox(t,
 		"- [ ] still open priority:H entry:2026-08-01",
 		"- [x] ~~typed it twice~~ priority:M entry:2026-08-02 done:2026-08-06",
@@ -402,12 +408,7 @@ func TestFlowEraseAsksThenRemovesTheLine(t *testing.T) {
 
 	u := drive(t, New()).waitFor("still open")
 	u.press("v").waitFor("typed it twice")
-	u.press("E").waitFor("y")
-	u.press("n").waitFor("typed it twice") // anything but y keeps it
-	has(t, trayFile(t), "typed it twice")
-
-	u.press("E").waitFor("erase")
-	u.press("y").waitFor("1 erased")
+	u.press("j").press("E").waitFor(`erased "typed it twice"`)
 	u.press("q").final()
 
 	tray := trayFile(t)
