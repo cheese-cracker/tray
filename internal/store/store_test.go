@@ -223,3 +223,17 @@ func TestMonthsListsOnlyMonthFiles(t *testing.T) {
 		t.Errorf("Months() = %v, want the two month files only", got)
 	}
 }
+
+// The default home is visible and named after the binary. It is a decision (53, 53a),
+// so it gets an assertion rather than living only in a constant.
+func TestDefaultHomeIsTrayInTheHomeDirectory(t *testing.T) {
+	t.Setenv("HOME", "/tmp/somewhere")
+	t.Setenv("TRAY_HOME", "")
+	if got, want := Home(), "/tmp/somewhere/tray"; got != want {
+		t.Errorf("Home() = %s, want %s", got, want)
+	}
+	t.Setenv("TRAY_HOME", "/tmp/elsewhere")
+	if got := Home(); got != "/tmp/elsewhere" {
+		t.Errorf("TRAY_HOME should still win, got %s", got)
+	}
+}

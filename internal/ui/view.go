@@ -12,13 +12,19 @@ import (
 var (
 	accent = style.Accent
 	subtle = style.Subtle
+	strong = style.Strong
 
-	titleStyle  = lipgloss.NewStyle().Bold(true)
+	titleStyle  = lipgloss.NewStyle().Bold(true).Foreground(strong)
 	faintStyle  = lipgloss.NewStyle().Foreground(subtle)
 	cursorStyle = lipgloss.NewStyle().Bold(true).Foreground(accent)
 	markStyle   = lipgloss.NewStyle().Foreground(accent)
 	keyStyle    = lipgloss.NewStyle().Bold(true).Foreground(accent)
 	doneStyle   = lipgloss.NewStyle().Foreground(subtle).Strikethrough(true)
+
+	// A finished row under the cursor: still struck, no longer dull. It lifts to the
+	// terminal's own foreground rather than to strong, because a done task should
+	// never read louder than the live ones around it.
+	doneCursorStyle = doneStyle.Foreground(lipgloss.NoColor{})
 
 	// Tabs, as bubbletea's own tabs example does it: the active tab's bottom border
 	// is opened so it reads as one shape with the pane below.

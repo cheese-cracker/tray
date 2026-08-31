@@ -93,25 +93,6 @@ is a guess about packaging rather than a requirement.
 
 Not features. Each is a decision, and none of them is made.
 
-- [ ] **Revisit the default directory** — `~/task-garage`, with `$TRAY_HOME` overriding it
-  (53).
-
-  **`~/.config/tray/` is out** whichever way this goes: XDG splits config from data, and
-  tasks are data. The strict-XDG answer would be `$XDG_DATA_HOME/tray`, not `.config`.
-
-  The real question is whether these are *app data* or *your documents*, and the convention
-  splits cleanly on that. Taskwarrior hides its data in `~/.task/` — reasonably, since 3.x
-  that is `taskchampion.sqlite3` and you are not meant to open it. Tools whose files you do
-  open go the other way: org-mode's `~/org`, Obsidian's user-chosen vault, todo.txt's plain
-  `~/todo/`. Hidden when the tool owns the bytes, visible when you do — and 2 says the user
-  owns these. macOS nominally wants `~/Library/Application Support`, but CLI tools ignore
-  that near-universally, so it is not really a second axis.
-
-  What is left to settle is the *name*, not the location. The directory holds `tray.md` too,
-  so `task-garage` names one of the two layers rather than the pair — `~/tray/` is shorter,
-  just as visible, and matches the binary. And whatever wins, moving it is a migration:
-  existing files either move or need `$TRAY_HOME` set, and there is no upgrade path today.
-
 - [ ] **A config file, so the row format is a choice** — todo.txt or the default, which today
   is Taskwarrior's field names on markdown lines (2, 4, 17). Two things sit on this. There is
   no config file at all right now, deliberately — 18 keeps the tag vocabulary in the files
@@ -168,6 +149,13 @@ Not features. Each is a decision, and none of them is made.
 
 Kept collapsed, so a thing that was once a question does not read as still open.
 
+- [x] **`~/tray` as the default directory** — `.config` was never it: XDG splits config from
+  data and these are data. Visible-in-home held, because the convention splits on who owns
+  the bytes — Taskwarrior hides `~/.task/` since you are not meant to open a sqlite file,
+  while org-mode, Obsidian and todo.txt stay visible because you are. The name was the live
+  part: the directory holds `tray.md` too, so `task-garage` announced one layer, not the
+  pair. Decisions 53, 53a. **No migration path** — an existing `~/task-garage` has to be
+  moved by hand.
 - [x] **Markdown checkboxes in the tray rows** — `[ ]` `[x]` `[-]`, the box the tray file
   already writes. Garage rows keep a plain mark; its file has no checkbox. Decisions 89–89e,
   including the ballot glyphs that were tried and reverted.

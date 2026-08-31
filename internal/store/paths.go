@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	DefaultHome = "task-garage"
+	DefaultHome = "tray"
 	TrayHeader  = "# tray"
 	Someday     = "someday"
 	monthLayout = "2006-01"

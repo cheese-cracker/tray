@@ -66,11 +66,12 @@ func (d *rowDelegate) Render(w io.Writer, m list.Model, i int, item list.Item) {
 	}
 	// Selection and state used to share one cell, so a selected row that was also
 	// finished lost its dot. They are separate columns now.
-	if d.marked[r.Text] {
+	marked := d.marked[r.Text]
+	if marked {
 		cells[cMark] = "●"
 	}
 	cells[cBox] = d.state(r.Task)
-	fmt.Fprint(w, d.render(cells, i == m.Index(), false, r.Terminal()))
+	fmt.Fprint(w, d.render(cells, i == m.Index(), marked, false, r.Terminal()))
 }
 
 // state is the checkbox the tray file already writes — `[x]` done, `[ ]` open — with
@@ -108,7 +109,7 @@ func (d *rowDelegate) headers() [nCols]string {
 	return h
 }
 
-func (d *rowDelegate) header() string { return d.render(d.headers(), false, true, false) }
+func (d *rowDelegate) header() string { return d.render(d.headers(), false, false, true, false) }
 
 // A garage month has no urgency, priority or due date to show: those are what `take`
 // adds, and the whole point of the garage is that they haven't been decided yet.
@@ -166,33 +167,57 @@ func (d *rowDelegate) measure(items []list.Item, avail int) {
 	d.widths = w
 }
 
-func (d *rowDelegate) render(cells [nCols]string, selected, header, finished bool) string {
+func (d *rowDelegate) render(cells [nCols]string, selected, marked, header, finished bool) string {
 	var b strings.Builder
 	for i := 0; i < nCols; i++ {
 		cell := pad(cells[i], d.widths[i], colPad[i])
 		switch {
 		case header:
 			cell = faintStyle.Render(cell)
-		// A finished row reads as the file does: struck through and quiet. It is
-		// only on screen at all because you pressed v.
-		case finished && i == cTask:
-			cell = doneStyle.Render(cell)
-		case finished:
-			cell = faintStyle.Render(cell)
+		// The cursor and the mark are what you look for first, so nothing else gets
+		// to claim their cells. A finished row used to draw its own ▸ faint, which
+		// is the one row where finding it matters most.
 		case i == cPoint:
 			cell = cursorStyle.Render(cell)
 		case i == cMark:
 			cell = markStyle.Render(cell)
 		case i == cBox:
 			cell = faintStyle.Render(cell)
-		case selected:
-			cell = titleStyle.Render(cell)
+		case i == cTask:
+			cell = taskStyle(selected, marked, finished).Render(cell)
+		case finished:
+			cell = faintStyle.Render(cell)
+		case selected: // the attributes on the row you are on stay at full strength
 		case i >= cUrg: // the attribute columns stay quiet
 			cell = faintStyle.Render(cell)
 		}
 		b.WriteString(cell)
 	}
 	return strings.TrimRight(b.String(), " ")
+}
+
+// taskStyle is the one cell that carries the state of the whole row, because it is the
+// cell you are reading anyway. Struck through when the task is finished, bold while it
+// is marked — a mark is worth a dot in its own column and the weight of the line, since
+// a five-row selection you cannot see the shape of is one you will misapply an action
+// to. The row under the cursor goes to full strength on top of either.
+//
+// A finished row stays dull even when marked: the colour is what says "done", and only
+// the cursor is allowed to lift it.
+func taskStyle(selected, marked, finished bool) lipgloss.Style {
+	s := lipgloss.NewStyle()
+	switch {
+	case finished && selected:
+		s = doneCursorStyle
+	case finished:
+		s = doneStyle
+	case selected:
+		s = titleStyle
+	}
+	if marked {
+		s = s.Bold(true)
+	}
+	return s
 }
 
 // pad truncates first so lipgloss pads rather than wraps: a wrapped row would push

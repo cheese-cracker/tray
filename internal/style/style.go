@@ -11,6 +11,13 @@ var (
 	Accent = lipgloss.AdaptiveColor{Light: "#874BFD", Dark: "#7D56F4"}
 	Subtle = lipgloss.AdaptiveColor{Light: "#909090", Dark: "#626262"}
 
+	// The high-contrast pole, for whatever the eye should land on first. Accent is
+	// already spent on the cursor glyph and the mark, so the row under the cursor is
+	// carried by contrast rather than hue: brightest on a dark background, blackest
+	// on a light one. Bold alone is only a weight — no terminal still promotes it to
+	// a brighter colour by default.
+	Strong = lipgloss.AdaptiveColor{Light: "#000000", Dark: "#FFFFFF"}
+
 	// Priority, warm to cool. These carry meaning, so they stay distinguishable
 	// from each other rather than being three shades of the accent.
 	High   = lipgloss.AdaptiveColor{Light: "#D20F39", Dark: "#F38BA8"}

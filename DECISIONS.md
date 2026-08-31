@@ -74,7 +74,8 @@ lived in was orphaned, so none of the history came with it — the import is one
 |---|---|---|---|
 | 51 | `tray` is **its own repo**, module `github.com/cheese-cracker/tray` | It was `--tui` in a coreutils installer; nothing about it is a shell alias | live |
 | 52 | The `bin/tray` bash wrapper is **dropped** | It existed to rebuild-on-stale from a symlink in `~/.local/bin`; `go install` is the same thing without the shell | live |
-| 53 | `~/task-garage` stays the default home | Decision 2 says you must be able to edit these with no tool in the loop, and XDG buries them where nobody looks | live |
+| 53 | The default home is **visible, in `~`** | 2 says you must be able to edit these with no tool in the loop, and XDG buries them where nobody looks. The convention splits on ownership, not platform: Taskwarrior hides `~/.task/` because you are not meant to open a sqlite file; org-mode, Obsidian and todo.txt stay visible because you are | live |
+| 53a | It is **`~/tray`**, not `~/task-garage` | The directory holds `tray.md` as well as the months, so the old name announced one of the two layers and not the pair. `~/tray` matches the binary and is a word shorter | live |
 | 54 | `scripts/check-tray.sh` **stays bash**, and builds the binary itself | Decision 37: it survived a whole-language rewrite unchanged. That property is worth one non-Go file | live |
 | 55 | No `internal/feature` until `tray install` needs it | A flag package with zero consumers is speculative code you can't test | live |
 

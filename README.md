@@ -26,7 +26,7 @@ few that graduate ever need it.
 ```sh
 go install github.com/cheese-cracker/tray/cmd/tray@latest
 
-tray init                      # creates ~/task-garage/
+tray init                      # creates ~/tray/
 tray dump that config thing    # capture, zero ceremony
 tray                           # open it
 ```
@@ -87,7 +87,7 @@ Press **`?`** for a full-screen explainer: what the two layers are, and every ke
 ## Features
 
 - 🗂️ **Two layers** — a garage that asks nothing of you, a tray that expects structure.
-- 📝 **Plain markdown**, one task per line, in `~/task-garage/`. Edit it in any editor;
+- 📝 **Plain markdown**, one task per line, in `~/tray/`. Edit it in any editor;
   tray preserves anything it doesn't recognise, byte for byte.
 - 🗓️ **A garage per month** — dump into November in August, if that's when you'll do it.
 - 🔁 **A month-turn sweep** — `tray carryover` opens the months as tabs so you can triage
@@ -106,7 +106,7 @@ Press **`?`** for a full-screen explainer: what the two layers are, and every ke
 ## The files
 
 ```
-~/task-garage/          $TRAY_HOME overrides this
+~/tray/                 $TRAY_HOME overrides this
   tray.md               the worklist
   2026-08.md            this month's garage
   someday.md            explicitly undated
