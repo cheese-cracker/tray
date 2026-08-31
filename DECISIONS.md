@@ -16,7 +16,8 @@ and the two are meant to agree.
 | 1 | Two layers: **garage** (dump) and **tray** (worklist) | Classifying at capture costs you the thought you were having | live |
 | 2 | Markdown files are the truth | You must be able to edit them with no tool in the loop | live |
 | 4 | Keep TW's field names and urgency coefficients | `tray export \| task import` stays a one-way hatch | live |
-| 5 | **Nothing is ever deleted.** `done`/`drop` strike through in place | The file is the record; that's what makes `find` a rot detector | live |
+| 5 | **Nothing is ever deleted.** `done`/`drop` strike through in place | The file is the record; that's what makes `find` a rot detector | superseded by 5a |
+| 5a | **A line only leaves the file from review mode.** Finishing still strikes through in place; `E` erase is the one verb that removes one | 5 covered every case but one: a line that should not have been written. Narrowing it keeps what it was protecting — a record you can trust `find` against — and gives up only the part that was protecting typos | live |
 | 6 | Copy-forward with an arrow: the source line stays, annotated `→ 2026-09` | Month files stay a record, and nothing can move twice | live |
 | 7 | take · hand back · carry forward are **one operation** | Three rituals were three code paths for the same move | live — but see 71: sharing the *move* is not sharing the *command* |
 | 8 | Ids are positional and ephemeral, never stored | A hand-edit can then never desync them | live |
@@ -42,8 +43,8 @@ and the two are meant to agree.
 | 22 | bubbletea, with tabs and a real pane | A picker can select a line; it can't do in-place editing or panes | live |
 | 24 | `enter` opens a menu whose letters **also work from the list** | Discoverable on day one, one keystroke by week two | live |
 | 25 | `rewrite` is **one form, every field prefilled** | Only what you touch changes; no wizard | live |
-| 26 | `d` hands back to the garage, `D` deletes | Your mapping | live |
-| 27 | `D` strikes through rather than removing the line | Consistent with 5. Flagged as overridable | live |
+| 26 | `d` hands back to the garage | Your mapping. `D` deleted, in the same breath; see 27 | live |
+| 27 | `D` strikes through rather than removing the line | Consistent with 5. Flagged as overridable — and 90 overrode it | superseded by 90 |
 | 28 | Two tabs day to day; **`tray carryover` opens the months as tabs** | The sweep is the one ritual that's about months | live, widened by 73 |
 | 28a | Tabs **cycle** at either end | With two or three tabs, stopping just makes you reach for the other key | live |
 | 30 | **Tags are typed**; the ones in use show as a hint | A picker was friction for the rarer case of a new tag | live |
@@ -74,7 +75,8 @@ lived in was orphaned, so none of the history came with it — the import is one
 |---|---|---|---|
 | 51 | `tray` is **its own repo**, module `github.com/cheese-cracker/tray` | It was `--tui` in a coreutils installer; nothing about it is a shell alias | live |
 | 52 | The `bin/tray` bash wrapper is **dropped** | It existed to rebuild-on-stale from a symlink in `~/.local/bin`; `go install` is the same thing without the shell | live |
-| 53 | `~/task-garage` stays the default home | Decision 2 says you must be able to edit these with no tool in the loop, and XDG buries them where nobody looks | live |
+| 53 | The default home is **visible, in `~`** | 2 says you must be able to edit these with no tool in the loop, and XDG buries them where nobody looks. The convention splits on ownership, not platform: Taskwarrior hides `~/.task/` because you are not meant to open a sqlite file; org-mode, Obsidian and todo.txt stay visible because you are | live |
+| 53a | It is **`~/tray`**, not `~/task-garage` | The directory holds `tray.md` as well as the months, so the old name announced one of the two layers and not the pair. `~/tray` matches the binary and is a word shorter | live |
 | 54 | `scripts/check-tray.sh` **stays bash**, and builds the binary itself | Decision 37: it survived a whole-language rewrite unchanged. That property is worth one non-Go file | live |
 | 55 | No `internal/feature` until `tray install` needs it | A flag package with zero consumers is speculative code you can't test | live |
 
@@ -171,7 +173,8 @@ Reported from use: two tasks went done when one was meant to.
 | 86 | `?` is a **page**, not a keymap strip | Narrows 59. A keymap tells you which letter does a thing you already understand; what needs explaining here is why there are two layers at all. So the diagram comes first and the keys come last, as one section | live |
 | 86b | Help column widths are **measured from the labels**, not chosen | Hand-picked widths broke three times running, and a test now asserts the dialog fits in both directions with nothing truncated — goldens record what happened, they do not object to it | live |
 | 86e | **Any key dismisses it**, and the key is spent doing so | You should never have to work out which key closes a thing that is in your way. `ctrl+c` still quits | live |
-| 86n | On a terminal too small for it, the **diagram is what goes** | Something has to give, and losing the keymap or clipping mid-sentence would both be worse. It is the decorative half | live |
+| 86n | On a terminal too small for it, the **diagram is what goes** | Something has to give, and losing the keymap or clipping mid-sentence would both be worse. It is the decorative half. Three rungs now — picture, then concepts, then keys alone | live |
+| 86p | A concept line **wraps**, hanging under the text column | One of the four is a sentence rather than a label. It also cost the diagram at 80×26, which was bought back by letting the rule abut the keymap it heads instead of floating a blank line above it | live |
 | 86m | `?` takes **the whole screen** | As an overlay it grew a frame but never grew its contents, so it read the same size however big the terminal was. Full screen means the prose reflows, the boxes spread, and there is no ceiling to design the content against — and any key still goes back, so it costs nothing to open | live |
 | 86k | **Progressive disclosure**: prose, then the picture, then the keymap under a rule | A newcomer who meets twenty letters first has learnt nothing. A test asserts the order, because it is the kind of thing an edit quietly reverses | live |
 
@@ -187,13 +190,54 @@ Reported from use: two tasks went done when one was meant to.
 | 88b | A garage batch rewrite is **refused** | The words are all there is, and one name for many is never the intent (25) — so a batch has nothing left to change. Better to say so than open a form with no fields | live |
 | 88c | The **CLI does not enforce 88**; `rewrite` and `modify` will set a priority on a garage line | Your call. 19 says the TUI is the product and the CLI is the agent surface: the interface teaches a habit, the CLI stays the exact scriptable thing it is documented as. `dump +infra` already writes a tag to the garage, so "no structure here" was never quite true either | live |
 
+## The recording
+
+| # | Decision | Why | Status |
+|---|---|---|---|
+| 96 | The interface is shown as a **recording**, not a hand-drawn frame | The frame was accurate and still misleading: it could not show that taking a line opens a form, or that the tray reorders itself when one lands. Both are the point | live |
+| 96a | **Animated SVG** (`svg-term`), not a GIF | A tenth the bytes, crisp at any zoom, and it diffs as text so a re-record does not bloat the history. No account and no third-party host, which an upload to asciinema.org would have meant for a private repo | live |
+| 96b | The `.cast` is **committed beside it** | The SVG is a build artifact of it. Keeping the source means a re-render after a restyle costs one command instead of another take | live |
+
+## The table
+
+| # | Decision | Why | Status |
+|---|---|---|---|
+| 95 | The TUI drops the **urgency column**; the CLI keeps it | It is a figure you cannot act on. It earns its keep by deciding the order, and the order is already on screen — the row above the other says everything 17.1 beside 8.1 does, in no width at all. `tray list` still prints it, because an agent has a use for the number that you do not (19) | live |
+| 95a | This is a **deviation from Taskwarrior's report**, deliberately | 4 pins the field names and the urgency coefficients, so an export still imports. It never pinned which of them to draw | live |
+| 95b | The table is a **declared list**, `columns` in `row.go` | Which columns exist was spread across five places — an index constant, a padding array, a header switch, a cell switch and a styling rule — so hiding one meant editing all five and hoping. It is one line now, and the answer to "what does the table show" is a list you can read | live |
+| 95c | It found a bug on the way in | The garage drew six columns of dead air between `task` and `tags`: the three tray-only columns rendered as zero-width cells and kept their padding. Nothing measured them, so nothing caught it — a hidden column is now genuinely absent rather than empty | live |
+
 ## The checkbox
 
 | # | Decision | Why | Status |
 |---|---|---|---|
 | 89 | The tray rows draw a **markdown checkbox**: `[ ]` `[x]` `[-]` | `- [x]` is the most understood task idiom there is, and the tray file already writes one — the screen was the only place the two disagreed about shape. The column width is measured from the box rather than assumed | live |
 | 89a | The **garage keeps a one-character mark** | Its file writes `- a jotted line` with no box, and 2 says the file is the truth. Drawing one there would show something the line does not contain — and the absence is part of what says the garage asks nothing of you | live |
-| 89b | Dropped is `[-]`, which markdown has no box for | Obsidian's spelling for cancelled, and it reads instantly beside `[x]`. Mirroring the file exactly would draw an empty box, leaving strikethrough — styling, which vanishes when piped — as the only difference from unfinished work | live |
+| 89b | Dropped is `[-]`, which markdown has no box for | Obsidian's spelling for cancelled, and it reads instantly beside `[x]`. Mirroring the file exactly would draw an empty box, leaving strikethrough — styling, which vanishes when piped — as the only difference from unfinished work | dead with 90; the tray draws `[ ]` and `[x]` |
 | 89e | Ballot glyphs `☐ ☑ ☒` were tried and **reverted** | One column instead of three, and a third glyph for dropped that markdown lacks — but brackets look like the file they came from, and are not ambiguous-width under a CJK locale, where a terminal and `go-runewidth` can disagree and skew the table | live |
 | 89c | State moved to **its own column**, beside selection | They shared one cell, so a row that was both selected and finished lost its dot. Found by giving the box somewhere to live | live |
 | 89d | Purely visual: **`x` does not toggle** | A box invites ticking and unticking with one key, which would fold `R` into `x`. Worth considering, but changing what a key does is not the same change as changing how it looks | open |
+
+## Erase, and review mode
+
+| # | Decision | Why | Status |
+|---|---|---|---|
+| 90 | **`dropped:` is gone.** One terminal state, spelled `done:` | It was a second way to say finished that no report ever told apart: both hid from the default view, both showed under `--all`, both restored the same way. What it actually produced was a line you could neither work on nor get rid of — which is how the question of erasing came up at all | live |
+| 90a | A legacy `dropped:` is still **read**, and rewritten as `done:` | Attributes are read off the end of a line and only for known keys (17), so retiring the key from the read set would not delete it — it would absorb it into the task's own text. The read list is deliberately wider than the write list | live |
+| 91 | **`E` erases**: it removes the line from the file | Marking is right for everything with a history worth keeping. A line typed twice has none. Nothing else in the tool could remove one, so the file was the only place to do it | live |
+| 91a | The key is **`E`**, not `delete` or `backspace` | Your call. A letter you have to reach for suits a verb you should reach for; `backspace` is next to the keys you use most | live |
+| 91b | It **asks** — `y`, or any other key keeps it | The only prompt in the interface, on the only action that cannot be undone by hand | reverted by 91c |
+| 91c | The prompt **came out** | It was the one modal in the whole interface, guarding a verb you can only reach by entering review mode first — a step you do not take by accident. The status line names what went instead, which is enough to retype a line erased in error, and was all the recovery the prompt bought either way | live |
+| 92 | **`v` is a mode, not a filter.** It widens the list to everything on the layer and narrows the keymap to two verbs | The split is by **how often you reach for a verb**, not by what it acts on. A correction and a removal are monthly; they have no business in the footer you read all day, one key from the ones you use constantly. And when you do reach for them you want the whole picture, not half of it | live |
+| 92a | It first shipped as a **done-only room**, and that was wrong | Splitting by row state made the mode an archive, which the tool explicitly is not for. Splitting by how rare the verb is makes it a review pass — and a review pass has to show what you finished *next to* what you did not | reverted into 92 |
+| 92d | Live lines sort **above** finished ones there | A finished line still carries a priority and a due date, so it still computes an urgency — and ranking on that alone floats a done `H` task over the work you have left | live |
+| 92f | Review **names its own exit** in the banner, not the footer | A mode you cannot see the way out of is a trap, and this is the only mode someone can enter by accident and then sit in. It sits above the table because that is where you look on arriving; the footer is for what you do once you are there, and carries no exit at all. `esc` leaves as well as `v` — the same escape hatch a filter already has, one layer further in — and both are named, because neither is guessable from the other | live |
+| 92g | The **frame changes colour** in review mode | The mode is legible before a word of it is read, and it costs no row and no key. Amber: the two verbs there are a correction and a removal — not danger, but not the daily flow either. Only the colour choice is tested, since lipgloss emits no ANSI without a TTY | live |
+| 92h | Its footer keeps **six keys**, and movement is not among them | You arrive already knowing `↑↓`, and a footer repeating what you know crowds out what you do not. Select, the two verbs, filter, help, quit | live |
+| 92e | `a` writes nothing there, and the footer drops the daily keys | Review reads and prunes. Add, take, done, hand back and move are the flow this mode exists to stay out of | live |
+| 93 | **Erase is reachable only in review mode** | One deliberate step before the destructive one, and `E` never appears in the footer you read all day. With the prompt gone (91c) this is the whole of the guard | live |
+| 93a | The CLI does **not** enforce 93 — `tray <id> erase` reaches any line | 19 again: the interface teaches a habit, the CLI is the exact scriptable thing. Same split as 88c | live |
+| 93b | CLI `erase` resolves ids against **`list --all`**, as `restore` does | It has to reach a finished line, and only the `--all` id space names one. Both destructive-ish verbs read the same space, so they cannot disagree | live |
+| 92b | Review keeps **the same columns** as the working list | `urg` on a finished task is noise, so a finished-on date was the obvious swap. Rejected: one table shape everywhere is worth more than one mode reading slightly better, and the date is already in the file | live |
+| 92c | `enter` still opens a menu there, of the two verbs | Both are in the footer, so the menu adds nothing — but it costs no code, and `enter` doing nothing in one place is its own small surprise | live |
+| 94 | It is called **review**, not "show done" | `v show done` sat in a footer next to `x done` and read as a second way to mark something finished. Naming the mode removes the collision, and "review" says what you go there to do | live |

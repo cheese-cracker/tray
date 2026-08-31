@@ -24,21 +24,59 @@ func (r row) FilterValue() string {
 	return r.Text + " +" + strings.Join(r.Tags, " +")
 }
 
-// The columns, and how much air each one leaves to its right. The cursor sits tight
-// against the mark; the task column is the one that gives way when space is short.
-const (
-	cPoint = iota
-	cMark
-	cBox
-	cTask
-	cUrg
-	cPri
-	cDue
-	cTags
-	nCols
+// column is one column of data: its heading, and how to fill it from a task.
+type column struct {
+	head string // the heading, and the width the column starts from
+	pad  int    // air to its right
+	tray bool   // tray only — the garage has none of these decided yet
+	desc bool   // the description: carries the row's state, and gives way when narrow
+	cell func(d *rowDelegate, t core.Task) string
+}
+
+// Every column the table knows how to draw.
+var (
+	colTask = column{head: "task", pad: 2, desc: true,
+		cell: func(_ *rowDelegate, t core.Task) string { return t.Text }}
+
+	colUrg = column{head: "urg", pad: 2, tray: true,
+		cell: func(d *rowDelegate, t core.Task) string {
+			return fmt.Sprintf("%.1f", core.Urgency(t, d.today))
+		}}
+
+	colPri = column{head: "pri", pad: 2, tray: true,
+		cell: func(_ *rowDelegate, t core.Task) string { return t.Priority() }}
+
+	colDue = column{head: "due", pad: 2, tray: true,
+		cell: func(_ *rowDelegate, t core.Task) string { return core.Day(t.Attrs["due"]) }}
+
+	colTags = column{head: "tags",
+		cell: func(_ *rowDelegate, t core.Task) string {
+			if len(t.Tags) == 0 {
+				return ""
+			}
+			return "+" + strings.Join(t.Tags, " +")
+		}}
 )
 
-var colPad = [nCols]int{cMark: 1, cBox: 1, cTask: 2, cUrg: 2, cPri: 2, cDue: 2}
+// columns is the table as drawn, and it is the setting: adding or removing a line
+// here is the whole of changing what the table shows. Widths, headings and styling
+// are all read off whatever is listed, and nothing else in the package names one.
+//
+// colUrg is left out. Urgency earns its keep by deciding the order, and the order is
+// already on screen — the row above the other says everything 17.1 beside 8.1 does,
+// in no width at all. Put it back in this list for Taskwarrior's report.
+var columns = []column{colTask, colPri, colDue, colTags}
+
+// The gutter, left of the data: cursor, selection, checkbox. Not part of `columns` —
+// it is chrome rather than fields, and there is nothing to configure about it.
+const (
+	gPoint = iota
+	gMark
+	gBox
+	nGutter
+)
+
+var gutterPad = [nGutter]int{gMark: 1, gBox: 1}
 
 // rowDelegate renders a task as a table row. bubbles/list owns scrolling, paging and
 // filtering; the columns stay ours, so adopting it did not cost the table.
@@ -49,150 +87,178 @@ type rowDelegate struct {
 	tray   bool
 	today  time.Time
 	marked map[string]bool
-	widths [nCols]int
+
+	// cols and widths are set together by measure and are always the same length, so
+	// a row can never index past the widths it was measured for.
+	gutter [nGutter]int
+	cols   []column
+	widths []int
 }
 
 func (d *rowDelegate) Height() int                         { return 1 }
 func (d *rowDelegate) Spacing() int                        { return 0 }
 func (d *rowDelegate) Update(tea.Msg, *list.Model) tea.Cmd { return nil }
+
 func (d *rowDelegate) Render(w io.Writer, m list.Model, i int, item list.Item) {
 	r, ok := item.(row)
 	if !ok {
 		return
 	}
-	cells := d.cells(r.Task)
-	if i == m.Index() {
-		cells[cPoint] = "▸"
-	}
 	// Selection and state used to share one cell, so a selected row that was also
 	// finished lost its dot. They are separate columns now.
-	if d.marked[r.Text] {
-		cells[cMark] = "●"
+	marked := d.marked[r.Text]
+	g := [nGutter]string{gPoint: " ", gMark: " ", gBox: d.state(r.Task)}
+	if i == m.Index() {
+		g[gPoint] = "▸"
 	}
-	cells[cBox] = d.state(r.Task)
-	fmt.Fprint(w, d.render(cells, i == m.Index(), false, r.Terminal()))
+	if marked {
+		g[gMark] = "●"
+	}
+	cells := make([]string, len(d.cols))
+	for j, c := range d.cols {
+		cells[j] = c.cell(d, r.Task)
+	}
+	fmt.Fprint(w, d.line(g, cells, i == m.Index(), marked, false, r.Terminal()))
 }
 
-// state is the checkbox the tray file already writes — `[x]` done, `[ ]` open — with
-// `[-]` for dropped, which markdown has no box for and Obsidian spells this way.
+func (d *rowDelegate) header() string {
+	heads := make([]string, len(d.cols))
+	for j, c := range d.cols {
+		heads[j] = c.head
+	}
+	return d.line([nGutter]string{}, heads, false, false, true, false)
+}
+
+// state is the checkbox the tray file already writes — `[x]` done, `[ ]` open. Two
+// states, because that is what markdown has and what the model has.
 //
-// Ballot glyphs (☐ ☑ ☒) were tried and read worse: a box drawn from brackets looks like
+// Ballot glyphs (☐ ☑) were tried and read worse: a box drawn from brackets looks like
 // the file it came from, and is not ambiguous-width under a CJK locale. The garage has
 // no checkbox in its file, so it keeps a one-character mark instead.
 func (d *rowDelegate) state(t core.Task) string {
 	if !d.tray {
-		switch {
-		case t.Done:
+		if t.Done {
 			return "✓"
-		case t.Dropped:
-			return "✗"
-		default:
-			return " "
 		}
+		return " "
 	}
-	switch {
-	case t.Done:
+	if t.Done {
 		return "[x]"
-	case t.Dropped:
-		return "[-]"
-	default:
-		return "[ ]"
 	}
+	return "[ ]"
 }
 
-func (d *rowDelegate) headers() [nCols]string {
-	h := [nCols]string{cTask: "task", cTags: "tags"}
-	if d.tray {
-		h[cUrg], h[cPri], h[cDue] = "urg", "pri", "due"
-	}
-	return h
-}
-
-func (d *rowDelegate) header() string { return d.render(d.headers(), false, true, false) }
-
-// A garage month has no urgency, priority or due date to show: those are what `take`
-// adds, and the whole point of the garage is that they haven't been decided yet.
-func (d *rowDelegate) cells(t core.Task) [nCols]string {
-	var c [nCols]string
-	c[cPoint], c[cMark] = " ", " "
-	c[cBox] = d.state(t)
-	c[cTask] = t.Text
-	if d.tray {
-		c[cUrg] = fmt.Sprintf("%.1f", core.Urgency(t, d.today))
-		c[cPri] = t.Priority()
-		c[cDue] = core.Day(t.Attrs["due"])
-	}
-	var tags []string
-	for _, g := range t.Tags {
-		tags = append(tags, "+"+g)
-	}
-	c[cTags] = strings.Join(tags, " ")
-	return c
-}
-
-// measure sizes the columns to the rows actually on screen, so a filter tightens the
-// table instead of leaving it padded for rows that are no longer there.
+// measure picks the columns for this layer and sizes them to the rows actually on
+// screen, so a filter tightens the table instead of leaving it padded for rows that
+// are no longer there.
 func (d *rowDelegate) measure(items []list.Item, avail int) {
-	w := [nCols]int{cPoint: 1, cMark: 1}
-	for _, box := range []string{d.state(core.Task{}), d.state(core.Task{Done: true}),
-		d.state(core.Task{Dropped: true})} {
-		w[cBox] = max(w[cBox], lipgloss.Width(box))
+	d.gutter = [nGutter]int{gPoint: 1, gMark: 1}
+	for _, box := range []string{d.state(core.Task{}), d.state(core.Task{Done: true})} {
+		d.gutter[gBox] = max(d.gutter[gBox], lipgloss.Width(box))
 	}
-	h := d.headers()
-	for i := cTask; i < nCols; i++ {
-		w[i] = lipgloss.Width(h[i])
+
+	d.cols = d.cols[:0]
+	for _, c := range columns {
+		if c.tray && !d.tray {
+			continue // what `take` adds; the garage has not decided any of it
+		}
+		d.cols = append(d.cols, c)
+	}
+
+	w := make([]int, len(d.cols))
+	for j, c := range d.cols {
+		w[j] = lipgloss.Width(c.head)
 	}
 	for _, item := range items {
 		r, ok := item.(row)
 		if !ok {
 			continue
 		}
-		c := d.cells(r.Task)
-		for i := cTask; i < nCols; i++ {
-			w[i] = max(w[i], lipgloss.Width(c[i]))
+		for j, c := range d.cols {
+			w[j] = max(w[j], lipgloss.Width(c.cell(d, r.Task)))
 		}
 	}
+
+	// The description is what gives way when the table would overflow. Every other
+	// column is as wide as its widest cell or it is not worth drawing.
 	if avail > 0 {
-		fixed := colPad[cTask]
-		for i := range w {
-			if i != cTask {
-				fixed += w[i] + colPad[i]
-			}
+		fixed, grow := 0, -1
+		for i := 0; i < nGutter; i++ {
+			fixed += d.gutter[i] + gutterPad[i]
 		}
-		if room := avail - fixed; room > 0 && w[cTask] > room {
-			w[cTask] = room
+		for j, c := range d.cols {
+			if c.desc {
+				grow = j
+			}
+			if !c.desc {
+				fixed += w[j]
+			}
+			fixed += c.pad
+		}
+		if grow >= 0 {
+			if room := avail - fixed; room > 0 && w[grow] > room {
+				w[grow] = room
+			}
 		}
 	}
 	d.widths = w
 }
 
-func (d *rowDelegate) render(cells [nCols]string, selected, header, finished bool) string {
+func (d *rowDelegate) line(g [nGutter]string, cells []string, selected, marked, header, finished bool) string {
 	var b strings.Builder
-	for i := 0; i < nCols; i++ {
-		cell := pad(cells[i], d.widths[i], colPad[i])
+	for i := 0; i < nGutter; i++ {
+		cell := pad(g[i], d.gutter[i], gutterPad[i])
+		switch {
+		// The cursor and the mark are what you look for first, so nothing else gets
+		// to claim their cells. A finished row used to draw its own ▸ faint, which
+		// is the one row where finding it matters most.
+		case header, i == gBox:
+			cell = faintStyle.Render(cell)
+		case i == gPoint:
+			cell = cursorStyle.Render(cell)
+		case i == gMark:
+			cell = markStyle.Render(cell)
+		}
+		b.WriteString(cell)
+	}
+	for j, c := range d.cols {
+		cell := pad(cells[j], d.widths[j], c.pad)
 		switch {
 		case header:
 			cell = faintStyle.Render(cell)
-		// A finished row reads as the file does: struck through and quiet. It is
-		// only on screen at all because you pressed v.
-		case finished && i == cTask:
-			cell = doneStyle.Render(cell)
-		case finished:
-			cell = faintStyle.Render(cell)
-		case i == cPoint:
-			cell = cursorStyle.Render(cell)
-		case i == cMark:
-			cell = markStyle.Render(cell)
-		case i == cBox:
-			cell = faintStyle.Render(cell)
-		case selected:
-			cell = titleStyle.Render(cell)
-		case i >= cUrg: // the attribute columns stay quiet
+		case c.desc:
+			cell = taskStyle(selected, marked, finished).Render(cell)
+		case selected && !finished: // the attributes on the row you are on stay full
+		default: // the attribute columns stay quiet
 			cell = faintStyle.Render(cell)
 		}
 		b.WriteString(cell)
 	}
 	return strings.TrimRight(b.String(), " ")
+}
+
+// taskStyle is the one cell that carries the state of the whole row, because it is the
+// cell you are reading anyway. Struck through when the task is finished, bold while it
+// is marked — a mark is worth a dot in its own column and the weight of the line, since
+// a five-row selection you cannot see the shape of is one you will misapply an action
+// to. The row under the cursor goes to full strength on top of either.
+//
+// A finished row stays dull even when marked: the colour is what says "done", and only
+// the cursor is allowed to lift it.
+func taskStyle(selected, marked, finished bool) lipgloss.Style {
+	s := lipgloss.NewStyle()
+	switch {
+	case finished && selected:
+		s = doneCursorStyle
+	case finished:
+		s = doneStyle
+	case selected:
+		s = titleStyle
+	}
+	if marked {
+		s = s.Bold(true)
+	}
+	return s
 }
 
 // pad truncates first so lipgloss pads rather than wraps: a wrapped row would push

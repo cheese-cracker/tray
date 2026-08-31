@@ -48,22 +48,19 @@ func TestArriveKeepsExistingProvenance(t *testing.T) {
 }
 
 func TestFinishIsTerminalInPlace(t *testing.T) {
-	task, _ := Parse("- [ ] Renew the passport priority:H", 2)
+	task, _ := Parse("- [ ] Renew the TLS certificate priority:H", 2)
 	Finish(&task, "done", day("2026-08-07"))
 	if !task.Done || task.Live() {
 		t.Error("want done and not live")
 	}
-	want := "- [x] ~~Renew the passport~~ priority:H done:2026-08-07"
+	want := "- [x] ~~Renew the TLS certificate~~ priority:H done:2026-08-07"
 	if got := Line(task, true); got != want {
 		t.Errorf("got %q, want %q", got, want)
 	}
 
 	other, _ := Parse("- [ ] Dead idea", 3)
-	Finish(&other, "dropped", day("2026-08-07"))
-	if !other.Dropped || other.Done {
-		t.Error("want dropped and not done")
-	}
-	if got := Line(other, true); got != "- [ ] ~~Dead idea~~ dropped:2026-08-07" {
-		t.Errorf("got %q", got)
+	Restore(&other)
+	if other.Done || !other.Live() {
+		t.Error("restoring an open task leaves it open")
 	}
 }

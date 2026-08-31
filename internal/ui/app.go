@@ -4,6 +4,7 @@ package ui
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/charmbracelet/bubbles/help"
@@ -41,8 +42,7 @@ var actions = []action{
 	{key: "d", label: "hand back", tray: true, apply: (*Model).handBack},
 	{key: ">", label: "move to", tray: true, rest: true, apply: (*Model).chooseDestination},
 	{key: "r", label: "rewrite", tray: true, rest: true, apply: (*Model).openForm},
-	{key: "D", label: "delete", tray: true, rest: true,
-		apply: func(m *Model, p []core.Task) string { return m.finish(p, "dropped") }},
+	{key: "E", label: "erase", tray: true, rest: true, apply: (*Model).erase},
 	{key: "R", label: "restore", tray: true, rest: true, apply: (*Model).restore},
 }
 
@@ -60,14 +60,14 @@ type Model struct {
 	destAt int
 	form   *form
 
-	status   string
-	today    time.Time
-	err      error
-	showDone bool   // v: the finished rows are hidden until you ask for them
-	sweep    bool   // the month-turn ritual: months get the tabs, not the tray
-	closing  string // which month is being swept
-	width    int    // 0 until the terminal tells us, so the view must cope without
-	height   int
+	status  string
+	today   time.Time
+	err     error
+	viewing bool   // v: review mode — see below
+	sweep   bool   // the month-turn ritual: months get the tabs, not the tray
+	closing string // which month is being swept
+	width   int    // 0 until the terminal tells us, so the view must cope without
+	height  int
 }
 
 func New() Model {
@@ -153,7 +153,7 @@ func (m *Model) reload() tea.Cmd {
 	}
 	var live []core.Task
 	for _, t := range doc.Tasks() {
-		if t.Parsed() && (t.Live() || (m.showDone && t.Terminal())) {
+		if t.Parsed() && (m.viewing || t.Live()) {
 			live = append(live, t)
 		}
 	}
@@ -189,9 +189,19 @@ func (m *Model) resize() {
 	m.deleg.measure(m.list.VisibleItems(), width)
 }
 
+// A finished line still carries a priority and a due date, so it still computes an
+// urgency — which in review mode would float a done H task above live work. Terminal
+// lines sink, and rank among themselves by the same measure. Outside review mode
+// nothing terminal is listed, so this is the plain urgency sort it always was.
 func sortByUrgency(items []core.Task, today time.Time) {
+	before := func(a, b core.Task) bool {
+		if a.Terminal() != b.Terminal() {
+			return b.Terminal()
+		}
+		return core.Urgency(a, today) > core.Urgency(b, today)
+	}
 	for i := 1; i < len(items); i++ {
-		for j := i; j > 0 && core.Urgency(items[j], today) > core.Urgency(items[j-1], today); j-- {
+		for j := i; j > 0 && before(items[j], items[j-1]); j-- {
 			items[j], items[j-1] = items[j-1], items[j]
 		}
 	}
@@ -219,52 +229,39 @@ func (m *Model) picked() []core.Task {
 // The first row is what enter-enter does, so each layer leads with its own primary
 // action: restructure what you're working on, take what you jotted.
 var order = map[bool][]string{
-	true:  {"r", "x", "d", ">", "D"}, // the tray
-	false: {"t", "r", ">", "x", "D"}, // a garage month
+	true:  {"r", "x", "d", ">"}, // the tray
+	false: {"t", "r", ">", "x"}, // a garage month
 }
 
-// A finished row is a record. The only sane thing to say about one is that it was not
-// finished after all, so that is the only thing offered — `x` on a done task or `d`
-// handing a done task back are either meaningless or quietly destructive.
+// review is the whole of `v`'s keymap, and the only place either key appears.
+//
+// The split is by how often you reach for a verb, not by what it acts on. Restore and
+// erase are the rare ones — a correction and a removal — and a verb you use twice a
+// month has no business sitting in the footer you read all day, one key away from the
+// ones you use constantly. `v` is where they live, along with the whole picture they
+// need: done lines as well as live ones.
+var review = []string{"R", "E"}
+
 func (m Model) offered() []action {
-	if m.allFinished() {
-		for _, a := range actions {
-			if a.key == "R" {
-				return []action{a}
-			}
-		}
-	}
 	byKey := map[string]action{}
 	for _, a := range actions {
-		if a.key == "R" {
-			continue // reachable only on a finished row, above
-		}
-		if (m.layer().isTray() && a.tray) || (!m.layer().isTray() && a.rest) {
-			byKey[a.key] = a
-		}
+		byKey[a.key] = a
 	}
+	if m.viewing {
+		out := make([]action, 0, len(review))
+		for _, k := range review {
+			out = append(out, byKey[k])
+		}
+		return out
+	}
+	tray := m.layer().isTray()
 	var out []action
-	for _, key := range order[m.layer().isTray()] {
-		if a, ok := byKey[key]; ok {
+	for _, k := range order[tray] {
+		if a := byKey[k]; (tray && a.tray) || (!tray && a.rest) {
 			out = append(out, a)
 		}
 	}
 	return out
-}
-
-// allFinished, not anyFinished: a mixed selection keeps the normal menu, because
-// there is no single sensible verb across both kinds.
-func (m *Model) allFinished() bool {
-	picked := m.picked()
-	if len(picked) == 0 {
-		return false
-	}
-	for _, t := range picked {
-		if !t.Terminal() {
-			return false
-		}
-	}
-	return true
 }
 
 func (m *Model) restore(picked []core.Task) string {
@@ -283,6 +280,9 @@ func (m *Model) restore(picked []core.Task) string {
 	}
 	if err := doc.Save(); err != nil {
 		return err.Error()
+	}
+	if n == 0 {
+		return "nothing to restore — those are not finished" // R on live rows
 	}
 	return plural(n, "restored")
 }
@@ -358,13 +358,15 @@ func (m Model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.filtering() {
 			return m.toList(msg) // esc drops the filter before it quits tray
 		}
+		if m.viewing {
+			return m, m.toggleView() // and backs out of the done view before that
+		}
 		return m, tea.Quit
 	case "?":
 		m.help.ShowAll = !m.help.ShowAll
 		m.resize()
 	case "v":
-		m.showDone = !m.showDone
-		return m, m.reload()
+		return m, m.toggleView()
 	// tab is the only way across, ⇧tab the only way back, and ⇧tab is not
 	// advertised. ←→ and h l are all deliberately dead: ↑↓ move within a layer,
 	// and nothing here moves sideways.
@@ -383,6 +385,10 @@ func (m Model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			}
 		}
 	case "a", "n":
+		if m.viewing {
+			m.status = "review reads and prunes — v goes back to add"
+			return m, nil
+		}
 		f := newEntry(m.layer().month, m.today)
 		m.form, m.mode = &f, editing
 		m.resize()
@@ -397,6 +403,20 @@ func (m Model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	}
 	return m, nil
+}
+
+// `v` is a mode, not a filter. It widens the list to everything on the layer — what
+// you finished as well as what you have not — and narrows the keymap to the two rare
+// verbs. Both halves are the same idea: an operation you reach for monthly should not
+// sit in the way of the flow you drive daily, and it needs the whole picture when you
+// do reach for it.
+func (m *Model) toggleView() tea.Cmd {
+	m.viewing = !m.viewing
+	m.list.ResetFilter() // a filter was about the rows you were looking at
+	m.list.Select(0)
+	clear(m.marked) // and so were the marks
+	m.status = ""
+	return m.reload()
 }
 
 func (m Model) updateMenu(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -487,6 +507,27 @@ func (m *Model) run(a action) tea.Cmd {
 	m.mode = browsing
 	clear(m.marked)
 	return m.reload()
+}
+
+// erase is the only thing here that removes a line rather than marking it, and it
+// asked `y`/`n` for a while. The prompt came out: it was the one modal in the whole
+// interface, guarding a verb you can only reach by entering review mode first. Saying
+// what went replaces it — enough to retype a line erased in error, which was all the
+// recovery the prompt bought either way.
+func (m *Model) erase(picked []core.Task) string {
+	doc, err := m.layer().open()
+	if err != nil {
+		return err.Error()
+	}
+	names := make([]string, 0, len(picked))
+	for _, t := range picked {
+		doc.Remove(t)
+		names = append(names, `"`+t.Text+`"`)
+	}
+	if err := doc.Save(); err != nil {
+		return err.Error()
+	}
+	return "erased " + strings.Join(names, " · ")
 }
 
 func (m *Model) chooseDestination(picked []core.Task) string {

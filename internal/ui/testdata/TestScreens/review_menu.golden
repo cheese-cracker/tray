@@ -3,18 +3,18 @@
 │  tray  ││  garage · August  │                                                     
 │        └┴───────────────────┴─────────────────────────────────────────────────────
 │                                                                                  │
-│         task                 urg   pri  due             tags                     │
-│  ▸  [ ] Rotate the api keys  17.1  H    2026-08-12 Wed  +infra                   │
-│     [ ] Chase the invoice    8.1   M    2026-08-25 Tue  +admin                   │
-│     [x] Renew the passport   6.0   H                                             │
-│     [-] Book the flights     1.8   L                                             │
+│  review mode  ·  v/esc to leave                                                  │
+│         task                       pri  due  tags                                │
+│     [ ] Rotate the api keys        H                                             │
+│  ▸  [x] Renew the TLS certificate  H                                             │
 │                                                                                  │
 │                                                                                  │
 │                                                                                  │
 │                                                                                  │
 │                                                                                  │
-│                                                                                  │
+│  1 selected                                                                      │
+│  ▸ R  restore                                                                    │
+│    E  erase                                                                      │
 │                                                                                  │
 └──────────────────────────────────────────────────────────────────────────────────┘
- ↑↓ move · space select · tab switch · enter act · a add · v hide done · / filter
- ? help · q quit                                                                 
+ ↑↓ choose · enter apply · esc back

@@ -7,7 +7,12 @@ import (
 )
 
 // KnownAttrs is also the order attributes serialise in.
-var KnownAttrs = []string{"priority", "due", "project", "entry", "from", "done", "dropped"}
+var KnownAttrs = []string{"priority", "due", "project", "entry", "from", "done"}
+
+// dropped: was a third terminal state, removed. It is still *read* so a file written
+// by an older build degrades into `done:` rather than having the attribute swallowed
+// into the task's own text — which is what an unknown key off the end of a line does.
+const legacyDropped = "dropped"
 
 var aliases = map[string]string{"pri": "priority", "p": "priority", "proj": "project"}
 
@@ -19,21 +24,20 @@ var (
 )
 
 type Task struct {
-	Index   int // line index in the file it came from
-	Raw     string
-	Text    string
-	Attrs   map[string]string
-	Tags    []string
-	Done    bool
-	Dropped bool
-	Moved   string // "tray", "2026-09", or empty
+	Index int // line index in the file it came from
+	Raw   string
+	Text  string
+	Attrs map[string]string
+	Tags  []string
+	Done  bool
+	Moved string // "tray", "2026-09", or empty
 }
 
 func New(text string, tags []string) Task {
 	return Task{Index: -1, Text: text, Attrs: map[string]string{}, Tags: tags}
 }
 
-func (t Task) Terminal() bool { return t.Done || t.Dropped }
+func (t Task) Terminal() bool { return t.Done }
 func (t Task) Live() bool     { return !t.Terminal() && t.Moved == "" }
 func (t Task) Parsed() bool   { return t.Text != "" }
 func (t Task) Priority() string {
@@ -49,7 +53,7 @@ func (t Task) Copy() Task {
 	}
 	return Task{
 		Index: -1, Text: t.Text, Attrs: attrs, Tags: append([]string{}, t.Tags...),
-		Done: t.Done, Dropped: t.Dropped,
+		Done: t.Done,
 	}
 }
 
@@ -60,7 +64,14 @@ func canonical(key string) string {
 	return key
 }
 
+// known is deliberately wider than KnownAttrs, which is the *write* order. A retired
+// key still has to be recognised on the way in, or it stops being an attribute and
+// gets absorbed into the task's own text — 17 reads attributes off the end and only
+// for known keys, so an unknown one is just more sentence.
 func known(key string) bool {
+	if key == legacyDropped {
+		return true
+	}
 	for _, k := range KnownAttrs {
 		if k == key {
 			return true
@@ -114,13 +125,21 @@ func Parse(raw string, index int) (Task, bool) {
 		text = strings.TrimSpace(text[2 : len(text)-2])
 	}
 
+	// A struck-through line is finished, whatever else the line says: that is what
+	// the strikethrough means to anyone reading the file without tray.
 	_, hasDone := attrs["done"]
-	done := strings.EqualFold(box, "x") || hasDone
-	_, hasDropped := attrs["dropped"]
+	done := strings.EqualFold(box, "x") || hasDone || struck
+	if when, was := attrs[legacyDropped]; was {
+		delete(attrs, legacyDropped)
+		done = true
+		if attrs["done"] == "" {
+			attrs["done"] = when
+		}
+	}
 
 	return Task{
 		Index: index, Raw: raw, Text: text, Attrs: attrs, Tags: tags,
-		Done: done, Dropped: hasDropped || (struck && !done), Moved: moved,
+		Done: done, Moved: moved,
 	}, true
 }
 

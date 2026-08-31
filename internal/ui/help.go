@@ -65,28 +65,50 @@ func (m Model) helpScreen() string {
 	}, "\n")
 
 	moves := strings.Join([]string{
-		verb("(a)dd", "a line to the layer you are on"),
-		verb("(t)ake", "a garage line onto the tray, structured"),
-		verb("(d)", "hand a tray task back to the garage"),
-		verb("(enter)", "act on the selection; the menu lists the rest"),
+		verb(width, "(a)dd", "a line to the layer you are on"),
+		verb(width, "(t)ake", "a garage line onto the tray, structured"),
+		verb(width, "(d)", "hand a tray task back to the garage"),
+		verb(width, "(v)iew", "review mode — shows all tasks, even completed ones — "+
+			"restore or erase tasks here"),
 	}, "\n")
 
-	words := []string{title, "", prose, "", moves, "",
-		faintStyle.Render(strings.Repeat("─", width)), "", helpKeys()}
-
-	// The picture is the part that can go. On a narrow terminal the two boxes and
-	// their gutter do not fit, and on a short one something has to give — losing the
-	// keymap or clipping mid-sentence would both be worse.
 	diagram := lipgloss.JoinHorizontal(lipgloss.Top, garage, arrows, tray)
-	full := append([]string{title, "", prose, "", diagram}, words[3:]...)
-	if width+4 >= minDiagramWidth && (m.height == 0 || lipgloss.Height(strings.Join(full, "\n"))+2 <= m.height) {
-		return strings.Join(full, "\n")
+	rule := faintStyle.Render(strings.Repeat("─", width))
+
+	// Three layouts, richest first. Something has to give on a small terminal, and
+	// the order is picture, then concepts, then nothing — the keymap is the part
+	// nobody can reconstruct, and clipping mid-sentence would be worse than either.
+	// The rule abuts the keymap: it is that section's own top edge, so a blank line
+	// between them buys nothing and a row here is worth a whole diagram below.
+	layouts := [][]string{
+		{title, "", prose, "", diagram, "", moves, "", rule, helpKeys()},
+		{title, "", prose, "", moves, "", rule, helpKeys()},
+		{title, "", prose, "", rule, helpKeys()},
 	}
-	return strings.Join(words, "\n")
+	if width+4 < minDiagramWidth {
+		layouts = layouts[1:] // the boxes and their gutter cannot sit side by side
+	}
+	for _, layout := range layouts {
+		out := strings.Join(layout, "\n")
+		if m.height == 0 || lipgloss.Height(out)+2 <= m.height {
+			return out
+		}
+	}
+	return strings.Join(layouts[len(layouts)-1], "\n")
 }
 
-func verb(key, meaning string) string {
-	return keyStyle.Render(pad(key, 8, 1)) + faintStyle.Render(meaning)
+// verb is one line of the concepts block. The meaning wraps rather than running off
+// the edge, with the continuation hanging under the text column — one of these is a
+// sentence rather than a label, and a narrow terminal would otherwise clip it.
+func verb(width int, key, meaning string) string {
+	const keyW = 8
+	body := lipgloss.NewStyle().Width(max(24, width-keyW)).Foreground(subtle).Render(meaning)
+	lines := strings.Split(body, "\n")
+	out := keyStyle.Render(pad(key, keyW, 1)) + lines[0]
+	for _, l := range lines[1:] {
+		out += "\n" + strings.Repeat(" ", keyW+1) + l
+	}
+	return out
 }
 
 // The lower section: keys, in three columns. Widths are measured from the labels
@@ -96,10 +118,15 @@ func helpKeys() string {
 		{
 			{"", "keys"},
 			{"↑↓  j k", "move"}, {"tab", "switch layer"}, {"space", "select"},
-			{"/", "filter"}, {"v", "show done"},
+			{"enter", "act"}, {"/", "filter"}, {"v", "review"},
 		},
-		{{"", "acting"}, {"a", "add"}, {"t", "take"}, {"r", "rewrite"}, {"x", "done"}},
-		{{"", ""}, {"d", "hand back"}, {">", "move to"}, {"D", "delete"}, {"R", "restore"}},
+		{
+			{"", "acting"},
+			{"a", "add"}, {"t", "take"}, {"r", "rewrite"},
+			{"x", "done"}, {"d", "hand back"}, {">", "move to"},
+		},
+		// Headed by the key that reaches them, because they are reachable nowhere else.
+		{{"", "in review"}, {"R", "restore"}, {"E", "erase"}, {"v/esc", "leave"}},
 	}
 
 	keyW := 0
@@ -121,7 +148,7 @@ func helpKeys() string {
 			descW = max(descW, lipgloss.Width(pair[1]))
 			rows = append(rows, keyStyle.Render(pad(pair[0], keyW, 1))+faintStyle.Render(pair[1]))
 		}
-		width := keyW + 1 + descW
+		width := max(keyW+1+descW, lipgloss.Width(col[0][1]))
 		if i < len(cols)-1 {
 			width += 2 // a gutter, except after the last column
 		}

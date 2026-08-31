@@ -10,15 +10,22 @@ import (
 )
 
 var (
-	accent = style.Accent
-	subtle = style.Subtle
+	accent     = style.Accent
+	subtle     = style.Subtle
+	strong     = style.Strong
+	reviewEdge = style.Review
 
-	titleStyle  = lipgloss.NewStyle().Bold(true)
+	titleStyle  = lipgloss.NewStyle().Bold(true).Foreground(strong)
 	faintStyle  = lipgloss.NewStyle().Foreground(subtle)
 	cursorStyle = lipgloss.NewStyle().Bold(true).Foreground(accent)
 	markStyle   = lipgloss.NewStyle().Foreground(accent)
 	keyStyle    = lipgloss.NewStyle().Bold(true).Foreground(accent)
 	doneStyle   = lipgloss.NewStyle().Foreground(subtle).Strikethrough(true)
+
+	// A finished row under the cursor: still struck, no longer dull. It lifts to the
+	// terminal's own foreground rather than to strong, because a done task should
+	// never read louder than the live ones around it.
+	doneCursorStyle = doneStyle.Foreground(lipgloss.NoColor{})
 
 	// Tabs, as bubbletea's own tabs example does it: the active tab's bottom border
 	// is opened so it reads as one shape with the pane below.
@@ -47,6 +54,15 @@ func tabBorder(left, middle, right string) lipgloss.Border {
 	return border
 }
 
+// frameColor is what the border and the tab row draw in. It is the one thing that
+// says "you are not on the daily screen" without spending a word on saying it.
+func (m Model) frameColor() lipgloss.TerminalColor {
+	if m.viewing {
+		return reviewEdge
+	}
+	return accent
+}
+
 func (m Model) View() string {
 	if m.err != nil {
 		return "tray: " + m.err.Error() + "\n"
@@ -59,19 +75,20 @@ func (m Model) View() string {
 	body := m.renderBody()
 	footer := m.renderFooter()
 
-	style := pane
+	frame := pane.BorderForeground(m.frameColor())
+	style := frame
 	switch {
 	case m.width > 0:
 		// Fill the terminal. lipgloss counts padding inside Width and Height but adds
 		// borders outside, so only the border is subtracted here.
-		style = pane.Width(m.width - pane.GetHorizontalBorderSize())
+		style = frame.Width(m.width - pane.GetHorizontalBorderSize())
 		if fill := m.height - lipgloss.Height(tabs) - lipgloss.Height(footer) -
 			pane.GetVerticalBorderSize(); fill > 0 {
 			style = style.Height(fill)
 		}
 	case lipgloss.Width(tabs)-pane.GetHorizontalFrameSize() > lipgloss.Width(body):
 		// No size yet: widen to meet the tab bar, but never narrow below the content.
-		style = pane.Width(lipgloss.Width(tabs) - pane.GetHorizontalFrameSize())
+		style = frame.Width(lipgloss.Width(tabs) - pane.GetHorizontalFrameSize())
 	}
 
 	var b strings.Builder
@@ -95,6 +112,9 @@ func (m Model) rowRoom() int {
 	if m.filtering() {
 		chrome++ // the filter line takes a row from the list, not from the frame
 	}
+	if m.viewing {
+		chrome++ // and so does the line naming the done view
+	}
 	switch m.mode {
 	case acting:
 		chrome += len(m.offered()) + 2
@@ -105,6 +125,11 @@ func (m Model) rowRoom() int {
 }
 
 func (m Model) renderTabs() string {
+	edge := m.frameColor()
+	inactiveTab := inactiveTab.BorderForeground(edge)
+	activeTab := activeTab.BorderForeground(edge)
+	tabGap := tabGap.BorderForeground(edge)
+
 	labels := make([]string, len(m.layers))
 	width := 0
 	for i, l := range m.layers {
@@ -164,6 +189,14 @@ func (m Model) renderBody() string {
 	}
 
 	var b strings.Builder
+	// Review mode changes both what is listed and what the keys do, so it says so
+	// above the table. The tabs still name the layer; this names the mode within it —
+	// and names the way out, because a mode you cannot see the exit from is a trap.
+	if m.viewing {
+		b.WriteString(cursorStyle.Render("review mode") +
+			faintStyle.Render("  ·  ") + keyStyle.Render("v/esc") +
+			faintStyle.Render(" to leave") + "\n")
+	}
 	if m.filtering() {
 		b.WriteString(m.renderFilter() + "\n")
 	}
@@ -225,6 +258,9 @@ func (m Model) shortHelp() string {
 }
 
 func (m Model) emptyMessage() string {
+	if m.viewing {
+		return "nothing on this layer at all — v goes back"
+	}
 	if m.layer().isTray() {
 		return "nothing on the tray — a to add one, or take something from the garage"
 	}

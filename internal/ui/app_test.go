@@ -97,7 +97,7 @@ func TestTerminalTasksAreNotListed(t *testing.T) {
 	sandbox(t,
 		"- [ ] open thing",
 		"- [x] ~~done thing~~ done:2026-08-01",
-		"- ~~dropped thing~~ dropped:2026-08-01",
+		"- ~~struck by hand~~ priority:M",
 	)
 	if got := len(New().items()); got != 1 {
 		t.Errorf("listed %d items, want only the live one", got)
@@ -200,16 +200,23 @@ func TestHandBackMovesToTheGarage(t *testing.T) {
 	}
 }
 
-func TestDeleteIsAbandonedNotRemoved(t *testing.T) {
+// The negative half of T18: outside review mode the key does nothing, the menu does
+// not list it, and the footer does not name it. A verb you reach for twice a month
+// should be found deliberately, not met while working.
+func TestEraseIsUnreachableOutsideReview(t *testing.T) {
 	sandbox(t, "- [ ] one priority:H")
-	keys(New(), "D")
 
-	got := trayFile(t)
-	if !strings.Contains(got, "~~one~~") || !strings.Contains(got, "dropped:2026-08-07") {
-		t.Errorf("want struck and dated as dropped:\n%s", got)
+	m := keys(New(), "E").(Model)
+	for _, a := range m.offered() {
+		if a.key == "E" {
+			t.Error("the working list must not offer erase")
+		}
 	}
-	if strings.Contains(got, "done:") {
-		t.Error("delete must not read as completed")
+	if got := m.View(); strings.Contains(got, "erase") {
+		t.Errorf("the working footer must not name erase:\n%s", got)
+	}
+	if got := trayFile(t); !strings.Contains(got, "one") {
+		t.Errorf("and the key must not have removed anything:\n%s", got)
 	}
 }
 
@@ -257,6 +264,33 @@ func TestEscAndQBothQuit(t *testing.T) {
 			t.Errorf("%s should quit", name)
 		}
 	}
+
+	// In review mode `esc` backs out first, which is what the banner promises. It
+	// takes the same escape hatch a filter does, one layer further in.
+	m := keys(New(), "v").(Model)
+	if !m.viewing {
+		t.Fatal("v should enter review mode")
+	}
+	out, _ := m.Update(quits["esc"])
+	if out.(Model).viewing {
+		t.Error("esc in review mode should leave it, not quit")
+	}
+	if got := m.View(); !strings.Contains(got, "v/esc") || !strings.Contains(got, "leave") {
+		t.Errorf("review should name its way out:\n%s", got)
+	}
+}
+
+// The frame is the primary signal that review mode is on — it changes before you have
+// read a word. Only the colour *choice* is asserted: lipgloss emits no ANSI with no
+// TTY, so the rendered border is the same bytes in both modes under `go test`.
+func TestReviewRedrawsTheFrame(t *testing.T) {
+	sandbox(t, "- [ ] one priority:H")
+	if got := New().frameColor(); got != accent {
+		t.Errorf("the daily frame should be the accent, got %v", got)
+	}
+	if got := keys(New(), "v").(Model).frameColor(); got != reviewEdge {
+		t.Errorf("the review frame should change colour, got %v", got)
+	}
 }
 
 func TestBothAAndNAdd(t *testing.T) {
@@ -283,10 +317,15 @@ func TestFrameShowsRowsMarksAndKeymap(t *testing.T) {
 	sandbox(t, "- [ ] one priority:H", "- [ ] two priority:M")
 	view := keys(New(), " ").(Model).View()
 
-	for _, want := range []string{"tray", "one", "two", "●", "urg", "pri", "enter act", "? help"} {
+	for _, want := range []string{"tray", "one", "two", "●", "pri", "due", "enter act", "? help"} {
 		if !strings.Contains(view, want) {
 			t.Errorf("frame missing %q:\n%s", want, view)
 		}
+	}
+	// Urgency orders the list and is not a column: a figure you cannot act on is not
+	// worth the width in a table you read every day.
+	if strings.Contains(view, "urg") {
+		t.Errorf("the table should not carry an urgency column:\n%s", view)
 	}
 }
 
@@ -328,8 +367,8 @@ func TestHelpScreenExplainsTheTwoLayers(t *testing.T) {
 		"take", "hand back", // and the move between them
 		"a line to the layer", "onto the tray, structured", // what each move does
 		"keys", "acting", // one keymap section, headed
-		"j k",                          // the alias the footer doesn't name
-		"restore", "rewrite", "delete", // the letters only the menu shows
+		"j k",                         // the alias the footer doesn't name
+		"restore", "rewrite", "erase", // the letters only the menu shows
 	} {
 		if !strings.Contains(view, want) {
 			t.Errorf("the help dialog never mentions %q:\n%s", want, view)
@@ -337,7 +376,7 @@ func TestHelpScreenExplainsTheTwoLayers(t *testing.T) {
 	}
 	// It takes the screen: the list, the tabs and the footer are all gone while it
 	// is open, which is what lets it use the full width.
-	for _, gone := range []string{"↑↓ move · space select", "garage · August", "urg"} {
+	for _, gone := range []string{"↑↓ move · space select", "garage · August", "pri  due"} {
 		if strings.Contains(view, gone) {
 			t.Errorf("the interface should be gone behind the help, %q showing:\n%s", gone, view)
 		}
@@ -352,8 +391,8 @@ func TestHelpScreenExplainsTheTwoLayers(t *testing.T) {
 		}
 	}
 	// The letter sits inside the verb, so it reads as a word and marks the key at
-	// once. `(d)` has no d-word to sit in: `D` already owns delete.
-	for _, want := range []string{"(a)dd", "(t)ake", "(d)", "(enter)"} {
+	// once. `(d)` has no d-word to sit in.
+	for _, want := range []string{"(a)dd", "(t)ake", "(d)", "(v)iew"} {
 		if !strings.Contains(view, want) {
 			t.Errorf("the help should show %q:\n%s", want, view)
 		}
@@ -481,32 +520,31 @@ func TestMarksKeepRenderingAfterTheyAreCleared(t *testing.T) {
 	}
 }
 
-// The tray file writes a checkbox, so the tray rows show one. `[-]` for dropped is
-// Obsidian's spelling of a state markdown has no box for. The garage file has no
-// checkbox, so its rows keep a one-character mark instead.
+// The tray file writes a checkbox, so the tray rows show one. The garage file has
+// none, so its rows keep a one-character mark instead.
 func TestTrayShowsCheckboxesAndTheGarageDoesNot(t *testing.T) {
 	sandbox(t,
 		"- [ ] still open priority:M",
 		"- [x] ~~finished~~ priority:M done:2026-08-06",
-		"- [ ] ~~abandoned~~ priority:M dropped:2026-08-06",
 	)
 	garage(t, "2026-08", "- a jotting", "- ~~a finished jotting~~ done:2026-08-06")
 
-	tray := keys(New(), "v").(Model).View()
-	for _, want := range []string{"[ ] still open", "[x] finished", "[-] abandoned"} {
-		if !strings.Contains(tray, want) {
-			t.Errorf("the tray should show %q:\n%s", want, tray)
+	// Review mode lists both kinds, so one frame carries both boxes.
+	trayView := keys(New(), "v").(Model).View()
+	for _, want := range []string{"[ ] still open", "[x] finished"} {
+		if !strings.Contains(trayView, want) {
+			t.Errorf("the tray should show %q:\n%s", want, trayView)
 		}
 	}
 
 	garageView := keys(New(), "tab", "v").(Model).View()
-	if strings.Contains(garageView, "[ ]") || strings.Contains(garageView, "[x]") {
-		t.Errorf("the garage file has no checkbox, so its rows must not draw one:\n%s", garageView)
-	}
-	for _, want := range []string{"✓ a finished jotting", "a jotting"} {
+	for _, want := range []string{"a jotting", "✓ a finished jotting"} {
 		if !strings.Contains(garageView, want) {
 			t.Errorf("the garage should show %q:\n%s", want, garageView)
 		}
+	}
+	if strings.Contains(garageView, "[ ]") || strings.Contains(garageView, "[x]") {
+		t.Errorf("the garage file has no checkbox, so its rows must not draw one:\n%s", garageView)
 	}
 }
 

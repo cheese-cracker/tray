@@ -7,12 +7,12 @@ import (
 
 func TestParseGarageProseIsVerbatim(t *testing.T) {
 	// The jottpad has to hold a sentence. A colon mid-prose is not an attribute.
-	raw := "- ?? that config thing — does it even matter: probably not"
+	raw := "- ?? the billing page feels slow — worth a look: probably"
 	got, ok := Parse(raw, 0)
 	if !ok {
 		t.Fatal("a bullet must parse")
 	}
-	want := "?? that config thing — does it even matter: probably not"
+	want := "?? the billing page feels slow — worth a look: probably"
 	if got.Text != want {
 		t.Errorf("text = %q, want %q", got.Text, want)
 	}
@@ -33,7 +33,7 @@ func TestParseTrayLine(t *testing.T) {
 	if !reflect.DeepEqual(got.Tags, []string{"infra"}) {
 		t.Errorf("tags = %v", got.Tags)
 	}
-	if got.Done || got.Dropped || !got.Live() {
+	if got.Done || !got.Live() {
 		t.Error("should be live")
 	}
 	if got.Index != 3 {
@@ -48,11 +48,11 @@ func TestRoundTrip(t *testing.T) {
 		checkbox bool
 	}{
 		{"tray open", "- [ ] Rotate the api keys priority:H due:2026-08-12 project:alpha", true},
-		{"tray done", "- [x] ~~Renew the passport~~ priority:H done:2026-08-06", true},
+		{"tray done", "- [x] ~~Renew the TLS certificate~~ priority:H done:2026-08-06", true},
 		{"garage plain", "- add metrics to the worker +infra", false},
 		{"garage moved", "- add retries to the sync job → 2026-09", false},
 		{"garage taken", "- Fix alerts priority:H → tray", false},
-		{"dropped", "- ~~the notes script~~ dropped:2026-08-07", false},
+		{"garage done", "- ~~the notes script~~ done:2026-08-07", false},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -68,21 +68,28 @@ func TestRoundTrip(t *testing.T) {
 }
 
 func TestTerminalStates(t *testing.T) {
-	done, _ := Parse("- [x] ~~Passport~~ done:2026-08-06", 0)
-	if !done.Done || done.Dropped {
-		t.Error("done: want done, not dropped")
+	done, _ := Parse("- [x] ~~Ship it~~ done:2026-08-06", 0)
+	if !done.Done || done.Live() {
+		t.Error("done: want done and not live")
 	}
-	dropped, _ := Parse("- ~~Dead idea~~ dropped:2026-08-07", 0)
-	if dropped.Done || !dropped.Dropped {
-		t.Error("dropped: want dropped, not done")
-	}
-	if dropped.Live() {
-		t.Error("a dropped task is not live")
-	}
-	// A strike with no date is still terminal — someone edited it by hand.
+	// A strike with no date is still finished — someone edited it by hand, and
+	// strikethrough is what that means to a reader with no tray in the loop.
 	struck, _ := Parse("- ~~gave up on this~~", 0)
-	if !struck.Dropped {
-		t.Error("a bare strike is abandoned")
+	if !struck.Done || struck.Live() {
+		t.Error("a bare strike is finished")
+	}
+	// `dropped:` was a third terminal state, removed. A file written by an older
+	// build has to read as done rather than have the attribute swallowed into the
+	// task's own text.
+	legacy, _ := Parse("- ~~Dead idea~~ dropped:2026-08-07", 0)
+	if !legacy.Done {
+		t.Error("a legacy dropped line should read as done")
+	}
+	if legacy.Text != "Dead idea" {
+		t.Errorf("text = %q, want the attribute consumed", legacy.Text)
+	}
+	if got := Line(legacy, false); got != "- ~~Dead idea~~ done:2026-08-07" {
+		t.Errorf("it should converge to done: on the next write, got %q", got)
 	}
 }
 
@@ -147,12 +154,12 @@ func TestCopyIsDetached(t *testing.T) {
 
 // Handing a finished task back to the garage must arrive struck through, not open.
 func TestCopyKeepsTerminalState(t *testing.T) {
-	done, _ := Parse("- [x] ~~Renew the passport~~ priority:H done:2026-08-06", 0)
-	if got := Line(done.Copy(), false); got != "- ~~Renew the passport~~ priority:H done:2026-08-06" {
+	done, _ := Parse("- [x] ~~Renew the TLS certificate~~ priority:H done:2026-08-06", 0)
+	if got := Line(done.Copy(), false); got != "- ~~Renew the TLS certificate~~ priority:H done:2026-08-06" {
 		t.Errorf("done copy = %q", got)
 	}
-	dropped, _ := Parse("- ~~Dead idea~~ dropped:2026-08-07", 0)
-	if !dropped.Copy().Dropped {
-		t.Error("an abandoned copy is still abandoned")
+	struck, _ := Parse("- ~~gave up on this~~", 0)
+	if !struck.Copy().Done {
+		t.Error("a finished copy is still finished")
 	}
 }

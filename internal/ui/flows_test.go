@@ -78,11 +78,11 @@ func TestFlowFilterThenActOnAFilteredRow(t *testing.T) {
 	sandbox(t,
 		"- [ ] rotate the api keys priority:H",
 		"- [ ] book the flights priority:L",
-		"- [ ] renew the passport priority:M",
+		"- [ ] renew the tls certificate priority:M",
 	)
 
 	u := drive(t, New()).waitFor("rotate")
-	u.press("/").typeIn("passport")
+	u.press("/").typeIn("certificate")
 	u.press("enter").waitFor("1 of 3") // filter applied, one row left
 	u.press("x")                       // done, straight from the list
 	m := u.waitFor("1 done").final()
@@ -91,7 +91,7 @@ func TestFlowFilterThenActOnAFilteredRow(t *testing.T) {
 		t.Errorf("the finished row should leave the filtered list, %d left", got)
 	}
 	tray := trayFile(t)
-	has(t, tray, "~~renew the passport~~")
+	has(t, tray, "~~renew the tls certificate~~")
 	hasNot(t, tray, "~~rotate")
 	hasNot(t, tray, "~~book")
 }
@@ -198,12 +198,12 @@ func TestFlowGarageAddAsksOnlyForATitle(t *testing.T) {
 	u := drive(t, New()).waitFor("tray")
 	u.press("tab").waitFor("nothing here")
 	u.press("a").waitFor("nothing else needed")
-	u.typeIn("that config thing")
+	u.typeIn("the billing page is slow")
 	u.press("enter")
 	u.waitFor("added").final()
 
 	month := monthFile(t, "2026-08")
-	has(t, month, "- that config thing")
+	has(t, month, "- the billing page is slow")
 	hasNot(t, month, "priority:") // nothing was asked for, so nothing was written
 }
 
@@ -328,7 +328,7 @@ func TestFlowPasteIntoTheTitle(t *testing.T) {
 	}
 }
 
-// T14 · a finished task is invisible until you ask for it, and the only thing you can
+// T14 · a finished task is invisible in the working list, and the only thing you can
 // say about one is that it wasn't finished after all.
 func TestFlowViewDoneThenRestore(t *testing.T) {
 	sandbox(t,
@@ -344,7 +344,8 @@ func TestFlowViewDoneThenRestore(t *testing.T) {
 	u = drive(t, New()).waitFor("still open")
 	u.press("v").waitFor("done by mistake")
 	u.press("j").press("enter").waitFor("restore")
-	m := u.press("R").waitFor("1 restored").final()
+	u.press("R").waitFor("1 restored")
+	m := u.press("v").waitFor("done by mistake").final()
 
 	tray := trayFile(t)
 	has(t, tray, "- [ ] done by mistake")
@@ -352,36 +353,67 @@ func TestFlowViewDoneThenRestore(t *testing.T) {
 	hasNot(t, tray, "done:2026-08-06")
 	has(t, tray, "priority:M") // restoring un-finishes it, it does not strip it
 	if got := len(m.items()); got != 2 {
-		t.Errorf("both should be live now, saw %d", got)
+		t.Errorf("both should be back on the working list, saw %d", got)
 	}
 }
 
-// T15 · the menu on a finished row offers restore and nothing else — `x` on a done
-// task or `d` handing one back are meaningless or quietly destructive.
-func TestFlowFinishedRowOffersOnlyRestore(t *testing.T) {
+// T15 · `v` is a mode, not a filter: it widens the list to everything on the layer and
+// narrows the keymap to the two rare verbs. The split is by how often you reach for a
+// verb, so that a monthly one never sits in the way of the daily flow.
+func TestFlowReviewShowsEverythingAndOffersTheRareVerbs(t *testing.T) {
 	sandbox(t,
 		"- [ ] still open priority:H entry:2026-08-01",
 		"- [x] ~~already done~~ priority:M entry:2026-08-02 done:2026-08-06",
 	)
 
-	m := keys(New(), "v", "j").(Model)
-	offered := m.offered()
-	if len(offered) != 1 || offered[0].key != "R" {
-		var keys []string
-		for _, a := range offered {
-			keys = append(keys, a.key)
-		}
-		t.Errorf("a finished row offered %v, want just R", keys)
+	u := drive(t, New()).waitFor("still open")
+	u.press("v").waitFor("already done")
+	m := u.press("q").final()
+
+	var texts []string
+	for _, it := range m.items() {
+		texts = append(texts, it.Text)
 	}
-	// The cursor back on a live row gets the normal menu again.
-	if got := len(keys(m, "k").(Model).offered()); got < 4 {
-		t.Errorf("a live row should keep its full menu, got %d actions", got)
+	// Live work first: a finished line still computes an urgency, and sorting on that
+	// alone would float a done H task above the work you have left.
+	if strings.Join(texts, "|") != "still open|already done" {
+		t.Fatalf("review holds %v, want everything with the live line first", texts)
 	}
-	// A mixed selection has no single sensible verb, so it keeps the normal menu.
-	mixed := keys(New(), "v", " ", "j", " ").(Model)
-	if mixed.allFinished() {
-		t.Error("a selection spanning both kinds is not all finished")
+	var offered []string
+	for _, a := range m.offered() {
+		offered = append(offered, a.key)
 	}
+	if strings.Join(offered, "") != "RE" {
+		t.Errorf("review offers %v, want restore and erase alone", offered)
+	}
+
+	// The daily verbs are not here, and neither is adding: this mode reads and prunes.
+	if got := keys(m, "a").(Model); got.mode == editing {
+		t.Error("add must not open a form in review mode")
+	}
+	back := keys(m, "v").(Model)
+	if back.viewing || len(back.items()) != 1 || back.items()[0].Text != "still open" {
+		t.Errorf("v should go back to the working list, got %+v", back.items())
+	}
+}
+
+// T18 · erase is the one action that removes a line rather than marking it. There is
+// no prompt: entering review mode is the deliberate step, and naming what went is the
+// recovery — enough to retype a line erased in error.
+func TestFlowEraseRemovesTheLineAndSaysWhatWent(t *testing.T) {
+	sandbox(t,
+		"- [ ] still open priority:H entry:2026-08-01",
+		"- [x] ~~typed it twice~~ priority:M entry:2026-08-02 done:2026-08-06",
+	)
+
+	u := drive(t, New()).waitFor("still open")
+	u.press("v").waitFor("typed it twice")
+	u.press("j").press("E").waitFor(`erased "typed it twice"`)
+	u.press("q").final()
+
+	tray := trayFile(t)
+	hasNot(t, tray, "typed it twice") // gone from the file, not struck through
+	has(t, tray, "still open")        // and nothing else moved
 }
 
 // T16 · a rewrite in the garage is the words and nothing else. A garage line may

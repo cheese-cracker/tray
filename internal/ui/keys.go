@@ -26,6 +26,21 @@ func (m Model) keys() keyMap {
 		return keyMap{short: picking, full: [][]key.Binding{picking}}
 	}
 
+	// Review mode has its own two verbs and none of the others, so it gets its own
+	// footer rather than a shared one with half the keys greyed out. `E` appears here
+	// and in `?`, and in no other footer: a verb you reach for twice a month should not
+	// sit in the line you read all day, a key away from the ones you use constantly.
+	if m.viewing {
+		// Six keys, and movement is not among them: you arrive here already knowing
+		// ↑↓, and a footer that repeats what you know crowds out what you don't. The
+		// way out is named above the table instead, where you look on arriving.
+		short := []key.Binding{
+			bind("space", "select"), bind("R", "restore"), bind("E", "erase"),
+			bind("/", "filter"), bind("?", "help"), bind("q", "quit"),
+		}
+		return keyMap{short: short, full: [][]key.Binding{short}}
+	}
+
 	// The footer teaches the arrows, because they are the keys someone opening this
 	// for the first time will already try. The vim aliases all work and are named in
 	// `?` — a footer that lists two ways to do one thing teaches neither.
@@ -38,11 +53,8 @@ func (m Model) keys() keyMap {
 	if !m.layer().isTray() {
 		short = append(short, bind("t", "take"))
 	}
-	done := bind("v", "show done")
-	if m.showDone {
-		done = bind("v", "hide done")
-	}
-	short = append(short, done, bind("/", "filter"), bind("?", "help"), bind("q", "quit"))
+	short = append(short, bind("v", "review"), bind("/", "filter"),
+		bind("?", "help"), bind("q", "quit"))
 
 	// The action letters come from the layer, so the help teaches exactly the
 	// menu you would have got from enter.

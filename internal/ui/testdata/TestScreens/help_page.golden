@@ -9,16 +9,17 @@
   │ no structure asked           │  ◀────│ priority, due, tags          │
   ╰──────────────────────────────╯       ╰──────────────────────────────╯
   
-  (a)dd    a line to the layer you are on
-  (t)ake   a garage line onto the tray, structured
-  (d)      hand a tray task back to the garage
-  (enter)  act on the selection; the menu lists the rest
+  (a)dd    a line to the layer you are on                                      
+  (t)ake   a garage line onto the tray, structured                             
+  (d)      hand a tray task back to the garage                                 
+  (v)iew   review mode — shows all tasks, even completed ones — restore or     
+           erase tasks here                                                    
   
   ────────────────────────────────────────────────────────────────────────────
-  
-  keys                  acting                            
-  ↑↓  j k move          a       add      d       hand back
-  tab     switch layer  t       take     >       move to  
-  space   select        r       rewrite  D       delete   
-  /       filter        x       done     R       restore  
-  v       show done                                       
+  keys                  acting             in review      
+  ↑↓  j k move          a       add        R       restore
+  tab     switch layer  t       take       E       erase  
+  space   select        r       rewrite    v/esc   leave  
+  enter   act           x       done                      
+  /       filter        d       hand back                 
+  v       review        >       move to                   

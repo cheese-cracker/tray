@@ -31,7 +31,7 @@ suite rather than hanging it.
 | F3 | Arbitrary text is a valid garage line — half-sentences, `??`, colons mid-prose | `F3 · jottpad tolerance` |
 | F4 | The tray reports in urgency order, not insertion order | `F4 · tray order is urgency, not insertion` |
 | F5 | `take` is a transformation: structure is added, the source keeps an arrow | `F5 · take is a transformation` |
-| F6 | `done` and `drop` strike through in place, dated, never moving the line | `F6 · done · drop` |
+| F6 | `done` strikes through in place, dated, never moving the line | `F6 · done strikes in place` |
 | F7 | `unload` is idempotent — running it twice does not duplicate the tray | `F7 · unload is idempotent` |
 | F8 | `carryover` copies forward, leaves the tray alone, and drops a due date that already passed | `F8 · carryover copies forward` |
 | F9 | Headings, prose and `*` bullets survive every operation byte-for-byte | `F9 · one document, two hands` |
@@ -46,6 +46,7 @@ suite rather than hanging it.
 | F18 | Nothing is inferred headlessly: `carryover` and `unload` refuse to guess a month, and an unknown flag is an error rather than a silence | `F18 · nothing is inferred headlessly` |
 | F20 | `restore` un-finishes a task, resolving ids against the same rows `list --all` prints | `F20 · restore says a task was not finished after all` |
 | F19 | `head` prints the top few compactly, says nothing at all on an empty tray, and never renders a past due date as an upcoming weekday | `F19 · head is the terminal header` |
+| F21 | `erase` removes a line outright — the one verb that does — leaves its neighbours alone, and resolves ids against `list --all` so a finished line is reachable | `F21 · erase removes the line` |
 
 ## T · the terminal interface
 
@@ -66,8 +67,9 @@ suite rather than hanging it.
 | T14 | A finished task is hidden until `v`, and `R` says it wasn't finished after all | `TestFlowViewDoneThenRestore` |
 | T16 | A garage rewrite edits the words alone, and keeps whatever the line already carries | `TestFlowGarageRewriteIsTextOnly` |
 | T17 | A garage rewrite refuses a batch — there is nothing left for it to change | `TestFlowGarageRewriteRefusesABatch` |
-| T15 | A finished row offers restore and nothing else; a mixed selection keeps the normal menu | `TestFlowFinishedRowOffersOnlyRestore` |
+| T15 | `v` lists everything on the layer, live lines first, and offers restore and erase alone; `a` writes nothing there | `TestFlowReviewShowsEverythingAndOffersTheRareVerbs` |
 | T13 | A pasted title lands whole, and a pasted newline collapses rather than splitting the line | `TestFlowPasteIntoTheTitle` |
+| T18 | `E` removes a line outright and names it in the status, and is reachable only in review mode | `TestFlowEraseRemovesTheLineAndSaysWhatWent` |
 
 ## Screens
 
