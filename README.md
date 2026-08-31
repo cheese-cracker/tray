@@ -43,15 +43,7 @@ Bare `tray` on a terminal opens it.
 ![Terminal recording: switching to the garage, taking a line onto the tray, filling in
 the form, adding a task, and marking one done.](docs/demo.svg)
 
-**Figure 1.** Taking a garage line onto the tray with `t`, adding one directly with `a`,
-and finishing it with `x`.
-
-The tray orders itself by priority, due date, and age, so the top row is the one to do
-next. You never sort it by hand.
-
-**Two tabs, day to day:** what you're doing, and what you dumped this month. Tray rows
-carry the same checkbox their file does — `[ ]` and `[x]`. Garage lines have no checkbox
-in the file, so they don't grow one on screen.
+The tray orders itself by priority, due date, and age.
 
 | | |
 |---|---|
