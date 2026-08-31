@@ -3,8 +3,8 @@
 │  tray  ││  garage · August  │               
 │        └┴───────────────────┴───────────────
 │                                            │
-│         task        urg  pri  due  tags    │
-│  ▸  [ ] a task wi…  6.8  H         +infra  │
+│         task             pri  due  tags    │
+│  ▸  [ ] a task with a …  H         +infra  │
 │                                            │
 └────────────────────────────────────────────┘
  ↑↓ move · space select · tab switch    

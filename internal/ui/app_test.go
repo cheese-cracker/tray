@@ -264,6 +264,33 @@ func TestEscAndQBothQuit(t *testing.T) {
 			t.Errorf("%s should quit", name)
 		}
 	}
+
+	// In review mode `esc` backs out first, which is what the banner promises. It
+	// takes the same escape hatch a filter does, one layer further in.
+	m := keys(New(), "v").(Model)
+	if !m.viewing {
+		t.Fatal("v should enter review mode")
+	}
+	out, _ := m.Update(quits["esc"])
+	if out.(Model).viewing {
+		t.Error("esc in review mode should leave it, not quit")
+	}
+	if got := m.View(); !strings.Contains(got, "v/esc") || !strings.Contains(got, "leave") {
+		t.Errorf("review should name its way out:\n%s", got)
+	}
+}
+
+// The frame is the primary signal that review mode is on — it changes before you have
+// read a word. Only the colour *choice* is asserted: lipgloss emits no ANSI with no
+// TTY, so the rendered border is the same bytes in both modes under `go test`.
+func TestReviewRedrawsTheFrame(t *testing.T) {
+	sandbox(t, "- [ ] one priority:H")
+	if got := New().frameColor(); got != accent {
+		t.Errorf("the daily frame should be the accent, got %v", got)
+	}
+	if got := keys(New(), "v").(Model).frameColor(); got != reviewEdge {
+		t.Errorf("the review frame should change colour, got %v", got)
+	}
 }
 
 func TestBothAAndNAdd(t *testing.T) {
@@ -290,10 +317,15 @@ func TestFrameShowsRowsMarksAndKeymap(t *testing.T) {
 	sandbox(t, "- [ ] one priority:H", "- [ ] two priority:M")
 	view := keys(New(), " ").(Model).View()
 
-	for _, want := range []string{"tray", "one", "two", "●", "urg", "pri", "enter act", "? help"} {
+	for _, want := range []string{"tray", "one", "two", "●", "pri", "due", "enter act", "? help"} {
 		if !strings.Contains(view, want) {
 			t.Errorf("frame missing %q:\n%s", want, view)
 		}
+	}
+	// Urgency orders the list and is not a column: a figure you cannot act on is not
+	// worth the width in a table you read every day.
+	if strings.Contains(view, "urg") {
+		t.Errorf("the table should not carry an urgency column:\n%s", view)
 	}
 }
 
@@ -344,7 +376,7 @@ func TestHelpScreenExplainsTheTwoLayers(t *testing.T) {
 	}
 	// It takes the screen: the list, the tabs and the footer are all gone while it
 	// is open, which is what lets it use the full width.
-	for _, gone := range []string{"↑↓ move · space select", "garage · August", "urg"} {
+	for _, gone := range []string{"↑↓ move · space select", "garage · August", "pri  due"} {
 		if strings.Contains(view, gone) {
 			t.Errorf("the interface should be gone behind the help, %q showing:\n%s", gone, view)
 		}

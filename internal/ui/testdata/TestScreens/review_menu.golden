@@ -3,10 +3,10 @@
 │  tray  ││  garage · August  │                                                     
 │        └┴───────────────────┴─────────────────────────────────────────────────────
 │                                                                                  │
-│  review — everything on this layer, done and not                                 │
-│         task                       urg  pri  due  tags                           │
-│     [ ] Rotate the api keys        6.0  H                                        │
-│  ▸  [x] Renew the TLS certificate  6.0  H                                        │
+│  review mode  ·  v/esc to leave                                                  │
+│         task                       pri  due  tags                                │
+│     [ ] Rotate the api keys        H                                             │
+│  ▸  [x] Renew the TLS certificate  H                                             │
 │                                                                                  │
 │                                                                                  │
 │                                                                                  │

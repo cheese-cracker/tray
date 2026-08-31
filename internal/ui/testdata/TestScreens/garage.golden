@@ -3,9 +3,9 @@
 │  tray  ││  garage · August  │                                                     
 ├────────┴┘                   └─────────────────────────────────────────────────────
 │                                                                                  │
-│       task                                                tags                   │
+│       task                                          tags                         │
 │  ▸    ?? the billing page feels slow on first load                               │
-│       add metrics to the worker                           +infra                 │
+│       add metrics to the worker                     +infra                       │
 │       chase the landlord about the boiler                                        │
 │                                                                                  │
 │                                                                                  │

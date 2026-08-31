@@ -14,6 +14,8 @@ is one line in [DECISIONS.md](DECISIONS.md).
   compiled in — which makes it not third-party — or a separate executable found on `PATH`
   and driven through the CLI, the way git finds `git-foo`. **That fork is the first
   question, and it is upstream of every one of them.**
+- `[shell]` — not a plugin at all: a snippet that calls the CLI from your shell. `tray install`
+  is what writes one, so these gate on it rather than on any plugin surface.
 - `[ours]` — the same surface question, but nothing here is third-party. "As a plugin" is a
   guess about packaging rather than a requirement.
 - `[personal]` — whether it belongs in a general tool at all is part of the question.
@@ -51,6 +53,14 @@ is one line in [DECISIONS.md](DECISIONS.md).
 
 ## Later
 
+- [ ] **A second demo take** — the recording in the README covers the loop that matters
+  (dump → take → form → add → done) and stops there. It never shows `/` filtering, and
+  never opens review mode, so `v`, `R` and `E` are described in the README and nowhere
+  visible. A short take adding the filter and a glance at review would close it. The kit
+  is `~/tray-demo/` — `reset.sh` for a clean slate, `SCRIPT.md` for the beats — and
+  `npx svg-term-cli --in tray.cast --out docs/demo.svg --window --width 100 --height 28`
+  re-renders. Not in the README: a gap you have to describe is worse than one nobody
+  notices.
 - [ ] **Prebuilt binaries** — goreleaser. `go install` is the only path today, so a Go
   toolchain is a hard requirement for anyone who wants this.
 - [ ] **CI** — `make check` is the whole suite; no workflow is wired up yet.
@@ -60,16 +70,25 @@ is one line in [DECISIONS.md](DECISIONS.md).
 
 ## Parked
 
-- [ ] `[plugin]` **Google Calendar** — the one that is actually wanted. Vetted as a want, not
-  as a design.
+- [ ] `[plugin]` **Google Calendar** — the one that is actually wanted, and the one whose shape
+  is least settled. It is pull *and* push, which is what a garage is, so it may want to be one
+  rather than a feed — but a calendar is a grid of times, not a dump of lines. Deliberately
+  undecided.
 - [ ] `[plugin]` **`task export | tray import`** — the missing leg. Export already ships the
   other way (`tray export | task import`, 4), and the field names were kept aligned for this.
 - [ ] `[plugin]` **todo.txt export** — one more shape of the one-line-per-task grammar tray
   already writes.
-- [ ] `[plugin]` **Notion**, **Linear** — hosted stores, so both keep a server-side id. Ids
-  are the thing 8 says tray does not hold.
-- [ ] `[plugin]` **Dictation into the garage** (ostt) — the garage is the layer with no
-  schema, so it is where a transcript can land without having to claim it is a task yet.
+- [ ] `[plugin]` **Notion**, **Linear**, **Jira** — hosted stores, so all three keep a
+  server-side id, and ids are the thing 8 says tray does not hold. Sized as a *3P garage*: a
+  plugin owns a garage file, its tab appears in `carryover` only, and **pull-only is the vetted
+  first step** — a task is copied onto the tray, never taken off the board, so no id is needed
+  until push. Status-on-take and completion sync are deliberately closed.
+- [ ] `[shell]` **`tray head` in a shell profile** — the top few on every new terminal, which
+  is what head's silence-when-empty behaviour was built for. The line itself is trivial;
+  `tray install` writing it is the real item, in Next.
+- [ ] `[shell]` **Dictation into the garage** (ostt) — the garage is the layer with no schema,
+  so it is where a transcript can land without having to claim it is a task yet. Needs no
+  plugin surface, only a way to invoke `tray dump`.
 - [ ] `[ours]` **Eisenhower view** — half of it exists. `core.Quadrant`
   (`internal/core/urgency.go:103`) is written and tested, `tray export` already emits it
   (`internal/cli/report.go:181`), and the README describes the reading. What is missing is

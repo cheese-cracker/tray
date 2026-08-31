@@ -52,20 +52,15 @@ tray                           # open it
 
 Bare `tray` on a terminal opens it.
 
-```
-╭────────╮╭───────────────────╮
-│  tray  ││  garage · August  │
-│        └┴───────────────────┴────────────────────────────────────────┤
-│                                                                      │
-│         task                         urg   pri  due             tags │
-│   ● [ ] Rotate the api keys          17.1  H    2026-08-12 Wed +infra│
-│  ▸  [ ] Chase the invoice            8.1   M    2026-08-25 Tue +admin│
-│     [ ] Review the deploy checklist  4.7   M                   +infra│
-│                                                                      │
-└──────────────────────────────────────────────────────────────────────┘
- ↑↓ move · space select · tab switch · enter act · a add · v review
- / filter · ? help · q quit
-```
+![tray](docs/demo.svg)
+
+Above: a jotting taken onto the tray with `t` and given structure, a task added
+straight to the tray with `a`, and one finished with `x`.
+
+The tray is **ordered, not sorted by hand** — Taskwarrior's urgency formula ranks it
+from priority, due date and age. The figure itself isn't a column: it decides the order
+and there is nothing you would do with the number. `tray list` prints it for agents, and
+`columns` in `internal/ui/row.go` is one line if you want it back on screen.
 
 **Two tabs, day to day:** what you're doing, and what you dumped this month. Tray rows
 carry the same checkbox their file does — `[ ]` and `[x]`. Garage lines have no checkbox
@@ -80,7 +75,7 @@ in the file, so they don't grow one on screen.
 | `r` | rewrite. On the tray that's every field; **in the garage it's the words alone** |
 | `a` | add — a bare line in the garage, the full form on the tray |
 | `t` | take a garage line onto the tray, and give it structure |
-| `v` | review — everything on the layer, live and finished, and the only place `R` restore and `E` erase exist |
+| `v` | review — everything on the layer, live and finished. The frame changes colour, and it is the only place `R` restore and `E` erase exist. `v` or `esc` leaves |
 | `/` | filter · `?` help · `q` quit |
 
 Setting a priority on a garage line means you want it on the tray — so the garage
@@ -91,20 +86,21 @@ Press **`?`** for a full-screen explainer: what the two layers are, and every ke
 ## Features
 
 - 🗂️ **Two layers** — a garage that asks nothing of you, a tray that expects structure.
-- 📝 **Plain markdown**, one task per line, in `~/tray/`. Edit it in any editor;
-  tray preserves anything it doesn't recognise, byte for byte.
+- 📝 **Plain markdown**, one task per line (`~/tray/`). Edit it in any editor — tray
+  keeps whatever it doesn't recognise, byte for byte.
 - 🗓️ **A garage per month** — dump into November in August, if that's when you'll do it.
 - 🔁 **A month-turn sweep** — `tray carryover` opens the months as tabs so you can triage
   what's left before it rolls forward.
 - ♻️ **Finishing marks, it doesn't move.** A done line is struck through where it sits.
-- 👁️ **`v` is review mode** — the whole layer, done and not, and the only place the rare
-  verbs live: `R` restores one you finished by accident, `E` erases one that should never
-  have been written. Keeping them behind a mode is what keeps them out of the daily flow.
+- 👁️ **`v` is review mode** — the whole layer, done and not, with the frame in a second
+  colour so you can see you left the daily screen. The only place the rare verbs live:
+  `R` restores one you finished by accident, `E` erases one that should never have been
+  written. Behind a mode is how they stay out of the way of the flow.
 - 🔍 **`/` fuzzy filter** over text and tags, and `tray find` across every month at once —
   a line that keeps reappearing is a rot signal you get for free.
 - ✍️ **One form to restructure**, every field prefilled, so only what you touch changes.
-- 📊 **Taskwarrior's urgency formula and field names**, so `tray export | task import`
-  just works.
+- 📊 **Taskwarrior's urgency formula and field names** — it ranks your tray for you,
+  and `tray export | task import` just works.
 - 🐚 **`tray head` for your shell profile** — the top few tasks on every new terminal,
   and completely silent when the tray is empty.
 - 📦 **One static binary.** Nothing needed at runtime.
@@ -120,13 +116,15 @@ Press **`?`** for a full-screen explainer: what the two layers are, and every ke
 
 ```markdown
 # tray.md
-- [ ] Rotate the api keys priority:H due:2026-08-12 entry:2026-08-07
-- [x] ~~Renew the TLS certificate~~ priority:H done:2026-08-06
+- [ ] the billing page feels slow on first load priority:H due:2026-08-31 from:2026-08 +work
+- [ ] Rotate the api keys priority:H due:2026-09-01 entry:2026-08-24 +infra
+- [x] ~~Renew the TLS certificate~~ priority:H entry:2026-08-20 done:2026-08-29 +infra
 
 # 2026-08.md
-- ?? the billing page feels slow on first load
-- add metrics to the worker +infra
-- Rotate the api keys priority:H → tray
+- add metrics to the sync worker +infra
+- the billing page feels slow on first load → tray
+- ask whether the offsite dates are fixed yet
+- someone should own the status page
 ```
 
 The files are the truth and you are meant to edit them. Attributes are read off the

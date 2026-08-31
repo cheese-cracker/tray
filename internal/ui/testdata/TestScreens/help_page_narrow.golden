@@ -6,11 +6,10 @@
   tray when you are ready to work on it.                  
   
   ────────────────────────────────────────────────────────
-  
   keys                  acting             in review      
   ↑↓  j k move          a       add        R       restore
   tab     switch layer  t       take       E       erase  
-  space   select        r       rewrite                   
+  space   select        r       rewrite    v/esc   leave  
   enter   act           x       done                      
   /       filter        d       hand back                 
   v       review        >       move to                   

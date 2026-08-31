@@ -173,7 +173,8 @@ Reported from use: two tasks went done when one was meant to.
 | 86 | `?` is a **page**, not a keymap strip | Narrows 59. A keymap tells you which letter does a thing you already understand; what needs explaining here is why there are two layers at all. So the diagram comes first and the keys come last, as one section | live |
 | 86b | Help column widths are **measured from the labels**, not chosen | Hand-picked widths broke three times running, and a test now asserts the dialog fits in both directions with nothing truncated — goldens record what happened, they do not object to it | live |
 | 86e | **Any key dismisses it**, and the key is spent doing so | You should never have to work out which key closes a thing that is in your way. `ctrl+c` still quits | live |
-| 86n | On a terminal too small for it, the **diagram is what goes** | Something has to give, and losing the keymap or clipping mid-sentence would both be worse. It is the decorative half | live |
+| 86n | On a terminal too small for it, the **diagram is what goes** | Something has to give, and losing the keymap or clipping mid-sentence would both be worse. It is the decorative half. Three rungs now — picture, then concepts, then keys alone | live |
+| 86p | A concept line **wraps**, hanging under the text column | One of the four is a sentence rather than a label. It also cost the diagram at 80×26, which was bought back by letting the rule abut the keymap it heads instead of floating a blank line above it | live |
 | 86m | `?` takes **the whole screen** | As an overlay it grew a frame but never grew its contents, so it read the same size however big the terminal was. Full screen means the prose reflows, the boxes spread, and there is no ceiling to design the content against — and any key still goes back, so it costs nothing to open | live |
 | 86k | **Progressive disclosure**: prose, then the picture, then the keymap under a rule | A newcomer who meets twenty letters first has learnt nothing. A test asserts the order, because it is the kind of thing an edit quietly reverses | live |
 
@@ -188,6 +189,23 @@ Reported from use: two tasks went done when one was meant to.
 | 88a | It **keeps** whatever the line already carries | A line handed back from the tray arrives with a priority (68). Not offering the field is different from clearing it, and the form only ever writes what you touched | live |
 | 88b | A garage batch rewrite is **refused** | The words are all there is, and one name for many is never the intent (25) — so a batch has nothing left to change. Better to say so than open a form with no fields | live |
 | 88c | The **CLI does not enforce 88**; `rewrite` and `modify` will set a priority on a garage line | Your call. 19 says the TUI is the product and the CLI is the agent surface: the interface teaches a habit, the CLI stays the exact scriptable thing it is documented as. `dump +infra` already writes a tag to the garage, so "no structure here" was never quite true either | live |
+
+## The recording
+
+| # | Decision | Why | Status |
+|---|---|---|---|
+| 96 | The interface is shown as a **recording**, not a hand-drawn frame | The frame was accurate and still misleading: it could not show that taking a line opens a form, or that the tray reorders itself when one lands. Both are the point | live |
+| 96a | **Animated SVG** (`svg-term`), not a GIF | A tenth the bytes, crisp at any zoom, and it diffs as text so a re-record does not bloat the history. No account and no third-party host, which an upload to asciinema.org would have meant for a private repo | live |
+| 96b | The `.cast` is **committed beside it** | The SVG is a build artifact of it. Keeping the source means a re-render after a restyle costs one command instead of another take | live |
+
+## The table
+
+| # | Decision | Why | Status |
+|---|---|---|---|
+| 95 | The TUI drops the **urgency column**; the CLI keeps it | It is a figure you cannot act on. It earns its keep by deciding the order, and the order is already on screen — the row above the other says everything 17.1 beside 8.1 does, in no width at all. `tray list` still prints it, because an agent has a use for the number that you do not (19) | live |
+| 95a | This is a **deviation from Taskwarrior's report**, deliberately | 4 pins the field names and the urgency coefficients, so an export still imports. It never pinned which of them to draw | live |
+| 95b | The table is a **declared list**, `columns` in `row.go` | Which columns exist was spread across five places — an index constant, a padding array, a header switch, a cell switch and a styling rule — so hiding one meant editing all five and hoping. It is one line now, and the answer to "what does the table show" is a list you can read | live |
+| 95c | It found a bug on the way in | The garage drew six columns of dead air between `task` and `tags`: the three tray-only columns rendered as zero-width cells and kept their padding. Nothing measured them, so nothing caught it — a hidden column is now genuinely absent rather than empty | live |
 
 ## The checkbox
 
@@ -213,6 +231,9 @@ Reported from use: two tasks went done when one was meant to.
 | 92 | **`v` is a mode, not a filter.** It widens the list to everything on the layer and narrows the keymap to two verbs | The split is by **how often you reach for a verb**, not by what it acts on. A correction and a removal are monthly; they have no business in the footer you read all day, one key from the ones you use constantly. And when you do reach for them you want the whole picture, not half of it | live |
 | 92a | It first shipped as a **done-only room**, and that was wrong | Splitting by row state made the mode an archive, which the tool explicitly is not for. Splitting by how rare the verb is makes it a review pass — and a review pass has to show what you finished *next to* what you did not | reverted into 92 |
 | 92d | Live lines sort **above** finished ones there | A finished line still carries a priority and a due date, so it still computes an urgency — and ranking on that alone floats a done `H` task over the work you have left | live |
+| 92f | Review **names its own exit** in the banner, not the footer | A mode you cannot see the way out of is a trap, and this is the only mode someone can enter by accident and then sit in. It sits above the table because that is where you look on arriving; the footer is for what you do once you are there, and carries no exit at all. `esc` leaves as well as `v` — the same escape hatch a filter already has, one layer further in — and both are named, because neither is guessable from the other | live |
+| 92g | The **frame changes colour** in review mode | The mode is legible before a word of it is read, and it costs no row and no key. Amber: the two verbs there are a correction and a removal — not danger, but not the daily flow either. Only the colour choice is tested, since lipgloss emits no ANSI without a TTY | live |
+| 92h | Its footer keeps **six keys**, and movement is not among them | You arrive already knowing `↑↓`, and a footer repeating what you know crowds out what you do not. Select, the two verbs, filter, help, quit | live |
 | 92e | `a` writes nothing there, and the footer drops the daily keys | Review reads and prunes. Add, take, done, hand back and move are the flow this mode exists to stay out of | live |
 | 93 | **Erase is reachable only in review mode** | One deliberate step before the destructive one, and `E` never appears in the footer you read all day. With the prompt gone (91c) this is the whole of the guard | live |
 | 93a | The CLI does **not** enforce 93 — `tray <id> erase` reaches any line | 19 again: the interface teaches a habit, the CLI is the exact scriptable thing. Same split as 88c | live |

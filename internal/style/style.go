@@ -18,6 +18,11 @@ var (
 	// a brighter colour by default.
 	Strong = lipgloss.AdaptiveColor{Light: "#000000", Dark: "#FFFFFF"}
 
+	// The frame in review mode, and the whole of how that mode announces itself
+	// before you have read a word of it. Amber because the two verbs that live there
+	// are a correction and a removal — not danger, but not the daily flow either.
+	Review = lipgloss.AdaptiveColor{Light: "#DF8E1D", Dark: "#F9E2AF"}
+
 	// Priority, warm to cool. These carry meaning, so they stay distinguishable
 	// from each other rather than being three shades of the accent.
 	High   = lipgloss.AdaptiveColor{Light: "#D20F39", Dark: "#F38BA8"}

@@ -31,9 +31,11 @@ func (m Model) keys() keyMap {
 	// and in `?`, and in no other footer: a verb you reach for twice a month should not
 	// sit in the line you read all day, a key away from the ones you use constantly.
 	if m.viewing {
+		// Six keys, and movement is not among them: you arrive here already knowing
+		// ↑↓, and a footer that repeats what you know crowds out what you don't. The
+		// way out is named above the table instead, where you look on arriving.
 		short := []key.Binding{
-			bind("↑↓", "move"), bind("space", "select"), bind("tab", "switch"),
-			bind("R", "restore"), bind("E", "erase"), bind("v", "back"),
+			bind("space", "select"), bind("R", "restore"), bind("E", "erase"),
 			bind("/", "filter"), bind("?", "help"), bind("q", "quit"),
 		}
 		return keyMap{short: short, full: [][]key.Binding{short}}

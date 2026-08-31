@@ -65,10 +65,11 @@ func (m Model) helpScreen() string {
 	}, "\n")
 
 	moves := strings.Join([]string{
-		verb("(a)dd", "a line to the layer you are on"),
-		verb("(t)ake", "a garage line onto the tray, structured"),
-		verb("(d)", "hand a tray task back to the garage"),
-		verb("(v)iew", "everything, done and not — where you restore or erase"),
+		verb(width, "(a)dd", "a line to the layer you are on"),
+		verb(width, "(t)ake", "a garage line onto the tray, structured"),
+		verb(width, "(d)", "hand a tray task back to the garage"),
+		verb(width, "(v)iew", "review mode — shows all tasks, even completed ones — "+
+			"restore or erase tasks here"),
 	}, "\n")
 
 	diagram := lipgloss.JoinHorizontal(lipgloss.Top, garage, arrows, tray)
@@ -77,10 +78,12 @@ func (m Model) helpScreen() string {
 	// Three layouts, richest first. Something has to give on a small terminal, and
 	// the order is picture, then concepts, then nothing — the keymap is the part
 	// nobody can reconstruct, and clipping mid-sentence would be worse than either.
+	// The rule abuts the keymap: it is that section's own top edge, so a blank line
+	// between them buys nothing and a row here is worth a whole diagram below.
 	layouts := [][]string{
-		{title, "", prose, "", diagram, "", moves, "", rule, "", helpKeys()},
-		{title, "", prose, "", moves, "", rule, "", helpKeys()},
-		{title, "", prose, "", rule, "", helpKeys()},
+		{title, "", prose, "", diagram, "", moves, "", rule, helpKeys()},
+		{title, "", prose, "", moves, "", rule, helpKeys()},
+		{title, "", prose, "", rule, helpKeys()},
 	}
 	if width+4 < minDiagramWidth {
 		layouts = layouts[1:] // the boxes and their gutter cannot sit side by side
@@ -94,8 +97,18 @@ func (m Model) helpScreen() string {
 	return strings.Join(layouts[len(layouts)-1], "\n")
 }
 
-func verb(key, meaning string) string {
-	return keyStyle.Render(pad(key, 8, 1)) + faintStyle.Render(meaning)
+// verb is one line of the concepts block. The meaning wraps rather than running off
+// the edge, with the continuation hanging under the text column — one of these is a
+// sentence rather than a label, and a narrow terminal would otherwise clip it.
+func verb(width int, key, meaning string) string {
+	const keyW = 8
+	body := lipgloss.NewStyle().Width(max(24, width-keyW)).Foreground(subtle).Render(meaning)
+	lines := strings.Split(body, "\n")
+	out := keyStyle.Render(pad(key, keyW, 1)) + lines[0]
+	for _, l := range lines[1:] {
+		out += "\n" + strings.Repeat(" ", keyW+1) + l
+	}
+	return out
 }
 
 // The lower section: keys, in three columns. Widths are measured from the labels
@@ -113,7 +126,7 @@ func helpKeys() string {
 			{"x", "done"}, {"d", "hand back"}, {">", "move to"},
 		},
 		// Headed by the key that reaches them, because they are reachable nowhere else.
-		{{"", "in review"}, {"R", "restore"}, {"E", "erase"}},
+		{{"", "in review"}, {"R", "restore"}, {"E", "erase"}, {"v/esc", "leave"}},
 	}
 
 	keyW := 0
