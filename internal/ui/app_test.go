@@ -97,7 +97,7 @@ func TestTerminalTasksAreNotListed(t *testing.T) {
 	sandbox(t,
 		"- [ ] open thing",
 		"- [x] ~~done thing~~ done:2026-08-01",
-		"- ~~dropped thing~~ dropped:2026-08-01",
+		"- ~~struck by hand~~ priority:M",
 	)
 	if got := len(New().items()); got != 1 {
 		t.Errorf("listed %d items, want only the live one", got)
@@ -200,16 +200,26 @@ func TestHandBackMovesToTheGarage(t *testing.T) {
 	}
 }
 
-func TestDeleteIsAbandonedNotRemoved(t *testing.T) {
+// The negative half of T18, which the flow cannot assert from inside the done view:
+// on a live line the key does nothing, the menu does not list it, and the footer does
+// not name it. Erase should be found deliberately, not met while browsing.
+func TestEraseIsUnreachableOnALiveLine(t *testing.T) {
 	sandbox(t, "- [ ] one priority:H")
-	keys(New(), "D")
 
-	got := trayFile(t)
-	if !strings.Contains(got, "~~one~~") || !strings.Contains(got, "dropped:2026-08-07") {
-		t.Errorf("want struck and dated as dropped:\n%s", got)
+	m := keys(New(), "E").(Model)
+	if m.mode == erasing {
+		t.Fatal("E must do nothing on a live line")
 	}
-	if strings.Contains(got, "done:") {
-		t.Error("delete must not read as completed")
+	for _, a := range m.offered() {
+		if a.key == "E" {
+			t.Error("the live menu must not offer erase")
+		}
+	}
+	if got := m.View(); strings.Contains(got, "erase") {
+		t.Errorf("the live footer must not name erase:\n%s", got)
+	}
+	if got := trayFile(t); !strings.Contains(got, "one") {
+		t.Errorf("and nothing may have been removed:\n%s", got)
 	}
 }
 
@@ -328,8 +338,8 @@ func TestHelpScreenExplainsTheTwoLayers(t *testing.T) {
 		"take", "hand back", // and the move between them
 		"a line to the layer", "onto the tray, structured", // what each move does
 		"keys", "acting", // one keymap section, headed
-		"j k",                          // the alias the footer doesn't name
-		"restore", "rewrite", "delete", // the letters only the menu shows
+		"j k",                         // the alias the footer doesn't name
+		"restore", "rewrite", "erase", // the letters only the menu shows
 	} {
 		if !strings.Contains(view, want) {
 			t.Errorf("the help dialog never mentions %q:\n%s", want, view)
@@ -352,8 +362,8 @@ func TestHelpScreenExplainsTheTwoLayers(t *testing.T) {
 		}
 	}
 	// The letter sits inside the verb, so it reads as a word and marks the key at
-	// once. `(d)` has no d-word to sit in: `D` already owns delete.
-	for _, want := range []string{"(a)dd", "(t)ake", "(d)", "(enter)"} {
+	// once. `(d)` has no d-word to sit in.
+	for _, want := range []string{"(a)dd", "(t)ake", "(d)", "(v)iew"} {
 		if !strings.Contains(view, want) {
 			t.Errorf("the help should show %q:\n%s", want, view)
 		}
@@ -481,31 +491,40 @@ func TestMarksKeepRenderingAfterTheyAreCleared(t *testing.T) {
 	}
 }
 
-// The tray file writes a checkbox, so the tray rows show one. `[-]` for dropped is
-// Obsidian's spelling of a state markdown has no box for. The garage file has no
-// checkbox, so its rows keep a one-character mark instead.
+// The tray file writes a checkbox, so the tray rows show one. The garage file has
+// none, so its rows keep a one-character mark instead.
 func TestTrayShowsCheckboxesAndTheGarageDoesNot(t *testing.T) {
 	sandbox(t,
 		"- [ ] still open priority:M",
 		"- [x] ~~finished~~ priority:M done:2026-08-06",
-		"- [ ] ~~abandoned~~ priority:M dropped:2026-08-06",
 	)
 	garage(t, "2026-08", "- a jotting", "- ~~a finished jotting~~ done:2026-08-06")
 
-	tray := keys(New(), "v").(Model).View()
-	for _, want := range []string{"[ ] still open", "[x] finished", "[-] abandoned"} {
-		if !strings.Contains(tray, want) {
-			t.Errorf("the tray should show %q:\n%s", want, tray)
+	for _, c := range []struct {
+		keys []string
+		want string
+	}{
+		{nil, "[ ] still open"},
+		{[]string{"v"}, "[x] finished"},
+	} {
+		if got := keys(New(), c.keys...).(Model).View(); !strings.Contains(got, c.want) {
+			t.Errorf("the tray should show %q:\n%s", c.want, got)
 		}
 	}
 
-	garageView := keys(New(), "tab", "v").(Model).View()
-	if strings.Contains(garageView, "[ ]") || strings.Contains(garageView, "[x]") {
-		t.Errorf("the garage file has no checkbox, so its rows must not draw one:\n%s", garageView)
-	}
-	for _, want := range []string{"✓ a finished jotting", "a jotting"} {
-		if !strings.Contains(garageView, want) {
-			t.Errorf("the garage should show %q:\n%s", want, garageView)
+	for _, c := range []struct {
+		keys []string
+		want string
+	}{
+		{[]string{"tab"}, "a jotting"},
+		{[]string{"tab", "v"}, "✓ a finished jotting"},
+	} {
+		got := keys(New(), c.keys...).(Model).View()
+		if !strings.Contains(got, c.want) {
+			t.Errorf("the garage should show %q:\n%s", c.want, got)
+		}
+		if strings.Contains(got, "[ ]") || strings.Contains(got, "[x]") {
+			t.Errorf("the garage file has no checkbox, so its rows must not draw one:\n%s", got)
 		}
 	}
 }

@@ -29,7 +29,6 @@ func Finish(t *Task, as string, today time.Time) {
 	}
 	t.Attrs[as] = today.Format(DateLayout)
 	t.Done = as == "done"
-	t.Dropped = as == "dropped"
 }
 
 // Restore is the inverse of Finish: the line stops being struck through and reads as
@@ -41,9 +40,8 @@ func Finish(t *Task, as string, today time.Time) {
 func Restore(t *Task) {
 	if t.Attrs != nil {
 		delete(t.Attrs, "done")
-		delete(t.Attrs, "dropped")
 	}
-	t.Done, t.Dropped = false, false
+	t.Done = false
 }
 
 func setDefault(attrs map[string]string, key, value string) {

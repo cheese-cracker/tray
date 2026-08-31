@@ -22,6 +22,7 @@ const (
 	browsing mode = iota
 	acting        // the enter menu
 	sending       // choosing where `>` moves things
+	erasing       // confirming the one action that removes a line
 	editing       // the rewrite form
 )
 
@@ -41,8 +42,7 @@ var actions = []action{
 	{key: "d", label: "hand back", tray: true, apply: (*Model).handBack},
 	{key: ">", label: "move to", tray: true, rest: true, apply: (*Model).chooseDestination},
 	{key: "r", label: "rewrite", tray: true, rest: true, apply: (*Model).openForm},
-	{key: "D", label: "delete", tray: true, rest: true,
-		apply: func(m *Model, p []core.Task) string { return m.finish(p, "dropped") }},
+	{key: "E", label: "erase", tray: true, rest: true, apply: (*Model).confirmErase},
 	{key: "R", label: "restore", tray: true, rest: true, apply: (*Model).restore},
 }
 
@@ -60,14 +60,14 @@ type Model struct {
 	destAt int
 	form   *form
 
-	status   string
-	today    time.Time
-	err      error
-	showDone bool   // v: the finished rows are hidden until you ask for them
-	sweep    bool   // the month-turn ritual: months get the tabs, not the tray
-	closing  string // which month is being swept
-	width    int    // 0 until the terminal tells us, so the view must cope without
-	height   int
+	status  string
+	today   time.Time
+	err     error
+	viewing bool   // v: the done view — see below
+	sweep   bool   // the month-turn ritual: months get the tabs, not the tray
+	closing string // which month is being swept
+	width   int    // 0 until the terminal tells us, so the view must cope without
+	height  int
 }
 
 func New() Model {
@@ -153,7 +153,7 @@ func (m *Model) reload() tea.Cmd {
 	}
 	var live []core.Task
 	for _, t := range doc.Tasks() {
-		if t.Parsed() && (t.Live() || (m.showDone && t.Terminal())) {
+		if t.Parsed() && t.Terminal() == m.viewing {
 			live = append(live, t)
 		}
 	}
@@ -219,52 +219,37 @@ func (m *Model) picked() []core.Task {
 // The first row is what enter-enter does, so each layer leads with its own primary
 // action: restructure what you're working on, take what you jotted.
 var order = map[bool][]string{
-	true:  {"r", "x", "d", ">", "D"}, // the tray
-	false: {"t", "r", ">", "x", "D"}, // a garage month
+	true:  {"r", "x", "d", ">"}, // the tray
+	false: {"t", "r", ">", "x"}, // a garage month
 }
 
-// A finished row is a record. The only sane thing to say about one is that it was not
-// finished after all, so that is the only thing offered — `x` on a done task or `d`
-// handing a done task back are either meaningless or quietly destructive.
+// review is the whole of the done view, and the only place either key appears. A
+// finished line is a record, and there are exactly two things to say about a record:
+// that it was not finished after all, and that it should never have been written.
+// Everything else — done, hand back, take, move — is meaningless on one or quietly
+// destructive, and `E` being reachable nowhere else is what keeps a live line safe.
+var review = []string{"R", "E"}
+
 func (m Model) offered() []action {
-	if m.allFinished() {
-		for _, a := range actions {
-			if a.key == "R" {
-				return []action{a}
-			}
-		}
-	}
 	byKey := map[string]action{}
 	for _, a := range actions {
-		if a.key == "R" {
-			continue // reachable only on a finished row, above
-		}
-		if (m.layer().isTray() && a.tray) || (!m.layer().isTray() && a.rest) {
-			byKey[a.key] = a
-		}
+		byKey[a.key] = a
 	}
+	if m.viewing {
+		out := make([]action, 0, len(review))
+		for _, k := range review {
+			out = append(out, byKey[k])
+		}
+		return out
+	}
+	tray := m.layer().isTray()
 	var out []action
-	for _, key := range order[m.layer().isTray()] {
-		if a, ok := byKey[key]; ok {
+	for _, k := range order[tray] {
+		if a := byKey[k]; (tray && a.tray) || (!tray && a.rest) {
 			out = append(out, a)
 		}
 	}
 	return out
-}
-
-// allFinished, not anyFinished: a mixed selection keeps the normal menu, because
-// there is no single sensible verb across both kinds.
-func (m *Model) allFinished() bool {
-	picked := m.picked()
-	if len(picked) == 0 {
-		return false
-	}
-	for _, t := range picked {
-		if !t.Terminal() {
-			return false
-		}
-	}
-	return true
 }
 
 func (m *Model) restore(picked []core.Task) string {
@@ -303,6 +288,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.updateMenu(msg)
 		case sending:
 			return m.updateDestinations(msg)
+		case erasing:
+			return m.updateErase(msg)
 		default:
 			return m.updateList(msg)
 		}
@@ -358,13 +345,15 @@ func (m Model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.filtering() {
 			return m.toList(msg) // esc drops the filter before it quits tray
 		}
+		if m.viewing {
+			return m, m.toggleView() // and backs out of the done view before that
+		}
 		return m, tea.Quit
 	case "?":
 		m.help.ShowAll = !m.help.ShowAll
 		m.resize()
 	case "v":
-		m.showDone = !m.showDone
-		return m, m.reload()
+		return m, m.toggleView()
 	// tab is the only way across, ⇧tab the only way back, and ⇧tab is not
 	// advertised. ←→ and h l are all deliberately dead: ↑↓ move within a layer,
 	// and nothing here moves sideways.
@@ -383,6 +372,10 @@ func (m Model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			}
 		}
 	case "a", "n":
+		if m.viewing {
+			m.status = "nothing is added in here — v goes back"
+			return m, nil
+		}
 		f := newEntry(m.layer().month, m.today)
 		m.form, m.mode = &f, editing
 		m.resize()
@@ -397,6 +390,19 @@ func (m Model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	}
 	return m, nil
+}
+
+// `v` is a room, not an overlay. It swaps the list for the finished lines of the
+// same layer instead of mixing the two, so every row in it is the same kind of thing
+// and the keymap can shrink to the two verbs that make sense there. A mixed list
+// could only offer an action once it had worked out what you had selected.
+func (m *Model) toggleView() tea.Cmd {
+	m.viewing = !m.viewing
+	m.list.ResetFilter() // a filter was about the rows you were looking at
+	m.list.Select(0)
+	clear(m.marked) // and so were the marks
+	m.status = ""
+	return m.reload()
 }
 
 func (m Model) updateMenu(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -480,13 +486,46 @@ func (m *Model) run(a action) tea.Cmd {
 		return nil
 	}
 	m.status = a.apply(m, picked)
-	if m.mode == editing || m.mode == sending {
+	if m.mode == editing || m.mode == sending || m.mode == erasing {
 		m.resize()
 		return nil // those modes own the selection until they are done
 	}
 	m.mode = browsing
 	clear(m.marked)
 	return m.reload()
+}
+
+// erase is the only thing here that removes a line, so it is the only thing that
+// asks. Everything else marks: done strikes through, a move leaves an arrow. A
+// mis-key on the others is visible and undoable by hand; this one is not.
+func (m *Model) confirmErase(picked []core.Task) string {
+	m.mode = erasing // run() resizes; doing it here is an init cycle through offered()
+	return ""
+}
+
+func (m Model) updateErase(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if msg.String() != "y" {
+		m.mode = browsing
+		m.resize()
+		return m, nil
+	}
+	doc, err := m.layer().open()
+	if err != nil {
+		m.status, m.mode = err.Error(), browsing
+		return m, nil
+	}
+	picked := m.picked()
+	for _, t := range picked {
+		doc.Remove(t)
+	}
+	if err := doc.Save(); err != nil {
+		m.status = err.Error()
+	} else {
+		m.status = plural(len(picked), "erased")
+	}
+	m.mode = browsing
+	clear(m.marked)
+	return m, m.reload()
 }
 
 func (m *Model) chooseDestination(picked []core.Task) string {

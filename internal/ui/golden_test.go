@@ -51,7 +51,7 @@ func TestScreens(t *testing.T) {
 	t.Run("garage", func(t *testing.T) {
 		sandbox(t)
 		garage(t, "2026-08",
-			"- ?? that config thing — does it even matter now",
+			"- ?? the billing page feels slow on first load",
 			"- add metrics to the worker +infra",
 			"- chase the landlord about the boiler",
 		)
@@ -114,23 +114,32 @@ func TestScreens(t *testing.T) {
 		frame(t, NewSweep(""))
 	})
 
-	// `v` reveals what you finished. It is the only way to reach a restore.
-	t.Run("showing_done", func(t *testing.T) {
+	// `v` is its own room: only the finished lines, and only two things to do to one.
+	t.Run("done_view", func(t *testing.T) {
 		sandbox(t,
 			"- [ ] Rotate the api keys priority:H due:2026-08-12 entry:2026-08-01 +infra",
-			"- [x] ~~Renew the passport~~ priority:H entry:2026-08-02 done:2026-08-06",
+			"- [x] ~~Renew the TLS certificate~~ priority:H entry:2026-08-02 done:2026-08-06",
 			"- [ ] Chase the invoice priority:M due:2026-08-25 entry:2026-08-05 +admin",
-			"- [ ] ~~Book the flights~~ priority:L entry:2026-08-03 dropped:2026-08-05",
+			"- [x] ~~Book the flights~~ priority:L entry:2026-08-03 done:2026-08-05",
 		)
 		frame(t, New(), "v")
 	})
 
-	t.Run("done_row_menu", func(t *testing.T) {
+	t.Run("done_view_menu", func(t *testing.T) {
 		sandbox(t,
 			"- [ ] Rotate the api keys priority:H entry:2026-08-01",
-			"- [x] ~~Renew the passport~~ priority:H entry:2026-08-02 done:2026-08-06",
+			"- [x] ~~Renew the TLS certificate~~ priority:H entry:2026-08-02 done:2026-08-06",
 		)
-		frame(t, New(), "v", "j", "enter")
+		frame(t, New(), "v", "enter")
+	})
+
+	// The only prompt in the interface, on the only action that removes a line.
+	t.Run("erase_confirm", func(t *testing.T) {
+		sandbox(t,
+			"- [ ] Rotate the api keys priority:H entry:2026-08-01",
+			"- [x] ~~Renew the TLS certificate~~ priority:H entry:2026-08-02 done:2026-08-06",
+		)
+		frame(t, New(), "v", "E")
 	})
 
 	t.Run("month_picker", func(t *testing.T) {

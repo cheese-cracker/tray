@@ -21,9 +21,26 @@ func bind(keys, help string) key.Binding {
 }
 
 func (m Model) keys() keyMap {
+	if m.mode == erasing {
+		asking := []key.Binding{bind("y", "erase"), bind("any other key", "keep it")}
+		return keyMap{short: asking, full: [][]key.Binding{asking}}
+	}
 	if m.mode == acting || m.mode == sending {
 		picking := []key.Binding{bind("↑↓", "choose"), bind("enter", "apply"), bind("esc", "back")}
 		return keyMap{short: picking, full: [][]key.Binding{picking}}
+	}
+
+	// The done view has its own two verbs and none of the others, so it gets its own
+	// footer rather than a shared one with half the keys greyed out. `E` appears here
+	// and in `?`, and in no other footer: it is the one key that removes a line, and
+	// it should be found deliberately rather than met while browsing.
+	if m.viewing {
+		short := []key.Binding{
+			bind("↑↓", "move"), bind("space", "select"), bind("tab", "switch"),
+			bind("R", "restore"), bind("E", "erase"), bind("v", "back"),
+			bind("/", "filter"), bind("?", "help"), bind("q", "quit"),
+		}
+		return keyMap{short: short, full: [][]key.Binding{short}}
 	}
 
 	// The footer teaches the arrows, because they are the keys someone opening this
@@ -38,11 +55,8 @@ func (m Model) keys() keyMap {
 	if !m.layer().isTray() {
 		short = append(short, bind("t", "take"))
 	}
-	done := bind("v", "show done")
-	if m.showDone {
-		done = bind("v", "hide done")
-	}
-	short = append(short, done, bind("/", "filter"), bind("?", "help"), bind("q", "quit"))
+	short = append(short, bind("v", "done view"), bind("/", "filter"),
+		bind("?", "help"), bind("q", "quit"))
 
 	// The action letters come from the layer, so the help teaches exactly the
 	// menu you would have got from enter.

@@ -27,7 +27,7 @@ few that graduate ever need it.
 go install github.com/cheese-cracker/tray/cmd/tray@latest
 
 tray init                      # creates ~/tray/
-tray dump that config thing    # capture, zero ceremony
+tray dump the billing page is slow    # capture, zero ceremony
 tray                           # open it
 ```
 
@@ -44,6 +44,9 @@ tray                           # open it
   plugins. *Not built yet.*
 - **⚖️ Few things well.** Inspired by the Eisenhower matrix. The tray is meant to be
   the small list of deliberate tasks.
+- **⏭️ Forward-looking, not an archive.** tray is for the tasks still ahead of you. It
+  is not built to help you find what you finished last quarter — finished lines stay in
+  the file as a record, out of your way, in a view of their own.
 
 ## The interface
 
@@ -54,30 +57,31 @@ Bare `tray` on a terminal opens it.
 │  tray  ││  garage · August  │
 │        └┴───────────────────┴────────────────────────────────────────┤
 │                                                                      │
-│     task                         urg   pri  due         tags         │
-│   ● Rotate the api keys          17.1  H    2026-08-12 Wed  +infra   │
-│  ▸  Book the flights             7.3   L    2026-08-20 Thu           │
-│     Review the deploy checklist  4.7   M                +infra       │
+│         task                         urg   pri  due             tags │
+│   ● [ ] Rotate the api keys          17.1  H    2026-08-12 Wed +infra│
+│  ▸  [ ] Chase the invoice            8.1   M    2026-08-25 Tue +admin│
+│     [ ] Review the deploy checklist  4.7   M                   +infra│
 │                                                                      │
 └──────────────────────────────────────────────────────────────────────┘
- ↑↓ move · space select · tab switch · enter act · a add · v show done
+ ↑↓ move · space select · tab switch · enter act · a add · v done view
  / filter · ? help · q quit
 ```
 
 **Two tabs, day to day:** what you're doing, and what you dumped this month. Tray rows
-carry the same checkbox their file does — `[ ]`, `[x]` done, `[-]` dropped. Garage lines
-have no checkbox in the file, so they don't grow one on screen.
+carry the same checkbox their file does — `[ ]` and `[x]`. Garage lines have no checkbox
+in the file, so they don't grow one on screen.
 
 | | |
 |---|---|
 | `↑` `↓` | move — `j` `k` also work |
 | `tab` | switch layer, cycling at either end. `⇧tab` goes back |
 | `space` | select. Actions apply to your selection, or to the row under the cursor |
-| `enter` | the action menu — take, rewrite, done, hand back, move, delete |
+| `enter` | the action menu — take, rewrite, done, hand back, move |
 | `r` | rewrite. On the tray that's every field; **in the garage it's the words alone** |
 | `a` | add — a bare line in the garage, the full form on the tray |
 | `t` | take a garage line onto the tray, and give it structure |
-| `/` | filter · `v` show what you finished · `?` help · `q` quit |
+| `v` | the done view — what you finished, and the only place to restore or erase one |
+| `/` | filter · `?` help · `q` quit |
 
 Setting a priority on a garage line means you want it on the tray — so the garage
 form doesn't offer one. `t` is how you say that, and it carries the line across.
@@ -92,8 +96,10 @@ Press **`?`** for a full-screen explainer: what the two layers are, and every ke
 - 🗓️ **A garage per month** — dump into November in August, if that's when you'll do it.
 - 🔁 **A month-turn sweep** — `tray carryover` opens the months as tabs so you can triage
   what's left before it rolls forward.
-- ♻️ **Nothing is ever deleted.** Finishing strikes a line through in place; `v` shows
-  them, `R` restores one you finished by accident.
+- ♻️ **Nothing live is ever deleted.** Finishing strikes a line through in place rather
+  than moving it. `v` opens the done view, where `R` restores one you finished by
+  accident and `E` erases one that should never have been written — the only way to
+  remove a line, and only ever a finished one.
 - 🔍 **`/` fuzzy filter** over text and tags, and `tray find` across every month at once —
   a line that keeps reappearing is a rot signal you get for free.
 - ✍️ **One form to restructure**, every field prefilled, so only what you touch changes.
@@ -115,10 +121,10 @@ Press **`?`** for a full-screen explainer: what the two layers are, and every ke
 ```markdown
 # tray.md
 - [ ] Rotate the api keys priority:H due:2026-08-12 entry:2026-08-07
-- [x] ~~Renew the passport~~ priority:H done:2026-08-06
+- [x] ~~Renew the TLS certificate~~ priority:H done:2026-08-06
 
 # 2026-08.md
-- ?? that config thing — does it even matter now
+- ?? the billing page feels slow on first load
 - add metrics to the worker +infra
 - Rotate the api keys priority:H → tray
 ```
@@ -160,28 +166,33 @@ it. This is the same tool and the same files — just the half you don't have to
 
 | | |
 |---|---|
-| `tray 1 done` · `tray 3 drop` | Struck through in place, dated. Never moved, never deleted. |
+| `tray 1 done` | Struck through in place, dated. Never moved. |
 | `tray 2,5-7 done` | Ranges, like Taskwarrior. |
-| `tray 2 restore` | Says it wasn't finished after all. Ids resolve against `tray list --all`. |
+| `tray 2 restore` | Says it wasn't finished after all. |
+| `tray 4 erase` | **Removes the line.** The one verb that does — for something typed twice, or typed wrong. |
+
+> `restore` and `erase` both reach lines the default report hides, so both resolve ids
+> against `tray list --all`. The TUI only erases from the done view; the CLI doesn't
+> police that, the same way `rewrite` will set a priority in the garage.
 
 ### Editing
 
 | | |
 |---|---|
+| `tray 2 edit <new text>` | Rewrite one line's text, attributes untouched. |
+| `tray edit` · `tray garage edit` | Open the file in `$EDITOR`. |
 
 `rewrite` will set a priority on a garage line, where the TUI's form won't offer one.
 That asymmetry is deliberate: the interface guides a habit, the CLI doesn't police it —
 the files are yours either way, and an agent tidying one shouldn't have to argue with
 the tool.
-| `tray 2 edit <new text>` | Rewrite one line's text, attributes untouched. |
-| `tray edit` · `tray garage edit` | Open the file in `$EDITOR`. |
 
 ### Reading
 
 | | |
 |---|---|
 | `tray` | Grouped bullets with ids when piped. |
-| `tray list` · `tray list --all` | The dense table; `--all` includes `✓` done and `✗` dropped. |
+| `tray list` · `tray list --all` | The dense table; `--all` includes the `✓` finished ones. |
 | `tray garage list` | This month's jottpad. |
 | `tray +infra list` · `tray due:2026-08-12 list` | Filters. |
 | `tray find <text>` | Every layer, every month at once. |
@@ -215,7 +226,7 @@ already passed is not carried.
 | `due:` | `YYYY-MM-DD` on disk; shown with the weekday |
 | `entry:` | created, feeds the age term in urgency |
 | `from:` | which garage month it graduated from |
-| `done:` / `dropped:` | terminal, with the date |
+| `done:` | finished, with the date. The only terminal state |
 | `+tag` | `#tag` is read too, `+tag` is written |
 | `→ 2026-09` / `→ tray` | this line's live copy moved elsewhere; the line itself is history |
 

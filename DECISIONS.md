@@ -16,7 +16,8 @@ and the two are meant to agree.
 | 1 | Two layers: **garage** (dump) and **tray** (worklist) | Classifying at capture costs you the thought you were having | live |
 | 2 | Markdown files are the truth | You must be able to edit them with no tool in the loop | live |
 | 4 | Keep TW's field names and urgency coefficients | `tray export \| task import` stays a one-way hatch | live |
-| 5 | **Nothing is ever deleted.** `done`/`drop` strike through in place | The file is the record; that's what makes `find` a rot detector | live |
+| 5 | **Nothing is ever deleted.** `done`/`drop` strike through in place | The file is the record; that's what makes `find` a rot detector | superseded by 91 |
+| 5a | **Nothing live is ever deleted.** Finishing still strikes through in place; `E` erase removes a line, and reaches only a finished one | 5 held for a year of use and then failed on the one case it never covered: a line that should not have been written. Narrowing it keeps what it was protecting — a record you can trust `find` against — and gives up only the part that was protecting typos | live |
 | 6 | Copy-forward with an arrow: the source line stays, annotated `→ 2026-09` | Month files stay a record, and nothing can move twice | live |
 | 7 | take · hand back · carry forward are **one operation** | Three rituals were three code paths for the same move | live — but see 71: sharing the *move* is not sharing the *command* |
 | 8 | Ids are positional and ephemeral, never stored | A hand-edit can then never desync them | live |
@@ -42,8 +43,8 @@ and the two are meant to agree.
 | 22 | bubbletea, with tabs and a real pane | A picker can select a line; it can't do in-place editing or panes | live |
 | 24 | `enter` opens a menu whose letters **also work from the list** | Discoverable on day one, one keystroke by week two | live |
 | 25 | `rewrite` is **one form, every field prefilled** | Only what you touch changes; no wizard | live |
-| 26 | `d` hands back to the garage, `D` deletes | Your mapping | live |
-| 27 | `D` strikes through rather than removing the line | Consistent with 5. Flagged as overridable | live |
+| 26 | `d` hands back to the garage | Your mapping. `D` deleted, in the same breath; see 27 | live |
+| 27 | `D` strikes through rather than removing the line | Consistent with 5. Flagged as overridable — and 90 overrode it | superseded by 90 |
 | 28 | Two tabs day to day; **`tray carryover` opens the months as tabs** | The sweep is the one ritual that's about months | live, widened by 73 |
 | 28a | Tabs **cycle** at either end | With two or three tabs, stopping just makes you reach for the other key | live |
 | 30 | **Tags are typed**; the ones in use show as a hint | A picker was friction for the rarer case of a new tag | live |
@@ -194,7 +195,23 @@ Reported from use: two tasks went done when one was meant to.
 |---|---|---|---|
 | 89 | The tray rows draw a **markdown checkbox**: `[ ]` `[x]` `[-]` | `- [x]` is the most understood task idiom there is, and the tray file already writes one — the screen was the only place the two disagreed about shape. The column width is measured from the box rather than assumed | live |
 | 89a | The **garage keeps a one-character mark** | Its file writes `- a jotted line` with no box, and 2 says the file is the truth. Drawing one there would show something the line does not contain — and the absence is part of what says the garage asks nothing of you | live |
-| 89b | Dropped is `[-]`, which markdown has no box for | Obsidian's spelling for cancelled, and it reads instantly beside `[x]`. Mirroring the file exactly would draw an empty box, leaving strikethrough — styling, which vanishes when piped — as the only difference from unfinished work | live |
+| 89b | Dropped is `[-]`, which markdown has no box for | Obsidian's spelling for cancelled, and it reads instantly beside `[x]`. Mirroring the file exactly would draw an empty box, leaving strikethrough — styling, which vanishes when piped — as the only difference from unfinished work | dead with 90; the tray draws `[ ]` and `[x]` |
 | 89e | Ballot glyphs `☐ ☑ ☒` were tried and **reverted** | One column instead of three, and a third glyph for dropped that markdown lacks — but brackets look like the file they came from, and are not ambiguous-width under a CJK locale, where a terminal and `go-runewidth` can disagree and skew the table | live |
 | 89c | State moved to **its own column**, beside selection | They shared one cell, so a row that was both selected and finished lost its dot. Found by giving the box somewhere to live | live |
 | 89d | Purely visual: **`x` does not toggle** | A box invites ticking and unticking with one key, which would fold `R` into `x`. Worth considering, but changing what a key does is not the same change as changing how it looks | open |
+
+## Erase, and the done view
+
+| # | Decision | Why | Status |
+|---|---|---|---|
+| 90 | **`dropped:` is gone.** One terminal state, spelled `done:` | It was a second way to say finished that no report ever told apart: both hid from the default view, both showed under `--all`, both restored the same way. What it actually produced was a line you could neither work on nor get rid of — which is how the question of erasing came up at all | live |
+| 90a | A legacy `dropped:` is still **read**, and rewritten as `done:` | Attributes are read off the end of a line and only for known keys (17), so retiring the key from the read set would not delete it — it would absorb it into the task's own text. The read list is deliberately wider than the write list | live |
+| 91 | **`E` erases**: it removes the line from the file | Marking is right for everything with a history worth keeping. A line typed twice has none. Nothing else in the tool could remove one, so the file was the only place to do it | live |
+| 91a | The key is **`E`**, not `delete` or `backspace` | Your call. A letter you have to reach for suits a verb you should reach for; `backspace` is next to the keys you use most | live |
+| 91b | It **asks** — `y`, or any other key keeps it | The only prompt in the interface, on the only action that cannot be undone by hand. Everything else leaves a line behind to un-strike or an arrow to follow | live |
+| 92 | **`v` is a room, not an overlay.** It swaps the list for the finished lines rather than mixing them into the live ones | A mixed list could only offer an action after working out what you had selected, and the menu changed under you as the cursor moved. Homogeneous rows mean the keymap can be two verbs and stay two verbs | live |
+| 92a | `a` writes nothing there, and the footer drops the other keys | Adding in the done view would write a line the room cannot show. Take, done, hand back and move are all meaningless on a record | live |
+| 93 | **Erase is reachable only from the done view** | This is what 5a rests on: to remove a line you must first have said it was finished, which is one deliberate step before the destructive one. It also keeps `E` out of the footer you read all day | live |
+| 93a | The CLI does **not** enforce 93 — `tray <id> erase` reaches any line | 19 again: the interface teaches a habit, the CLI is the exact scriptable thing. Same split as 88c | live |
+| 93b | CLI `erase` resolves ids against **`list --all`**, as `restore` does | It has to reach a finished line, and only the `--all` id space names one. Both destructive-ish verbs read the same space, so they cannot disagree | live |
+| 94 | The room is called the **done view**, not "show done" | `v show done` sat in a footer next to `x done`, which read as a second way to mark something finished. Naming a place instead of an action removes the collision | live |

@@ -26,6 +26,9 @@ has()   { grep -qF -- "$2" "$TRAY_HOME/$1"; }
 count() { grep -cF -- "$2" "$TRAY_HOME/$1" 2>/dev/null || true; }
 # Ids come off the default view, which is what a user would be reading.
 id_of() { tray | grep -F -- "$1" | awk '{print $1}' | head -1; }
+# erase and restore both reach lines the default report hides, so both read ids off
+# `list --all`. Resolving one of them against the live report would name a neighbour.
+id_all_of() { tray list --all | grep -F -- "$1" | awk '{print $1}' | tr -dc '0-9'; }
 
 # A build failure is a failure, not a skip: skipping would report "all flows pass"
 # for a repo that doesn't compile. Only a missing toolchain is a legitimate skip.
@@ -70,8 +73,8 @@ has 2026-11.md "- add metrics to the worker +infra" \
 
 # --- F3 · arbitrary text is valid --------------------------------------------
 head_ "F3 · jottpad tolerance"
-tray dump '?? that config thing — does it even matter: probably not' >/dev/null
-has 2026-08.md '?? that config thing — does it even matter: probably not' \
+tray dump '?? the billing page feels slow — worth a look: probably' >/dev/null
+has 2026-08.md '?? the billing page feels slow — worth a look: probably' \
   && pass "colons, dashes and ?? survive" || bad "prose was parsed"
 teardown
 
@@ -112,22 +115,34 @@ case $(tray add Structureless thing) in
   *) bad "no nudge when structure is missing" ;;
 esac
 
-# --- F6 · done and drop ------------------------------------------------------
-head_ "F6 · done · drop"
-tray add Renew the passport pri:H >/dev/null
-tray "$(id_of 'Renew the passport')" "done" >/dev/null
-has tray.md "~~Renew the passport~~" && pass "struck through in place" || bad "not struck"
+# --- F6 · done marks, it does not move ---------------------------------------
+head_ "F6 · done strikes in place"
+tray add Renew the TLS certificate pri:H >/dev/null
+tray "$(id_of 'Renew the TLS certificate')" "done" >/dev/null
+has tray.md "~~Renew the TLS certificate~~" && pass "struck through in place" || bad "not struck"
 has tray.md "done:2026-08-07" && pass "done: dated" || bad "no done:"
-tray add Dead idea >/dev/null
-tray "$(id_of 'Dead idea')" drop >/dev/null
-has tray.md "dropped:2026-08-07" && pass "drop is terminal, not done" || bad "no dropped:"
-tray | grep -q "Dead idea" && bad "dropped item still in the default report" \
-  || pass "dropped item leaves the report"
+tray | grep -q "Renew the TLS certificate" && bad "a done item still in the default report" \
+  || pass "a done item leaves the report"
+
+# --- F21 · erase is the one verb that removes a line -------------------------
+head_ "F21 · erase removes the line"
+tray add Typed it twice pri:L >/dev/null
+tray "$(id_all_of 'Typed it twice')" erase >/dev/null
+grep -q "Typed it twice" "$TRAY_HOME/tray.md" \
+  && bad "erase left the line behind" || pass "erase removes the line outright"
+has tray.md "~~Renew the TLS certificate~~" \
+  && pass "and touches nothing else" || bad "erase took a neighbour with it"
+# A finished line is reachable too, and only through the --all id space.
+tray add Erase me once done >/dev/null
+tray "$(id_of 'Erase me once done')" done >/dev/null
+tray "$(id_all_of 'Erase me once done')" erase >/dev/null
+grep -q "Erase me once done" "$TRAY_HOME/tray.md" \
+  && bad "a finished line could not be erased" || pass "ids resolve against list --all"
 
 # --- F7 · unload, twice ------------------------------------------------------
 head_ "F7 · unload is idempotent"
 tray unload --to 2026-08 >/dev/null
-has 2026-08.md "~~Renew the passport~~" && has 2026-08.md "done:2026-08-07" \
+has 2026-08.md "~~Renew the TLS certificate~~" && has 2026-08.md "done:2026-08-07" \
   && pass "done items land struck and dated" || bad "done item lost its strike"
 has 2026-08.md "priority:H" && pass "open items keep their attrs" || bad "attrs dropped"
 [ "$(grep -c '^- ' "$TRAY_HOME/tray.md")" = "0" ] \

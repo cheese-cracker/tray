@@ -3,9 +3,9 @@
 │  tray  ││  garage · August  │                                                     
 │        └┴───────────────────┴─────────────────────────────────────────────────────
 │                                                                                  │
-│         task                 urg  pri  due  tags                                 │
-│     [ ] Rotate the api keys  6.0  H                                              │
-│  ▸  [x] Renew the passport   6.0  H                                              │
+│  ✓ done — what you finished here                                                 │
+│         task                       urg  pri  due  tags                           │
+│  ▸  [x] Renew the TLS certificate  6.0  H                                        │
 │                                                                                  │
 │                                                                                  │
 │                                                                                  │
@@ -13,8 +13,8 @@
 │                                                                                  │
 │                                                                                  │
 │                                                                                  │
-│  1 selected                                                                      │
-│  ▸ R  restore                                                                    │
+│  erase Renew the TLS certificate?  this removes it from the file — y to erase,   │
+│  any other key to keep                                                           │
 │                                                                                  │
 └──────────────────────────────────────────────────────────────────────────────────┘
- ↑↓ choose · enter apply · esc back
+ y erase · any other key keep it

@@ -3,12 +3,12 @@
 │  tray  ││  garage · August  │                                                     
 │        └┴───────────────────┴─────────────────────────────────────────────────────
 │                                                                                  │
-│  /inv                                                                            │
-│         task                         urg   pri  due             tags             │
-│  ▸  [ ] Rotate the api keys          17.1  H    2026-08-12 Wed  +infra           │
-│     [ ] Chase the invoice            8.1   M    2026-08-25 Tue  +admin           │
-│     [ ] Book the flights             7.3   L    2026-08-20 Thu                   │
-│     [ ] Review the deploy checklist  4.7   M                    +infra           │
+│  ✓ done — what you finished here                                                 │
+│         task                       urg  pri  due  tags                           │
+│  ▸  [x] Renew the TLS certificate  6.0  H                                        │
+│     [x] Book the flights           1.8  L                                        │
+│                                                                                  │
+│                                                                                  │
 │                                                                                  │
 │                                                                                  │
 │                                                                                  │
@@ -16,5 +16,5 @@
 │                                                                                  │
 │                                                                                  │
 └──────────────────────────────────────────────────────────────────────────────────┘
- ↑↓ move · space select · tab switch · enter act · a add · v done view · / filter
- ? help · q quit                                                                 
+ ↑↓ move · space select · tab switch · R restore · E erase · v back · / filter
+ ? help · q quit                                                              

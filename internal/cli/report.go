@@ -56,8 +56,6 @@ func mark(t core.Task) string {
 	switch {
 	case t.Done:
 		return "✓"
-	case t.Dropped:
-		return "✗"
 	case !t.Parsed():
 		return "?"
 	default:
@@ -186,14 +184,10 @@ func asJSON(items []core.Task, today time.Time) (string, error) {
 }
 
 func status(t core.Task) string {
-	switch {
-	case t.Done:
+	if t.Done {
 		return "completed"
-	case t.Dropped:
-		return "deleted"
-	default:
-		return "pending"
 	}
+	return "pending"
 }
 
 func twStamp(value string) string {

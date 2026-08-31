@@ -74,31 +74,23 @@ func (d *rowDelegate) Render(w io.Writer, m list.Model, i int, item list.Item) {
 	fmt.Fprint(w, d.render(cells, i == m.Index(), marked, false, r.Terminal()))
 }
 
-// state is the checkbox the tray file already writes — `[x]` done, `[ ]` open — with
-// `[-]` for dropped, which markdown has no box for and Obsidian spells this way.
+// state is the checkbox the tray file already writes — `[x]` done, `[ ]` open. Two
+// states, because that is what markdown has and what the model has.
 //
-// Ballot glyphs (☐ ☑ ☒) were tried and read worse: a box drawn from brackets looks like
+// Ballot glyphs (☐ ☑) were tried and read worse: a box drawn from brackets looks like
 // the file it came from, and is not ambiguous-width under a CJK locale. The garage has
 // no checkbox in its file, so it keeps a one-character mark instead.
 func (d *rowDelegate) state(t core.Task) string {
 	if !d.tray {
-		switch {
-		case t.Done:
+		if t.Done {
 			return "✓"
-		case t.Dropped:
-			return "✗"
-		default:
-			return " "
 		}
+		return " "
 	}
-	switch {
-	case t.Done:
+	if t.Done {
 		return "[x]"
-	case t.Dropped:
-		return "[-]"
-	default:
-		return "[ ]"
 	}
+	return "[ ]"
 }
 
 func (d *rowDelegate) headers() [nCols]string {
@@ -135,8 +127,7 @@ func (d *rowDelegate) cells(t core.Task) [nCols]string {
 // table instead of leaving it padded for rows that are no longer there.
 func (d *rowDelegate) measure(items []list.Item, avail int) {
 	w := [nCols]int{cPoint: 1, cMark: 1}
-	for _, box := range []string{d.state(core.Task{}), d.state(core.Task{Done: true}),
-		d.state(core.Task{Dropped: true})} {
+	for _, box := range []string{d.state(core.Task{}), d.state(core.Task{Done: true})} {
 		w[cBox] = max(w[cBox], lipgloss.Width(box))
 	}
 	h := d.headers()

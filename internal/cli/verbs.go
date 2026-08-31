@@ -197,6 +197,30 @@ func cmdRestore(req request) (string, error) {
 	return "restored: " + strings.Join(names, " · "), nil
 }
 
+// erase is the one thing here that removes a line. Everything else marks: `done`
+// strikes through in place, `unload` and `carryover` leave an arrow behind. This is
+// for a line that should not have been written — a typo, a duplicate — and there was
+// no way to remove one from the interface at all before.
+func cmdErase(req request) (string, error) {
+	doc, items, err := view(req, true)
+	if err != nil {
+		return "", err
+	}
+	picked := store.Resolve(items, req.ids)
+	if len(picked) == 0 {
+		return "no match", nil
+	}
+	var names []string
+	for _, t := range picked {
+		doc.Remove(t)
+		names = append(names, t.Text)
+	}
+	if err := doc.Save(); err != nil {
+		return "", err
+	}
+	return "erased: " + strings.Join(names, " · "), nil
+}
+
 func cmdRewrite(req request) (string, error) {
 	doc, items, err := view(req, false)
 	if err != nil {

@@ -19,7 +19,7 @@ import (
 const Version = "0.2.0"
 
 var verbs = []string{
-	"init", "dump", "add", "take", "rewrite", "edit", "done", "drop",
+	"init", "dump", "add", "take", "rewrite", "edit", "done", "erase",
 	"unload", "carryover", "list", "head", "find", "print", "export", "status",
 	"restore", "help",
 }
@@ -35,7 +35,7 @@ const usage = `tray — two layers of markdown. Dump to the garage, take onto th
   tray dump to:2026-11 +infra <text>
   tray add <desc> pri:H due:2026-08-12
   tray 3 take [pri:H due:...]        garage → tray, the structuring step
-  tray 1 done  ·  tray 3 drop  ·  tray 2,5-7 done
+  tray 1 done  ·  tray 2,5-7 done  ·  tray 3 erase   erase removes the line
   tray --all list  ·  tray 4 restore       see the finished; say one wasn't
   tray 2 rewrite pri:M               what the TUI runs on r
   tray 2 edit <new text>  ·  tray edit      one line, or the file in $EDITOR
@@ -199,8 +199,8 @@ func dispatch(req request) (string, error) {
 		return cmdFinish(req, "done")
 	case "restore":
 		return cmdRestore(req)
-	case "drop":
-		return cmdFinish(req, "dropped")
+	case "erase":
+		return cmdErase(req)
 	case "rewrite":
 		return cmdRewrite(req)
 	case "edit":
