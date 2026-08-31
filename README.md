@@ -258,3 +258,8 @@ can't desync anything.
 [FLOWS.md](FLOWS.md) is what must keep working, and the test that holds each promise.
 [DECISIONS.md](DECISIONS.md) is why things are the way they are.
 [ROADMAP.md](ROADMAP.md) is what's next.
+
+Built with [Bubble Tea, Bubbles, and Lip Gloss](https://charm.sh) from Charm, and
+recorded with [asciinema](https://asciinema.org). The task grammar takes its shape from
+[todo.txt](https://github.com/todotxt/todo.txt) and its field names from
+[Taskwarrior](https://taskwarrior.org).
