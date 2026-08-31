@@ -78,7 +78,7 @@ lived in was orphaned, so none of the history came with it — the import is one
 | 53 | The default home is **visible, in `~`** | 2 says you must be able to edit these with no tool in the loop, and XDG buries them where nobody looks. The convention splits on ownership, not platform: Taskwarrior hides `~/.task/` because you are not meant to open a sqlite file; org-mode, Obsidian and todo.txt stay visible because you are | live |
 | 53a | It is **`~/tray`**, not `~/task-garage` | The directory holds `tray.md` as well as the months, so the old name announced one of the two layers and not the pair. `~/tray` matches the binary and is a word shorter | live |
 | 54 | `scripts/check-tray.sh` **stays bash**, and builds the binary itself | Decision 37: it survived a whole-language rewrite unchanged. That property is worth one non-Go file | live |
-| 55 | No `internal/feature` until `tray install` needs it | A flag package with zero consumers is speculative code you can't test | live |
+| 55 | No `internal/feature` until something needs it | A flag package with zero consumers is speculative code you can't test. `tray install` was the only thing that would have, and 97 dropped it — so nothing does | live |
 
 ## The list layer
 
@@ -189,6 +189,14 @@ Reported from use: two tasks went done when one was meant to.
 | 88a | It **keeps** whatever the line already carries | A line handed back from the tray arrives with a priority (68). Not offering the field is different from clearing it, and the form only ever writes what you touched | live |
 | 88b | A garage batch rewrite is **refused** | The words are all there is, and one name for many is never the intent (25) — so a batch has nothing left to change. Better to say so than open a form with no fields | live |
 | 88c | The **CLI does not enforce 88**; `rewrite` and `modify` will set a priority on a garage line | Your call. 19 says the TUI is the product and the CLI is the agent surface: the interface teaches a habit, the CLI stays the exact scriptable thing it is documented as. `dump +infra` already writes a tag to the garage, so "no structure here" was never quite true either | live |
+
+## Setup
+
+| # | Decision | Why | Status |
+|---|---|---|---|
+| 97 | **`tray init` stays; `tray install` is dropped** before it was ever written | Two commands for one job, and the name was the tell: after `brew install tray`, typing `tray install` reads as a mistake. `init` is the convention for setting up a workspace and does not collide with the packager's verb | live |
+| 97a | Packaging is **goreleaser's job**, not a subcommand's | PATH and binary placement are what `go install` and Homebrew already do. Core also rejects software that relocates itself, since the package manager and the binary then disagree about which version is installed | live |
+| 97b | `init` is a **receipt**, not setup — and gains a prompt to earn its keep | `store.Write` already does `MkdirAll`, so every write path creates what it needs and `dump` works on a home that was never initialised. What init uniquely gives is `someday.md` and a line saying where the data lives. Offering the `tray head` shell line on a TTY is the job that makes it more than that — 20, 34 and 72 again, a third time | live |
 
 ## The recording
 
