@@ -39,7 +39,12 @@ build · `[personal]` may not belong in a general tool · `[shape]` a decision, 
   aligned for it (4).
 - [ ] `[plugin]` **todo.txt export** — one more shape of the grammar tray already writes.
 - [ ] `[plugin]` **Notion, Linear, Jira** — hosted stores keep a server-side id, which 8 says
-  tray does not hold. Pull-only as a 3P garage is the vetted first step.
+  tray does not hold. Pull-only as a 3P garage is the vetted first step. The cron'd agent
+  below is the cheaper answer to the same question, and does not need a plugin surface.
+- [ ] `[shell]` **A cron'd agent harness syncing the hosted stores** — Claude Code, Codex or
+  opencode on a schedule, reading Notion/Linear/Jira through their own connectors and calling
+  `tray dump`. Nothing to build but a prompt and a crontab: 19 already makes the CLI the agent
+  surface, so this sidesteps the plugin-surface fork that blocks every `[plugin]` item.
 - [ ] `[shell]` **Dictation into the garage** (ostt) — the garage has no schema, so a transcript
   can land without claiming to be a task yet. Needs only a way to call `tray dump`.
 - [ ] `[ours]` **Eisenhower view** — `core.Quadrant` is written and `tray export` emits it;
