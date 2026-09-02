@@ -283,7 +283,7 @@ func cmdHead(req request) (string, error) {
 	whens := make([]string, len(shown))
 	textW, whenW := 0, 0
 	for i, t := range shown {
-		whens[i] = when(t.Attrs["due"], today)
+		whens[i] = core.Day(t.Attrs["due"])
 		textW = max(textW, lipgloss.Width(text(t)))
 		whenW = max(whenW, lipgloss.Width(whens[i]))
 	}
@@ -297,7 +297,7 @@ func cmdHead(req request) (string, error) {
 		tint := lipgloss.NewStyle().Foreground(style.Priority(t.Priority()))
 		rows[i] = tint.Bold(true).Render(letter(t)) + "  " +
 			tint.Render(fill(clip(text(t), textW), textW)) + "  " +
-			whenStyle(whens[i]).Render(rightFill(whens[i], whenW))
+			whenStyle(shown[i].Attrs["due"], today).Render(rightFill(whens[i], whenW))
 	}
 	return box("tray", rows, 1+2+textW+2+whenW), nil
 }
@@ -333,32 +333,24 @@ func letter(t core.Task) string {
 
 // when is honest about the past. A task due last Monday rendered as "Mon" reads as
 // upcoming, which is the one thing a header must never get wrong.
-func when(due string, today time.Time) string {
-	d, ok := core.Date(due)
-	if !ok {
-		return ""
-	}
-	days := int(d.Sub(today).Hours() / 24)
-	switch {
-	case days < 0:
-		return fmt.Sprintf("%dd over", -days)
-	case days == 0:
-		return "today"
-	case days == 1:
-		return "tomorrow"
-	case days < 7:
-		return d.Format("Mon")
-	default:
-		return d.Format(core.DateLayout)
-	}
+func daysUntil(d, today time.Time) int {
+	return int(d.Sub(today).Hours() / 24)
 }
 
 // Overdue is the only thing here allowed to shout.
-func whenStyle(w string) lipgloss.Style {
-	switch {
-	case strings.HasSuffix(w, "over"):
+//
+// This takes the date rather than the rendered string. Sniffing the string is what it
+// used to do, and it only worked because the string carried the words `over` and
+// `today` — change the format and every row silently renders quiet.
+func whenStyle(due string, today time.Time) lipgloss.Style {
+	d, ok := core.Date(due)
+	if !ok {
+		return lipgloss.NewStyle().Foreground(style.Subtle)
+	}
+	switch days := daysUntil(d, today); {
+	case days < 0:
 		return lipgloss.NewStyle().Foreground(style.High).Bold(true)
-	case w == "today" || w == "tomorrow":
+	case days <= 1:
 		return lipgloss.NewStyle().Foreground(style.Medium)
 	default:
 		return lipgloss.NewStyle().Foreground(style.Subtle)

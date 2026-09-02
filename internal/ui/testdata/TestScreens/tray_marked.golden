@@ -3,11 +3,11 @@
 │  tray  ││  garage · August  │                                                     
 │        └┴───────────────────┴─────────────────────────────────────────────────────
 │                                                                                  │
-│         task                         pri  due             tags                   │
-│   ● [ ] Rotate the api keys          H    2026-08-12 Wed  +infra                 │
-│  ▸● [ ] Chase the invoice            M    2026-08-25 Tue  +admin                 │
-│     [ ] Book the flights             L    2026-08-20 Thu                         │
-│     [ ] Review the deploy checklist  M                    +infra                 │
+│         task                         pri  due         tags                       │
+│   ● [ ] Rotate the api keys          H    Wed Aug 12  +infra                     │
+│  ▸● [ ] Chase the invoice            M    Tue Aug 25  +admin                     │
+│     [ ] Book the flights             L    Thu Aug 20                             │
+│     [ ] Review the deploy checklist  M                +infra                     │
 │                                                                                  │
 │                                                                                  │
 │                                                                                  │

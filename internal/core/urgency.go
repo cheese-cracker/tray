@@ -16,7 +16,16 @@ const (
 
 var priorityWeight = map[string]float64{"H": 1.0, "M": 0.65, "L": 0.3}
 
-const DateLayout = "2006-01-02"
+// Two layouts, never one. DateLayout has to round-trip, so it keeps the year and the
+// machine ordering. DayLayout only has to be glanceable, so it drops the year — you do
+// not have tasks due next year, and DueRamp is flat past four weeks anyway.
+// Two layouts, never one. DateLayout has to round-trip, so it keeps the year and the
+// machine ordering. DayLayout only has to be glanceable, so it drops the year — you do
+// not have tasks due next year, and DueRamp is flat past four weeks anyway.
+const (
+	DateLayout = "2006-01-02" // what a file holds
+	DayLayout  = "Mon Jan 2"  // what a person reads
+)
 
 // Date parses YYYY-MM-DD. Anything else is no date, never an error.
 func Date(value string) (time.Time, bool) {
@@ -30,14 +39,21 @@ func Date(value string) (time.Time, bool) {
 	return d, true
 }
 
-// Day is a stored date made readable. The weekday is what actually tells you
-// whether something is soon; the file keeps plain ISO.
+// Day is a stored date made readable. The weekday leads, because it is the token that
+// tells you whether something is soon; the file keeps plain ISO either way.
+//
+// One shape for every date, with no year and no special case. A date in another year
+// therefore reads like one this year — the file still has the year, and nothing tray
+// models reaches that far out.
+//
+// An unparseable value comes back untouched, which is what lets the rewrite form show
+// a half-typed date as you type it.
 func Day(value string) string {
 	d, ok := Date(value)
 	if !ok {
 		return value
 	}
-	return value + " " + d.Format("Mon")
+	return d.Format(DayLayout)
 }
 
 func daysBetween(from, to time.Time) int {

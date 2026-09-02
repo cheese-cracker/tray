@@ -284,8 +284,8 @@ func TestWeekdayIsShownButNotEdited(t *testing.T) {
 	m := openRewrite(t)
 	m.form.at = fDue
 
-	if !strings.Contains(m.View(), "2026-08-12 Wed") {
-		t.Errorf("the weekday should be shown:\n%s", m.View())
+	if !strings.Contains(m.View(), "Wed Aug 12") {
+		t.Errorf("the readable date should be shown:\n%s", m.View())
 	}
 	if m.form.due != "2026-08-12" {
 		t.Errorf("buffer = %q, want the stored date alone", m.form.due)

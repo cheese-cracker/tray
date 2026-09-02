@@ -56,6 +56,9 @@ build · `[personal]` may not belong in a general tool · `[shape]` a decision, 
 - [ ] **Journal seeding** (`- [ ]` scrape) — only if the recurring-item problem comes back.
 - [ ] **`tray dump` asking for the month on a TTY** — `a` in a garage tab covers it, so
   re-addable rather than missing.
+- [ ] `[shape]` **A configurable date format** — `DayLayout` is one constant, which is the
+  right shape for one opinion and the wrong one for a preference. Same blocker as the config
+  file below: 18 keeps vocabulary in the files rather than a registry.
 - [ ] `[shape]` **A config file, so the row format is a choice** — 18 keeps the tag vocabulary
   in the files rather than a registry, and a config is the first crack in that. todo.txt is a
   different grammar, not a flag.

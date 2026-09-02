@@ -88,10 +88,14 @@ first=$(tray list | sed -n '2p')
 case $first in *"Urgent thing"*) pass "highest urgency first" ;; *) bad "got: $first" ;; esac
 [ "$(id_of 'Urgent thing')" = "1" ] && pass "id 1 is the most urgent" || bad "ids not canonical"
 has tray.md "entry:2026-08-07" && pass "entry: stamped" || bad "no entry:"
-tray list | grep -q "2026-08-08 Sat" \
-  && pass "reports show the weekday" || bad "no weekday: $(tray list | sed -n 2p)"
+tray list | grep -q "Sat Aug 8" \
+  && pass "reports lead with the weekday" || bad "no weekday: $(tray list | sed -n 2p)"
+tray list | grep -qE "20[0-9][0-9]" && bad "a date in this year printed its year" \
+  || pass "no year on screen"
 grep -q "Sat" "$TRAY_HOME/tray.md" && bad "the weekday leaked into the file" \
   || pass "the file stays plain ISO"
+has tray.md "due:2026-08-08" && pass "and keeps the year the screen dropped" \
+  || bad "the file must stay round-trippable"
 has tray.md "- [ ] Urgent thing priority:H due:2026-08-08" \
   && pass "attrs serialise in a stable order" || bad "got: $(grep Urgent "$TRAY_HOME/tray.md")"
 
@@ -349,9 +353,12 @@ case $out in *"╰─"*) pass "and it closes" ;; *) bad "unclosed box: $out" ;; 
 case $out in *"of 4"*) bad "a count was asked to go: $out" ;; *) pass "no count" ;; esac
 printf '%s' "$out" | grep -q "$(printf '\033')" \
   && bad "escape codes survived a pipe" || pass "plain when piped, coloured on a terminal"
-case $out in *"3d over"*) pass "a date already past reads as overdue" ;;
-  *) bad "an overdue task must not read as upcoming:\n$out" ;; esac
-case $out in *tomorrow*) pass "and a near one reads as near" ;; *) bad "no relative date:\n$out" ;; esac
+# One date shape everywhere: head prints what list prints, with nothing added for
+# lateness. Overdue is a colour, and a colour does not survive this pipe.
+case $out in *"Sat Aug 8"*) pass "head uses the one date format" ;;
+  *) bad "head must render dates like everything else:\n$out" ;; esac
+case $out in *"3d over"*|*tomorrow*) bad "a second date vocabulary came back:\n$out" ;;
+  *) pass "and carries no relative wording" ;; esac
 case $out in *[0-9][0-9].[0-9]*) bad "urgency numbers are noise here: $out" ;;
   *) pass "no urgency figures" ;; esac
 

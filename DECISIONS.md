@@ -190,6 +190,17 @@ Reported from use: two tasks went done when one was meant to.
 | 88b | A garage batch rewrite is **refused** | The words are all there is, and one name for many is never the intent (25) — so a batch has nothing left to change. Better to say so than open a form with no fields | live |
 | 88c | The **CLI does not enforce 88**; `rewrite` and `modify` will set a priority on a garage line | Your call. 19 says the TUI is the product and the CLI is the agent surface: the interface teaches a habit, the CLI stays the exact scriptable thing it is documented as. `dump +infra` already writes a tag to the garage, so "no structure here" was never quite true either | live |
 
+## Dates on screen
+
+| # | Decision | Why | Status |
+|---|---|---|---|
+| 98 | Screens print **`Wed Aug 12`**; files keep `2026-08-12` | `core.DateLayout` was doing both jobs, so a machine format was reading as a human one. Two constants now: one has to round-trip, the other only has to be glanceable | live |
+| 98a | **No year, ever** — and no special case for one | Tried it both ways. Restoring the year across years is defensible and still a second shape to hold; `DueRamp` is flat past four weeks, so a date that far out is already outside what tray models. The file keeps the year for the rare time you need it | live |
+| 98b | `tray list` follows the TUI | 19 makes the CLI the agent surface, so this could have split like 88c. It did not: one format is easier to hold than two, and an agent that needs an unambiguous date should read `tray export`, which is JSON with full timestamps | live |
+| 98c | `head` loses `3d over` · `today` · `tomorrow` | A second date vocabulary for one surface, and `when()` with it. One shape everywhere, about twenty lines less | live |
+| 98d | Overdue is **a colour and nothing else** | A `!` glyph was tried, because `head` prints plain when piped and a colour does not survive that. Dropped anyway: it was one more thing on a line whose whole point is that it is short. **The cost is real** — a piped `head` cannot tell late from upcoming, and F19 no longer promises it can. `list` still sorts overdue to the top by urgency | live |
+| 98e | `whenStyle` takes the **date**, not the rendered string | It used to switch on `HasSuffix(w, "over")`. Change the format and every row silently renders quiet — no error, no failing test, just a header that stops warning you | live |
+
 ## Setup
 
 | # | Decision | Why | Status |

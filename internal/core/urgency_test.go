@@ -2,6 +2,7 @@ package core
 
 import (
 	"math"
+	"strings"
 	"testing"
 	"time"
 )
@@ -105,9 +106,16 @@ func TestQuadrant(t *testing.T) {
 	}
 }
 
-func TestDayAddsTheWeekday(t *testing.T) {
-	if got := Day("2026-08-12"); got != "2026-08-12 Wed" {
-		t.Errorf("Day = %q, want the weekday alongside", got)
+func TestDayIsWeekdayFirstAndYearless(t *testing.T) {
+	if got := Day("2026-08-12"); got != "Wed Aug 12" {
+		t.Errorf("Day = %q, want the weekday first and no year", got)
+	}
+	// One shape for every date, whatever year it falls in. The year is the whole point
+	// of this format, so it gets its own assertion rather than living inside a golden.
+	for _, value := range []string{"2026-08-12", "2027-03-04"} {
+		if got := Day(value); strings.Contains(got, value[:4]) {
+			t.Errorf("Day(%q) = %q, want no year", value, got)
+		}
 	}
 	// Anything unparseable is handed back untouched — a hand-typed line must show
 	// as typed rather than vanish.
