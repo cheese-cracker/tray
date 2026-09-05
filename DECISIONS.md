@@ -190,6 +190,19 @@ Reported from use: two tasks went done when one was meant to.
 | 88b | A garage batch rewrite is **refused** | The words are all there is, and one name for many is never the intent (25) — so a batch has nothing left to change. Better to say so than open a form with no fields | live |
 | 88c | The **CLI does not enforce 88**; `rewrite` and `modify` will set a priority on a garage line | Your call. 19 says the TUI is the product and the CLI is the agent surface: the interface teaches a habit, the CLI stays the exact scriptable thing it is documented as. `dump +infra` already writes a tag to the garage, so "no structure here" was never quite true either | live |
 
+## The form's text fields
+
+| # | Decision | Why | Status |
+|---|---|---|---|
+| 100 | Text fields are **`bubbles/textinput`** | Hand-rolled editing only appended and backspaced, so a typo in the middle of a title was a retype. Already a direct dependency, so nothing new was pulled in | live |
+| 100a | **`←`/`→` belong to the field they are in** | The roadmap called this blocked on `due`'s day-shift claiming the arrows. It never was: `cycle()` only ever acted on `priority` and `due`, so on `title` and `tag` the arrows were dead keys. The hint line already says what they do per field | live |
+| 100b | One `newInput` builds all three | Three fields edited by three slightly different hand-rolled paths is how they drift. Prompt, width, caret and placeholder are set once | live |
+| 100c | `due` shows a **date, not a buffer** | It is the one text field whose arrows are spent on the value, so a caret there could not move. It reads as `Wed Aug 12` whether or not it is the live field, and typing still edits it | live |
+| 100f | The live row's colour comes from the **input's `TextStyle`**, never from a style wrapped around the row | textinput renders the text before the caret and after it as two separate `Render` calls with the caret's escape between them, and that escape carries a reset. An outer colour therefore dies at the caret: the value came out accent up to the caret and default after it. The label is styled separately, the value styles itself, and a test asserts both sides of the caret carry the same escape | live |
+| 100g | A plain value (`priority`, `due`) is painted with the **same** style an input gives its own text | Otherwise a row changes colour depending on whether it happens to be typed into, which is the same inconsistency one layer up | live |
+| 100d | Pasted text is still **flattened after** the input takes it | textinput handles the paste; a task is one line of a markdown file, so newlines collapse on the way out rather than being trusted on the way in | live |
+| 100e | The test helper sent a bare `KeySpace` | It carried no runes, which no terminal does — so every space test was passing against a message shape that does not exist. Fixed in the helper, and `edit` fills the rune in defensively | live |
+
 ## Tags
 
 | # | Decision | Why | Status |

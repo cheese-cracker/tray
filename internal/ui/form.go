@@ -6,7 +6,10 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/charmbracelet/bubbles/cursor"
+	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 
 	"github.com/cheese-cracker/tray/internal/core"
 	"github.com/cheese-cracker/tray/internal/store"
@@ -35,15 +38,73 @@ var priorities = []string{"H", "M", "L"}
 
 const defaultPriority = "M"
 
+// Every text field is one of these, built the same way, so `title`, `due` and `tag`
+// cannot drift into three slightly different editors. The label column is drawn by the
+// form, so the input contributes no prompt of its own.
+func newInput(value string) textinput.Model {
+	in := textinput.New()
+	in.Prompt = ""
+	in.SetValue(value)
+	in.CursorEnd()
+	in.Width = inputWidth
+	in.TextStyle = lipgloss.NewStyle()
+	in.Cursor.Style = cursorStyle
+	in.PlaceholderStyle = faintStyle
+	return in
+}
+
+// Wide enough for a real task title, narrow enough to stay inside the pane on an
+// eighty-column terminal. textinput scrolls within it rather than overflowing.
+const inputWidth = 46
+
+// liveValue is what the field you are on is drawn in — the same weight the table gives
+// the row under its cursor, so the form and the list agree about what "here" looks like.
+//
+// It has to be the input's own TextStyle rather than a style wrapped around the row.
+// textinput renders the text before the caret and the text after it as two separate
+// Renders with the caret's escape between them, and that escape carries a reset — so an
+// outer colour dies at the caret and the value comes out half one colour, half another.
+var liveValue = titleStyle
+
+// text is what a field currently holds. Enums are not in `inputs` and read as "".
+func (f form) text(name field) string { return f.inputs[name].Value() }
+
+// setText writes a field and marks it touched, which is what makes the form only ever
+// write back what you actually changed.
+func (f *form) setText(name field, value string) {
+	in := f.inputs[name]
+	in.SetValue(value)
+	in.CursorEnd()
+	f.inputs[name] = in
+	f.touched[name] = true
+}
+
+// focus puts the caret in the field the cursor is on and takes it out of every other,
+// so exactly one input is live at a time.
+func (f *form) focus() {
+	for name, in := range f.inputs {
+		if name == f.at {
+			in.Focus()
+			// After Focus, or SetMode reads the field as unfocused and hides the
+			// caret. Static rather than blinking: the form drops every tea.Cmd, so a
+			// blink would never be scheduled — this says so instead of relying on it.
+			in.Cursor.SetMode(cursor.CursorStatic)
+			in.TextStyle = liveValue
+		} else {
+			in.Blur()
+			in.TextStyle = lipgloss.NewStyle()
+		}
+		f.inputs[name] = in
+	}
+}
+
 type form struct {
 	tasks    []core.Task
 	month    string // which layer these came from; "" is the tray
 	creating bool   // a new line rather than an edit
 	at       field
-	title    string
+	inputs   map[field]textinput.Model // every free-text field; enums are not typed into
 	prio     string
-	due      string
-	tag      string
 	touched  map[field]bool
 	vocab    []string
 	batch    bool    // several tasks: the title is skipped, one name for many is never the intent
@@ -57,18 +118,23 @@ func newForm(tasks []core.Task, month string, today time.Time) form {
 		batch: len(tasks) > 1, today: today,
 	}
 	first := tasks[0]
-	f.title, f.prio, f.due = first.Text, first.Priority(), first.Attrs["due"]
+	f.prio = first.Priority()
 	if f.prio == "" {
 		f.prio = defaultPriority
 	}
 	// Every tag, space separated. It held `Tags[0]` for a long time, which meant
 	// rewriting a two-tag task silently dropped one — the grammar was never the limit,
 	// the form was.
-	f.tag = strings.Join(first.Tags, " ")
+	f.inputs = map[field]textinput.Model{
+		fTitle: newInput(first.Text),
+		fDue:   newInput(first.Attrs["due"]),
+		fTag:   newInput(strings.Join(first.Tags, " ")),
+	}
 	f.at = fTitle
 	if f.batch {
 		f.at = fPriority
 	}
+	f.focus()
 	return f
 }
 
@@ -78,7 +144,11 @@ func newEntry(month string, today time.Time) form {
 	f := form{
 		month: month, creating: true, touched: map[field]bool{},
 		vocab: store.Tags(), today: today, at: fTitle, prio: defaultPriority,
+		inputs: map[field]textinput.Model{
+			fTitle: newInput(""), fDue: newInput(""), fTag: newInput(""),
+		},
 	}
+	f.focus()
 	return f
 }
 
@@ -87,6 +157,7 @@ func newEntry(month string, today time.Time) form {
 func newTagger(tasks []core.Task, month string, today time.Time) form {
 	f := newForm(tasks, month, today)
 	f.only, f.at = []field{fTag}, fTag
+	f.focus()
 	return f
 }
 
@@ -115,9 +186,10 @@ func (f *form) move(by int) {
 			if next >= 0 && next < len(all) {
 				f.at = all[next]
 			}
-			return
+			break
 		}
 	}
+	f.focus() // exactly one input is live, and it is the one you are on
 }
 
 // cycle is h/l. Enum fields step through their values; a date shifts by a day.
@@ -127,14 +199,13 @@ func (f *form) cycle(by int) {
 		f.prio = clamp(priorities, f.prio, by) // an ordered scale clamps: l must never wrap L round to H
 		f.touched[fPriority] = true
 	case fDue:
-		day, ok := core.Date(f.due)
+		day, ok := core.Date(f.text(fDue))
 		if !ok {
 			day = f.today
 		} else {
 			day = day.AddDate(0, 0, by)
 		}
-		f.due = day.Format(core.DateLayout)
-		f.touched[fDue] = true
+		f.setText(fDue, day.Format(core.DateLayout))
 	}
 }
 
@@ -158,24 +229,30 @@ func clamp(options []string, current string, by int) string {
 	return options[next]
 }
 
-// typing edits the free-text fields; enums are picked, never typed. A paste lands
-// here too, and a pasted block can carry newlines and control characters — a task is
-// one line of a markdown file, so those collapse rather than splitting it in two.
-func (f *form) typed(runes []rune) {
-	text := oneLine(runes)
-	if text == "" {
+// edit hands the keystroke to whichever input has the caret. textinput owns insertion,
+// deletion, and the arrow keys inside a line; the form owns only which field is live.
+//
+// A paste can carry newlines, and a task is one line of a markdown file — so the value
+// is flattened afterwards rather than trusting what arrived.
+func (f *form) edit(msg tea.KeyMsg) {
+	f.focus() // `at` is the truth; focus follows it rather than the other way round
+	in, ok := f.inputs[f.at]
+	if !ok {
 		return
 	}
-	switch f.at {
-	case fTitle:
-		f.title += text
-		f.touched[fTitle] = true
-	case fDue:
-		f.due += text
-		f.touched[fDue] = true
-	case fTag:
-		f.tag += text
-		f.touched[fTag] = true
+	// A space reaches textinput as runes. Some senders set only the type, and an
+	// empty-runed message would insert nothing at all.
+	if msg.Type == tea.KeySpace && len(msg.Runes) == 0 {
+		msg.Runes = []rune{' '}
+	}
+	before := in.Value()
+	in, _ = in.Update(msg)
+	if flat := oneLine([]rune(in.Value())); flat != in.Value() {
+		in.SetValue(flat)
+	}
+	f.inputs[f.at] = in
+	if in.Value() != before {
+		f.touched[f.at] = true
 	}
 }
 
@@ -193,27 +270,6 @@ func oneLine(runes []rune) string {
 	return b.String()
 }
 
-func (f *form) backspace() {
-	edit := func(s string) string {
-		if s == "" {
-			return s
-		}
-		r := []rune(s)
-		return string(r[:len(r)-1])
-	}
-	switch f.at {
-	case fTitle:
-		f.title = edit(f.title)
-		f.touched[fTitle] = true
-	case fDue:
-		f.due = edit(f.due)
-		f.touched[fDue] = true
-	case fTag:
-		f.tag = edit(f.tag)
-		f.touched[fTag] = true
-	}
-}
-
 // apply writes only the fields that were touched, across every task in the form.
 func (f form) apply() (string, error) {
 	doc, err := layer{month: f.month}.open()
@@ -224,17 +280,17 @@ func (f form) apply() (string, error) {
 		return f.create(doc)
 	}
 	for _, t := range f.tasks {
-		if f.touched[fTitle] && !f.batch && strings.TrimSpace(f.title) != "" {
-			t.Text = strings.TrimSpace(f.title)
+		if f.touched[fTitle] && !f.batch && strings.TrimSpace(f.text(fTitle)) != "" {
+			t.Text = strings.TrimSpace(f.text(fTitle))
 		}
 		if f.touched[fPriority] {
 			set(&t, "priority", f.prio)
 		}
 		if f.touched[fDue] {
-			set(&t, "due", strings.TrimSpace(f.due))
+			set(&t, "due", strings.TrimSpace(f.text(fDue)))
 		}
 		if f.touched[fTag] {
-			t.Tags = strings.Fields(f.tag) // nil when empty, which clears them
+			t.Tags = strings.Fields(f.text(fTag)) // nil when empty, which clears them
 		}
 		doc.Set(t)
 	}
@@ -248,7 +304,7 @@ func (f form) apply() (string, error) {
 }
 
 func (f form) create(doc *store.Doc) (string, error) {
-	title := strings.TrimSpace(f.title)
+	title := strings.TrimSpace(f.text(fTitle))
 	if title == "" {
 		return "", nil // nothing typed: the same as cancelling
 	}
@@ -260,9 +316,9 @@ func (f form) create(doc *store.Doc) (string, error) {
 			priority = defaultPriority
 		}
 		set(&task, "priority", priority)
-		set(&task, "due", strings.TrimSpace(f.due))
+		set(&task, "due", strings.TrimSpace(f.text(fDue)))
 	}
-	task.Tags = strings.Fields(f.tag)
+	task.Tags = strings.Fields(f.text(fTag))
 	doc.Add(task)
 	if err := doc.Save(); err != nil {
 		return "", err
@@ -284,54 +340,45 @@ func (f form) update(key tea.KeyMsg) (form, bool, bool) {
 		return f, false, true // cancelled
 	case tea.KeyEnter:
 		return f, true, true // save
-	case tea.KeyBackspace:
-		f.backspace()
-		return f, false, false
 	case tea.KeyUp:
 		f.move(-1)
 		return f, false, false
-	case tea.KeyDown:
-		f.move(1)
-		return f, false, false
-	case tea.KeyLeft:
-		f.cycle(-1)
-		return f, false, false
-	case tea.KeyRight:
-		f.cycle(1)
-		return f, false, false
-	case tea.KeyTab:
+	case tea.KeyDown, tea.KeyTab:
 		f.move(1)
 		return f, false, false
 	}
 
-	// A paste — or a burst the terminal coalesced — is one message carrying many
-	// runes. It can never be a vim key, so it is always text. The len == 1 gate below
-	// used to be the only path, which dropped every paste on the floor.
-	if key.Type == tea.KeyRunes && (key.Paste || len(key.Runes) > 1) {
-		f.typed(key.Runes)
-		return f, false, false
+	// ←/→ do whatever the field they are in is for. On the two fields that hold a
+	// choice they change it; on a text field they move the caret, which is textinput's
+	// job and is why nothing here claims them globally. The hint line says which.
+	if key.Type == tea.KeyLeft || key.Type == tea.KeyRight {
+		by := 1
+		if key.Type == tea.KeyLeft {
+			by = -1
+		}
+		if f.at == fPriority || f.at == fDue {
+			f.cycle(by)
+			return f, false, false
+		}
 	}
 
-	// On an enum field the vim keys navigate; on a text field they are just letters.
-	if key.Type == tea.KeyRunes && len(key.Runes) == 1 {
-		enum := f.at == fPriority
-		switch {
-		case enum && key.Runes[0] == 'j':
+	// On an enum field the vim keys navigate. There is no input to type into there,
+	// so they cannot be letters; everywhere else they are.
+	if f.at == fPriority && key.Type == tea.KeyRunes && len(key.Runes) == 1 {
+		switch key.Runes[0] {
+		case 'j':
 			f.move(1)
-		case enum && key.Runes[0] == 'k':
+		case 'k':
 			f.move(-1)
-		case enum && key.Runes[0] == 'h':
+		case 'h':
 			f.cycle(-1)
-		case enum && key.Runes[0] == 'l':
+		case 'l':
 			f.cycle(1)
-		default:
-			f.typed(key.Runes)
 		}
 		return f, false, false
 	}
-	if key.Type == tea.KeySpace {
-		f.typed([]rune{' '})
-	}
+
+	f.edit(key)
 	return f, false, false
 }
 
@@ -348,28 +395,19 @@ func (f form) view() string {
 	}
 	b.WriteString("\n  " + titleStyle.Render(title) + "\n\n")
 
-	due := dashed(f.due)
-	if day := core.Day(f.due); day != f.due {
-		due = day
-	}
-	values := map[field]string{
-		fTitle: f.title, fPriority: radio(f.prio), fDue: due, fTag: f.tag,
-	}
 	for _, name := range f.fields() {
-		value := values[name]
-		row := fmt.Sprintf("  %-9s %s", fieldNames[name], value)
+		label := fmt.Sprintf("%-9s", fieldNames[name])
 		if name == f.at {
-			row = cursorStyle.Render(row)
-			if f.touched[name] {
-				row += " " + faintStyle.Render("edited")
-			}
-		} else if f.touched[name] {
+			label = cursorStyle.Render(label)
+		}
+		row := "  " + label + " " + f.value(name)
+		if f.touched[name] {
 			row += " " + faintStyle.Render("edited")
 		}
 		b.WriteString(row + "\n")
 	}
 
-	hint := "type to edit"
+	hint := "← → move · type to edit"
 	switch f.at {
 	case fPriority:
 		hint = "h l choose"
@@ -383,6 +421,33 @@ func (f form) view() string {
 	}
 	b.WriteString("\n" + faintStyle.Render("  ↑↓ field · "+hint+" · enter save · esc cancel") + "\n")
 	return b.String()
+}
+
+// value is what a row shows. A live field draws its input, caret and all; a quiet one
+// draws its text, and `due` takes the chance to read as a date rather than an ISO stamp.
+func (f form) value(name field) string {
+	if name == fPriority {
+		return paint(name == f.at, radio(f.prio))
+	}
+	live := name == f.at
+	// `due` is the one text field whose arrows are spent on the value rather than the
+	// caret, so a caret there would not move. It reads as a date instead, live or not.
+	if name == fDue {
+		return paint(live, dashed(core.Day(f.text(fDue))))
+	}
+	if live {
+		return f.inputs[name].View() // carries its own colour; see liveValue
+	}
+	return dashed(f.text(name))
+}
+
+// paint gives a plain value the same weight an input gives its own text, so a row does
+// not change colour depending on whether it happens to be typed into.
+func paint(live bool, s string) string {
+	if live {
+		return liveValue.Render(s)
+	}
+	return s
 }
 
 // radio spells the choice out rather than hiding two thirds of it behind a cycle.

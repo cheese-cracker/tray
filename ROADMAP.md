@@ -11,10 +11,6 @@ build · `[personal]` may not belong in a general tool · `[shape]` a decision, 
 
 ## Next
 
-- [ ] **`bubbles/textinput` in the rewrite form** — hand-rolled editing has no cursor and no
-  word motions. Blocked on `←`/`→` in `due`, which shifts by a day and a text input would claim.
-- [ ] **A visible cursor in the text fields** — a caret pinned to the end is unblocked and
-  binds no keys; a movable one is the item above.
 - [ ] **`u` undo, one level** — needs a snapshot in `store`. `E` erase is the only action that
   leaves nothing to recover by hand.
 - [ ] **`tray init` prompts on a TTY** — offers to write the `tray head` line into your shell

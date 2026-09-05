@@ -1,6 +1,9 @@
 package ui
 
 import (
+	"github.com/charmbracelet/lipgloss"
+	"github.com/muesli/termenv"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -20,11 +23,11 @@ func TestFormOpensPrefilled(t *testing.T) {
 	sandbox(t, "- [ ] rotate the api keys priority:M due:2026-08-12 +infra")
 	f := openRewrite(t).form
 
-	if f.title != "rotate the api keys" {
-		t.Errorf("title = %q", f.title)
+	if f.text(fTitle) != "rotate the api keys" {
+		t.Errorf("title = %q", f.text(fTitle))
 	}
-	if f.prio != "M" || f.due != "2026-08-12" || f.tag != "infra" {
-		t.Errorf("prefill = %q %q %q", f.prio, f.due, f.tag)
+	if f.prio != "M" || f.text(fDue) != "2026-08-12" || f.text(fTag) != "infra" {
+		t.Errorf("prefill = %q %q %q", f.prio, f.text(fDue), f.text(fTag))
 	}
 	if len(f.touched) != 0 {
 		t.Error("opening the form must not count as editing")
@@ -93,12 +96,12 @@ func TestTypingRenames(t *testing.T) {
 	sandbox(t, "- [ ] ab priority:H")
 	m := openRewrite(t)
 	m = keys(m, "c", "d").(Model) // title field is first
-	if m.form.title != "abcd" {
-		t.Errorf("title = %q", m.form.title)
+	if m.form.text(fTitle) != "abcd" {
+		t.Errorf("title = %q", m.form.text(fTitle))
 	}
 	m = keys(m, "backspace").(Model)
-	if m.form.title != "abc" {
-		t.Errorf("backspace failed: %q", m.form.title)
+	if m.form.text(fTitle) != "abc" {
+		t.Errorf("backspace failed: %q", m.form.text(fTitle))
 	}
 	keys(m, "enter")
 	if got := trayFile(t); !strings.Contains(got, "- [ ] abc priority:H") {
@@ -111,8 +114,8 @@ func TestTypingRenames(t *testing.T) {
 func TestVimKeysTypeIntoTheTitle(t *testing.T) {
 	sandbox(t, "- [ ] x")
 	m := openRewrite(t, "h", "j", "k", "l")
-	if m.form.title != "xhjkl" {
-		t.Errorf("title = %q, want the letters typed", m.form.title)
+	if m.form.text(fTitle) != "xhjkl" {
+		t.Errorf("title = %q, want the letters typed", m.form.text(fTitle))
 	}
 }
 
@@ -121,11 +124,11 @@ func TestDueShiftsByADay(t *testing.T) {
 	m := openRewrite(t)
 	m.form.at = fDue
 	m = keys(m, "right").(Model)
-	if got := m.form.due; got != "2026-08-13" {
+	if got := m.form.text(fDue); got != "2026-08-13" {
 		t.Errorf("due = %q, want 2026-08-13", got)
 	}
 	m = keys(m, "left", "left").(Model)
-	if got := m.form.due; got != "2026-08-11" {
+	if got := m.form.text(fDue); got != "2026-08-11" {
 		t.Errorf("due = %q, want 2026-08-11", got)
 	}
 }
@@ -135,7 +138,7 @@ func TestEmptyDueShiftsFromToday(t *testing.T) {
 	m := openRewrite(t)
 	m.form.at = fDue
 	m = keys(m, "right").(Model)
-	if got := m.form.due; got != "2026-08-07" {
+	if got := m.form.text(fDue); got != "2026-08-07" {
 		t.Errorf("due = %q, want today", got)
 	}
 }
@@ -146,22 +149,22 @@ func TestTagIsTyped(t *testing.T) {
 	sandbox(t, "- [ ] a thing +infra", "- [ ] another +ops")
 	m := openRewrite(t)
 	m.form.at = fTag
-	m.form.tag = ""
+	m.form.setText(fTag, "")
 
 	m = keys(m, "b", "i", "l", "l", "i", "n", "g").(Model)
-	if m.form.tag != "billing" {
-		t.Errorf("tag = %q, want the letters typed", m.form.tag)
+	if m.form.text(fTag) != "billing" {
+		t.Errorf("tag = %q, want the letters typed", m.form.text(fTag))
 	}
 	m = keys(m, "backspace").(Model)
-	if m.form.tag != "billin" {
-		t.Errorf("backspace failed: %q", m.form.tag)
+	if m.form.text(fTag) != "billin" {
+		t.Errorf("backspace failed: %q", m.form.text(fTag))
 	}
 
 	if hint := m.View(); !strings.Contains(hint, "in use:") {
 		t.Errorf("the tags already in use should be offered as a hint:\n%s", hint)
 	}
 
-	m.form.tag = "billing"
+	m.form.setText(fTag, "billing")
 	keys(m, "enter")
 	if got := trayFile(t); !strings.Contains(got, "+billing") {
 		t.Errorf("typed tag not saved:\n%s", got)
@@ -287,13 +290,13 @@ func TestWeekdayIsShownButNotEdited(t *testing.T) {
 	if !strings.Contains(m.View(), "Wed Aug 12") {
 		t.Errorf("the readable date should be shown:\n%s", m.View())
 	}
-	if m.form.due != "2026-08-12" {
-		t.Errorf("buffer = %q, want the stored date alone", m.form.due)
+	if m.form.text(fDue) != "2026-08-12" {
+		t.Errorf("buffer = %q, want the stored date alone", m.form.text(fDue))
 	}
 
 	m = keys(m, "right").(Model) // a day later
-	if m.form.due != "2026-08-13" {
-		t.Errorf("buffer = %q after ←→", m.form.due)
+	if m.form.text(fDue) != "2026-08-13" {
+		t.Errorf("buffer = %q after ←→", m.form.text(fDue))
 	}
 	keys(m, "enter")
 	if got := trayFile(t); !strings.Contains(got, "due:2026-08-13") || strings.Contains(got, "Thu") {
@@ -323,5 +326,83 @@ func TestPriorityStepsTheWayTheRadioReads(t *testing.T) {
 			t.Errorf("%q should move the dot %s, %d -> %d:\n%s",
 				step.key, step.wants, mid, got, keys(m, step.key).(Model).View())
 		}
+	}
+}
+
+// The point of textinput: a caret you can move, so a typo in the middle of a title is
+// a fix rather than a retype. Hand-rolled editing only ever appended and backspaced.
+func TestArrowsMoveTheCaretInTextFields(t *testing.T) {
+	sandbox(t, "- [ ] hello world priority:M")
+	m := openRewrite(t)
+
+	// Left five puts the caret before "world"; typing lands there, not at the end.
+	m = keys(m, "left", "left", "left", "left", "left").(Model)
+	m = keys(m, "b", "i", "g", " ").(Model)
+	if got := m.form.text(fTitle); got != "hello big world" {
+		t.Errorf("title = %q, want the text inserted at the caret", got)
+	}
+
+	// And backspace deletes at the caret rather than off the end.
+	m = keys(m, "backspace").(Model)
+	if got := m.form.text(fTitle); got != "hello bigworld" {
+		t.Errorf("title = %q, want the caret's character removed", got)
+	}
+}
+
+// The arrows belong to the field they are in. On priority and due they change the
+// value, which is why nothing claims them for the caret globally.
+func TestArrowsStillPickAValueOnChoiceFields(t *testing.T) {
+	sandbox(t, "- [ ] a thing priority:M due:2026-08-12")
+	m := openRewrite(t)
+
+	m.form.at = fPriority
+	if m = keys(m, "left").(Model); m.form.prio != "H" {
+		t.Errorf("priority = %q, want ← to pick", m.form.prio)
+	}
+	m.form.at = fDue
+	if m = keys(m, "right").(Model); m.form.text(fDue) != "2026-08-13" {
+		t.Errorf("due = %q, want → to shift a day", m.form.text(fDue))
+	}
+}
+
+// The value on the live row must be one colour from end to end. textinput renders the
+// text either side of the caret as two separate styled runs with a reset between them,
+// so a colour wrapped around the whole row dies at the caret — which is how this looked
+// half accent and half default until the style moved inside the input.
+func TestTheLiveRowIsOneColourEitherSideOfTheCaret(t *testing.T) {
+	was := lipgloss.ColorProfile()
+	lipgloss.SetColorProfile(termenv.TrueColor)
+	defer lipgloss.SetColorProfile(was)
+
+	sandbox(t, "- [ ] hello world priority:M")
+	m := keys(openRewrite(t), "left", "left", "left").(Model)
+
+	var line string
+	plain := regexp.MustCompile(`\x1b\[[0-9;]*m`)
+	for _, l := range strings.Split(m.View(), "\n") {
+		if strings.Contains(plain.ReplaceAllString(l, ""), "hello world") {
+			line = l
+		}
+	}
+	if line == "" {
+		t.Fatalf("no title row rendered:\n%s", m.View())
+	}
+
+	// Anchor on the caret — its run is the reversed one — and compare the runs either
+	// side of it. Everything else on the line is border and padding.
+	runs := regexp.MustCompile(`\x1b\[([0-9;]+)m([^\x1b]*)`).FindAllStringSubmatch(line, -1)
+	caret := -1
+	for i, r := range runs {
+		if strings.Contains(";"+r[1]+";", ";7;") {
+			caret = i
+		}
+	}
+	if caret <= 0 || caret+1 >= len(runs) {
+		t.Fatalf("no caret run found in %q", line)
+	}
+	before, after := runs[caret-1], runs[caret+1]
+	if before[1] != after[1] {
+		t.Errorf("text either side of the caret differs:\n  %q %q\n  %q %q",
+			before[1], before[2], after[1], after[2])
 	}
 }

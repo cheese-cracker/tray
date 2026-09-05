@@ -54,7 +54,9 @@ func keys(m tea.Model, presses ...string) tea.Model {
 func keyMsg(k string) tea.KeyMsg {
 	switch k {
 	case " ":
-		return tea.KeyMsg{Type: tea.KeySpace}
+		// bubbletea carries the rune on a space too; a bare KeySpace is not what a
+		// terminal actually sends, and a helper that lies makes the tests lie.
+		return tea.KeyMsg{Type: tea.KeySpace, Runes: []rune{' '}}
 	case "enter":
 		return tea.KeyMsg{Type: tea.KeyEnter}
 	case "esc":
@@ -213,8 +215,8 @@ func TestTagKeyKeepsEveryTagOnBothLayers(t *testing.T) {
 	if got := m.form.fields(); len(got) != 1 || got[0] != fTag {
 		t.Errorf("the tagger offered %v, want the tag alone", got)
 	}
-	if m.form.tag != "infra work" {
-		t.Errorf("prefill = %q, want every tag", m.form.tag)
+	if m.form.text(fTag) != "infra work" {
+		t.Errorf("prefill = %q, want every tag", m.form.text(fTag))
 	}
 	keys(m, " ", "o", "p", "s", "enter")
 	if got := trayFile(t); !strings.Contains(got, "+infra +work +ops") {
