@@ -190,6 +190,19 @@ Reported from use: two tasks went done when one was meant to.
 | 88b | A garage batch rewrite is **refused** | The words are all there is, and one name for many is never the intent (25) — so a batch has nothing left to change. Better to say so than open a form with no fields | live |
 | 88c | The **CLI does not enforce 88**; `rewrite` and `modify` will set a priority on a garage line | Your call. 19 says the TUI is the product and the CLI is the agent surface: the interface teaches a habit, the CLI stays the exact scriptable thing it is documented as. `dump +infra` already writes a tag to the garage, so "no structure here" was never quite true either | live |
 
+## Colour
+
+| # | Decision | Why | Status |
+|---|---|---|---|
+| 102 | **Every colour comes from `internal/style`**, borrowed widgets included | The palette only ever covered the widgets we built. bubbles ships its own — a pink filter caret, a green filter prompt, three greys in the help — and they were on screen the whole time because nothing overwrote them | live |
+| 102a | One `brand()` repaints any `textinput` | The form's fields and the list's filter input are the same widget with the same need, and one of them is not ours to construct. A palette applied at each construction site is a palette with holes | live |
+| 102b | A test walks **six screens** and fails on any colour outside the palette | The colours were never wrong in code — they were absent from it, which is what a review misses and a regression restores | live |
+
+| 103 | The `due` column is coloured, in **two states**: now-or-earlier, and later | It is the one attribute that is about today rather than about the task, and picking out what is on you is the reason to look at the list at all. Three states (overdue / today / later) would ask you to tell red from amber to learn what the ordering already told you | live |
+| 103a | They are **named meanings**, not new hues — `style.Now` is `High`, `style.Later` is `Subtle` | One red means urgent everywhere. A palette that grows an entry per feature stops being a palette, and the six-screen test in 102b would have had two more colours to allow | live |
+| 103b | A **finished row keeps none of it** | The colour is what says "done"; a red due date on a line you already closed is shouting about nothing | live |
+| 103c | Columns can carry a `tint` of their own | `due` is the only one so far. The alternative was a special case in the row renderer keyed on the column's name, which is what the declared list in 95b exists to avoid | live |
+
 ## The form's text fields
 
 | # | Decision | Why | Status |

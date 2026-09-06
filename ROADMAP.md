@@ -48,6 +48,10 @@ build · `[personal]` may not belong in a general tool · `[shape]` a decision, 
 - [ ] **Journal seeding** (`- [ ]` scrape) — only if the recurring-item problem comes back.
 - [ ] **`tray dump` asking for the month on a TTY** — `a` in a garage tab covers it, so
   re-addable rather than missing.
+- [ ] **Revisit the colours `tray head` uses** — it is the one surface that spends four
+  palette entries at once (priority tints the row, the due date tints itself), which is a
+  lot of colour for three lines. Every one is from the palette, so this is taste rather
+  than consistency — and a header nobody can scan at a glance is worse than a loud one.
 - [ ] `[shape]` **A row format setting, so the interface can wear another convention** —
   `taskwarrior` would write `+tag`, show the urgency column the interface hides, and use its
   date shape; `todo.txt` would write `x ` for done, `(A)` for priority and `@context`. Today

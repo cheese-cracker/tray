@@ -28,6 +28,15 @@ var (
 	High   = lipgloss.AdaptiveColor{Light: "#D20F39", Dark: "#F38BA8"}
 	Medium = lipgloss.AdaptiveColor{Light: "#FE640B", Dark: "#FAB387"}
 	Low    = lipgloss.AdaptiveColor{Light: "#1E66F5", Dark: "#89B4FA"}
+
+	// A date reads in two states and no more: it is on you now, or it is not yet.
+	// Three of them (overdue / today / later) asks you to tell red from amber to learn
+	// something the ordering already told you.
+	//
+	// These name a meaning rather than adding a hue — one red means urgent everywhere,
+	// and a palette that grows an entry per feature stops being a palette.
+	Now   = High   // due today, or already past
+	Later = Subtle // due after today
 )
 
 // Priority is the colour for H, M or L. An unset priority reads as medium but was

@@ -96,6 +96,13 @@ func start(m Model) Model {
 	m.list.SetFilteringEnabled(true)
 	m.list.DisableQuitKeybindings() // q and esc mean tray things first
 	m.list.FilterInput.Prompt = ""
+	brand(&m.list.FilterInput)
+
+	// bubbles paints the filter caret pink and its prompt green, and the help keys in
+	// three greys of its own. None of that is ours, and a palette that only covers the
+	// widgets we happened to build is not a palette.
+	m.list.Styles.FilterPrompt = keyStyle
+	m.list.Styles.FilterCursor = cursorStyle
 
 	// Four ways to move a cursor is three too many. Paging follows the cursor on its
 	// own, so ↑↓ (and j k) are the whole of it.
@@ -110,6 +117,10 @@ func start(m Model) Model {
 	m.help = help.New()
 	m.help.ShortSeparator = " · "
 	m.help.FullSeparator = "   "
+	m.help.Styles.ShortKey, m.help.Styles.FullKey = keyStyle, keyStyle
+	m.help.Styles.ShortDesc, m.help.Styles.FullDesc = faintStyle, faintStyle
+	m.help.Styles.ShortSeparator = faintStyle
+	m.help.Styles.FullSeparator = faintStyle
 
 	m.reload() // no filter can be set yet, so there is no command to run
 	if m.sweep {

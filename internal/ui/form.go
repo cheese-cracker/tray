@@ -47,10 +47,19 @@ func newInput(value string) textinput.Model {
 	in.SetValue(value)
 	in.CursorEnd()
 	in.Width = inputWidth
+	brand(&in)
+	return in
+}
+
+// brand repaints an input in the palette. bubbles ships its own colours — a pink caret
+// and a grey placeholder that are nobody's brand — and every input in the app goes
+// through here so none of them keeps them. The list's filter input included, which is
+// not one of ours to construct.
+func brand(in *textinput.Model) {
 	in.TextStyle = lipgloss.NewStyle()
 	in.Cursor.Style = cursorStyle
 	in.PlaceholderStyle = faintStyle
-	return in
+	in.PromptStyle = keyStyle
 }
 
 // Wide enough for a real task title, narrow enough to stay inside the pane on an

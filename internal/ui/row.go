@@ -11,6 +11,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/cheese-cracker/tray/internal/core"
+	"github.com/cheese-cracker/tray/internal/style"
 )
 
 // row is one task as bubbles/list sees it. Filtering matches the words and the tags
@@ -36,6 +37,10 @@ type column struct {
 	tray bool   // tray only — the garage has none of these decided yet
 	desc bool   // the description: carries the row's state, and gives way when narrow
 	cell func(d *rowDelegate, t core.Task) string
+
+	// tint is a colour of this column's own, when the value carries meaning the other
+	// columns' do not. Nil is the common case: an attribute stays quiet.
+	tint func(d *rowDelegate, t core.Task) lipgloss.TerminalColor
 }
 
 // Every column the table knows how to draw.
@@ -52,7 +57,19 @@ var (
 		cell: func(_ *rowDelegate, t core.Task) string { return t.Priority() }}
 
 	colDue = column{head: "due", pad: 2, tray: true,
-		cell: func(_ *rowDelegate, t core.Task) string { return core.Day(t.Attrs["due"]) }}
+		cell: func(_ *rowDelegate, t core.Task) string { return core.Day(t.Attrs["due"]) },
+		// The one attribute that is about now rather than about the task. Two states:
+		// on you today or already past, or not yet — see style.Now.
+		tint: func(d *rowDelegate, t core.Task) lipgloss.TerminalColor {
+			due, ok := core.Date(t.Attrs["due"])
+			if !ok {
+				return style.Later
+			}
+			if !due.After(d.today) {
+				return style.Now
+			}
+			return style.Later
+		}}
 
 	colTags = column{head: "tags",
 		cell: func(_ *rowDelegate, t core.Task) string {
@@ -123,7 +140,7 @@ func (d *rowDelegate) Render(w io.Writer, m list.Model, i int, item list.Item) {
 	for j, c := range d.cols {
 		cells[j] = c.cell(d, r.Task)
 	}
-	fmt.Fprint(w, d.line(g, cells, i == m.Index(), marked, false, r.Terminal()))
+	fmt.Fprint(w, d.line(g, cells, &r.Task, i == m.Index(), marked, false, r.Terminal()))
 }
 
 func (d *rowDelegate) header() string {
@@ -131,7 +148,7 @@ func (d *rowDelegate) header() string {
 	for j, c := range d.cols {
 		heads[j] = c.head
 	}
-	return d.line([nGutter]string{}, heads, false, false, true, false)
+	return d.line([nGutter]string{}, heads, nil, false, false, true, false)
 }
 
 // state is the checkbox the tray file already writes — `[x]` done, `[ ]` open. Two
@@ -209,7 +226,7 @@ func (d *rowDelegate) measure(items []list.Item, avail int) {
 	d.widths = w
 }
 
-func (d *rowDelegate) line(g [nGutter]string, cells []string, selected, marked, header, finished bool) string {
+func (d *rowDelegate) line(g [nGutter]string, cells []string, t *core.Task, selected, marked, header, finished bool) string {
 	var b strings.Builder
 	for i := 0; i < nGutter; i++ {
 		cell := pad(g[i], d.gutter[i], gutterPad[i])
@@ -233,7 +250,13 @@ func (d *rowDelegate) line(g [nGutter]string, cells []string, selected, marked, 
 			cell = faintStyle.Render(cell)
 		case c.desc:
 			cell = taskStyle(selected, marked, finished).Render(cell)
-		case selected && !finished: // the attributes on the row you are on stay full
+		// A finished row is dull throughout: the colour is what says "done", and a red
+		// due date on a line you already closed is shouting about nothing.
+		case finished:
+			cell = faintStyle.Render(cell)
+		case c.tint != nil && t != nil:
+			cell = lipgloss.NewStyle().Foreground(c.tint(d, *t)).Render(cell)
+		case selected: // the attributes on the row you are on stay full
 		default: // the attribute columns stay quiet
 			cell = faintStyle.Render(cell)
 		}
