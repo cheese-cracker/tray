@@ -20,6 +20,16 @@ func bind(keys, help string) key.Binding {
 	return key.NewBinding(key.WithKeys(keys), key.WithHelp(keys, help))
 }
 
+// actionKeys is exactly the menu `enter` would have given, so `?` can never advertise
+// a letter the menu does not offer.
+func (m Model) actionKeys() []key.Binding {
+	var out []key.Binding
+	for _, a := range m.offered() {
+		out = append(out, bind(a.key, a.label))
+	}
+	return out
+}
+
 func (m Model) keys() keyMap {
 	if m.mode == acting || m.mode == sending {
 		picking := []key.Binding{bind("↑↓", "choose"), bind("enter", "apply"), bind("esc", "back")}
@@ -41,6 +51,19 @@ func (m Model) keys() keyMap {
 		return keyMap{short: short, full: [][]key.Binding{short}}
 	}
 
+	// The sweep is one job — decide where each leftover line goes — so its footer names
+	// the two verbs that job is made of and drops the ones the daily screen needs. Add,
+	// tag and filter all still work; they are simply not what you came here to do, and
+	// `enter` reaches them along with everything else.
+	if m.sweep {
+		short := []key.Binding{
+			bind("↑↓", "move"), bind("space", "select"), bind("tab", "switch"),
+			bind(">", "move to"), bind("t", "take"), bind("enter", "act"),
+			bind("v", "review"), bind("?", "help"), bind("q", "quit"),
+		}
+		return keyMap{short: short, full: [][]key.Binding{short, m.actionKeys()}}
+	}
+
 	// The footer teaches the arrows, because they are the keys someone opening this
 	// for the first time will already try. The vim aliases all work and are named in
 	// `?` — a footer that lists two ways to do one thing teaches neither.
@@ -60,12 +83,7 @@ func (m Model) keys() keyMap {
 	short = append(short, bind("v", "review"), bind("/", "filter"),
 		bind("?", "help"), bind("q", "quit"))
 
-	// The action letters come from the layer, so the help teaches exactly the
-	// menu you would have got from enter.
-	var acts []key.Binding
-	for _, a := range m.offered() {
-		acts = append(acts, bind(a.key, a.label))
-	}
+	acts := m.actionKeys()
 
 	rest := []key.Binding{bind("/", "filter")}
 	if m.filtering() {

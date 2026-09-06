@@ -3,6 +3,7 @@ package ui
 import (
 	"github.com/cheese-cracker/tray/internal/core"
 	"github.com/cheese-cracker/tray/internal/store"
+	"sort"
 )
 
 // A layer is one tab. Tray plus the garage months you can actually act on — last
@@ -33,26 +34,37 @@ func layers(sweep bool, closing string) []layer {
 			{title: monthTitle(this), month: this},
 		}
 	}
-	// Four months and no tray. `--month` replaces the closing tab so a month further
-	// back is still reachable; without it the tab is simply the previous one.
-	prev := store.PrevMonth(this)
+	// No tray, and the months this sweep is about: the one being closed, this one, and
+	// somewhere later. `--month` replaces the closing tab, so a month further back —
+	// or further forward — is reachable without quitting.
+	//
+	// `next` is only ever the forward slot, so it is dropped when the named month is
+	// already forward of this one: sweeping November in September needs September and
+	// November, and October is a month you did not come here to think about.
+	closingMonth := store.PrevMonth(this)
 	if closing != "" {
-		prev = closing
+		closingMonth = closing
 	}
-	out := []layer{{title: monthTitle(prev), month: prev}}
-	if prev != this {
-		out = append(out, layer{title: monthTitle(this), month: this})
+	months := []string{closingMonth, this}
+	if closingMonth <= this {
+		months = append(months, store.NextMonth(this))
 	}
-	next := store.NextMonth(this)
-	return append(out,
-		layer{title: monthTitle(next), month: next},
-		layer{title: store.Someday, month: store.Someday})
+
+	// Chronological, so the tabs read as a timeline whichever month was named. someday
+	// is not a date and sits at the end.
+	sort.Strings(months)
+	var out []layer
+	seen := map[string]bool{}
+	for _, m := range append(months, store.Someday) {
+		if seen[m] {
+			continue
+		}
+		seen[m] = true
+		out = append(out, layer{title: monthTitle(m), month: m})
+	}
+	return out
 }
 
-// sweepStart is the tab the sweep opens on: the current month, always. Which month is
-// "closing" depends on whether you sweep on the 30th or the 10th, so there is no
-// honest way to guess it — and landing somewhere predictable beats landing somewhere
-// clever that is sometimes wrong.
 func sweepStart(tabs []layer) int {
 	for i, l := range tabs {
 		if l.month == store.ThisMonth() {
@@ -86,15 +98,30 @@ func liveIn(month string) int {
 // destinations are where `>` can send the selection: every other layer, plus next
 // month, which is what carrying forward means.
 func (m Model) destinations() []layer {
-	this := store.ThisMonth()
-	all := []layer{
-		{title: "tray"},
-		{title: monthTitle(this), month: this},
-		{title: monthTitle(store.NextMonth(this)), month: store.NextMonth(this)},
-		{title: store.Someday, month: store.Someday},
-	}
-	if last := store.PrevMonth(this); liveIn(last) > 0 {
-		all = append(all, layer{title: monthTitle(last), month: last})
+	// Every tab on screen comes first, in tab order. Anything you can see is somewhere
+	// you can send a line — during a sweep the closing month is a tab and was not a
+	// destination, so a line could be carried out of it and never back.
+	var all []layer
+	all = append(all, m.layers...)
+
+	// The tray is always reachable, tab or not: the sweep has no tray tab, and triage
+	// is exactly when you decide something is for now rather than for later.
+	all = append(all, layer{title: "tray"})
+
+	// Beyond that the two screens want opposite things. The sweep is a closed world —
+	// the months it opened are the months it is about, and a fifth one in the picker is
+	// a month you did not come here to think about. The daily screen has only two tabs,
+	// so `>` is the whole of how someday and next month are reached at all (10).
+	if !m.sweep {
+		this := store.ThisMonth()
+		all = append(all,
+			layer{title: monthTitle(this), month: this},
+			layer{title: monthTitle(store.NextMonth(this)), month: store.NextMonth(this)},
+			layer{title: store.Someday, month: store.Someday},
+		)
+		if last := store.PrevMonth(this); liveIn(last) > 0 {
+			all = append(all, layer{title: monthTitle(last), month: last})
+		}
 	}
 
 	var out []layer

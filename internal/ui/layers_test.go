@@ -409,3 +409,85 @@ func TestSweepNamedMonthReplacesTheClosingTab(t *testing.T) {
 		t.Errorf("h should reach the named month, got %v", texts(got))
 	}
 }
+
+// `>` reaches every tab on screen — during a sweep the closing month is a tab, and a
+// line could be carried out of it and never back. The two screens want opposite things
+// beyond that: the sweep is closed to the months it opened, while the daily screen has
+// two tabs and needs `>` to reach someday and next month at all (10).
+func TestMoveToOffersTheTabsOnScreen(t *testing.T) {
+	sandbox(t)
+	garage(t, "2026-07", "- july leftover")
+	garage(t, "2026-08", "- august leftover")
+	garage(t, "2026-11", "- november thing")
+
+	titles := func(ls []layer) []string {
+		var out []string
+		for _, l := range ls {
+			out = append(out, l.title)
+		}
+		return out
+	}
+	has := func(t *testing.T, in []string, want string) bool {
+		t.Helper()
+		for _, s := range in {
+			if s == want {
+				return true
+			}
+		}
+		return false
+	}
+
+	sweep := NewSweep("2026-11")
+	dests := titles(sweep.destinations())
+	for _, want := range append(titles(sweep.layers), "tray") {
+		if want == sweep.layer().title {
+			continue // you cannot send a line where it already is
+		}
+		if !has(t, dests, want) {
+			t.Errorf("sweep should offer %q, got %v", want, dests)
+		}
+	}
+	// And nothing else: a fifth month is one you did not come here to think about.
+	if has(t, dests, "July") {
+		t.Errorf("sweep offered a month that is not a tab: %v", dests)
+	}
+
+	// The daily screen keeps reaching past its two tabs, which is what 10 rests on.
+	daily := titles(New().destinations())
+	for _, want := range []string{"September", "someday"} {
+		if !has(t, daily, want) {
+			t.Errorf("the daily screen should still reach %q, got %v", want, daily)
+		}
+	}
+}
+
+// `--month` names the month being swept, and the tabs follow from it. `next` is only
+// ever the forward slot, so a named month that is already forward makes it redundant —
+// sweeping November in August wants August and November, not October in between.
+func TestSweepTabsFollowTheNamedMonth(t *testing.T) {
+	sandbox(t) // "today" is 2026-08-07
+
+	for _, c := range []struct {
+		name    string
+		closing string
+		want    []string
+	}{
+		{"default closes last month", "", []string{"July", "August", "September", "someday"}},
+		{"a past month", "2026-07", []string{"July", "August", "September", "someday"}},
+		{"this month still needs a forward slot", "2026-08", []string{"August", "September", "someday"}},
+		{"a future month is the forward slot", "2026-11", []string{"August", "November", "someday"}},
+	} {
+		m := NewSweep(c.closing)
+		var got []string
+		for _, l := range m.layers {
+			got = append(got, l.title)
+		}
+		if strings.Join(got, " ") != strings.Join(c.want, " ") {
+			t.Errorf("%s: tabs = %v, want %v", c.name, got, c.want)
+		}
+		// Whichever month was named, you land on the one you are living in.
+		if m.layer().month != "2026-08" {
+			t.Errorf("%s: opened on %q, want this month", c.name, m.layer().title)
+		}
+	}
+}

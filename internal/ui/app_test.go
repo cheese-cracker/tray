@@ -242,6 +242,34 @@ func TestTagKeyKeepsEveryTagOnBothLayers(t *testing.T) {
 	}
 }
 
+// The sweep is one job, so its footer names that job's verbs and drops the daily ones.
+// The dropped keys still work — a footer is a hint, not a keymap.
+func TestTheSweepFooterNamesTheSweepsVerbs(t *testing.T) {
+	sandbox(t)
+	garage(t, "2026-07", "- left over from july")
+	garage(t, "2026-08", "- dumped this month")
+
+	view := NewSweep("2026-07").View()
+	for _, want := range []string{"> move to", "t take", "v review", "enter act"} {
+		if !strings.Contains(view, want) {
+			t.Errorf("the sweep footer should name %q:\n%s", want, view)
+		}
+	}
+	for _, gone := range []string{"a add", "# tag", "/ filter"} {
+		if strings.Contains(view, gone) {
+			t.Errorf("the sweep footer should not name %q:\n%s", gone, view)
+		}
+	}
+
+	// Still bound, just unadvertised — same as `#` working on the tray.
+	if m := keys(NewSweep("2026-07"), "a").(Model); m.mode != editing {
+		t.Error("a should still add during a sweep")
+	}
+	if m := keys(NewSweep("2026-07"), "/").(Model); !m.list.SettingFilter() {
+		t.Error("/ should still filter during a sweep")
+	}
+}
+
 // The negative half of T18: outside review mode the key does nothing, the menu does
 // not list it, and the footer does not name it. A verb you reach for twice a month
 // should be found deliberately, not met while working.
