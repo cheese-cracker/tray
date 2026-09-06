@@ -190,6 +190,19 @@ Reported from use: two tasks went done when one was meant to.
 | 88b | A garage batch rewrite is **refused** | The words are all there is, and one name for many is never the intent (25) — so a batch has nothing left to change. Better to say so than open a form with no fields | live |
 | 88c | The **CLI does not enforce 88**; `rewrite` and `modify` will set a priority on a garage line | Your call. 19 says the TUI is the product and the CLI is the agent surface: the interface teaches a habit, the CLI stays the exact scriptable thing it is documented as. `dump +infra` already writes a tag to the garage, so "no structure here" was never quite true either | live |
 
+## Tags
+
+| # | Decision | Why | Status |
+|---|---|---|---|
+| 99 | **`+` adds a tag**, on the tray and in the garage alike | Tags are the one piece of structure the garage already carries: `tray dump +infra` writes one and F2 promises it, so 88c already conceded "no structure here" was never quite true. This is the interface catching up with the grammar, not 88 being loosened — priority and due stay off the garage form | live |
+| 99a | The key is **`#`**, and `+` is gone | The key should be the character the tag is written with, and 101 made that `#`. No alias: greenfield, and two keys for one verb is the thing the keymap work spent a week removing | live |
+| 99d | The hint sits in the **garage footer only** | It works on both layers — the tray simply has `r` for the whole shape of a task, while the garage has nothing else, so tagging is the only structure it offers and the only place the hint earns a slot. Same rule `t take` already follows | live |
+| 101 | The interface draws **`#tag`**; the file keeps **`+tag`** | `#` is what a markdown editor highlights, and the screen is the one place that can differ from the file for free. The file stays Taskwarrior-shaped because 4 aligns the field names and `tray export \| task import` rests on it — and because a file already holding `+` would otherwise need migrating for a rendering preference | live |
+| 101a | Both spellings **parse**, which is what lets the two differ | `tagRe` is `^[+#]…` and always was. Nothing has to be converted, no file becomes ambiguous, and `tray dump +infra` still needs no shell quoting where `'#infra'` would | live |
+| 101b | The **CLI report keeps `+`** | It sits beside the file, not beside the interface. 19 makes it the agent surface, and an agent reading `#infra` out of `tray list` then grepping a file for it would find nothing | live |
+| 99b | It is the **tag field alone**, not the whole form | `+` is meant to be a keystroke. A form that also asks about priority and due is `r`, which is still there | live |
+| 99c | The form now holds **every tag**, not `Tags[0]` | It had to before this could ship: adding a tag to a two-tag task would have dropped one. `core` has held `Tags []string` all along and urgency already damps by count — the form was the only thing flattening it. Space separated in the field, `strings.Fields` on the way out | live |
+
 ## Dates on screen
 
 | # | Decision | Why | Status |

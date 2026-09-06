@@ -122,7 +122,7 @@ func helpKeys() string {
 		},
 		{
 			{"", "acting"},
-			{"a", "add"}, {"t", "take"}, {"r", "rewrite"},
+			{"a", "add"}, {"t", "take"}, {"r", "rewrite"}, {"#", "tag"},
 			{"x", "done"}, {"d", "hand back"}, {">", "move to"},
 		},
 		// Headed by the key that reaches them, because they are reachable nowhere else.

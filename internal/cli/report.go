@@ -89,7 +89,7 @@ func garageTable(items []core.Task, month string) string {
 	for n, t := range items {
 		var tags []string
 		for _, g := range t.Tags {
-			tags = append(tags, "+"+g)
+			tags = append(tags, core.TagMark+g)
 		}
 		rows = append(rows, []string{
 			fmt.Sprintf("%d%s", n+1, mark(t)), text(t), strings.Join(tags, " ")})

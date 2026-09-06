@@ -67,6 +67,27 @@ func TestRoundTrip(t *testing.T) {
 	}
 }
 
+// Both spellings are read; the file is written Taskwarrior-style, because 4 aligns the
+// field names with Taskwarrior and `tray export | task import` rests on that. The
+// interface draws `#`, which is a rendering choice and lives in the ui package.
+func TestATagIsReadEitherWayAndWrittenAsTaskwarrior(t *testing.T) {
+	for _, line := range []string{
+		"- add metrics to the worker +infra",
+		"- add metrics to the worker #infra",
+	} {
+		parsed, ok := Parse(line, 0)
+		if !ok {
+			t.Fatalf("did not parse: %q", line)
+		}
+		if len(parsed.Tags) != 1 || parsed.Tags[0] != "infra" {
+			t.Errorf("%q gave tags %v", line, parsed.Tags)
+		}
+		if got := Line(parsed, false); got != "- add metrics to the worker +infra" {
+			t.Errorf("%q wrote back as %q, want the file spelling", line, got)
+		}
+	}
+}
+
 func TestTerminalStates(t *testing.T) {
 	done, _ := Parse("- [x] ~~Ship it~~ done:2026-08-06", 0)
 	if !done.Done || done.Live() {

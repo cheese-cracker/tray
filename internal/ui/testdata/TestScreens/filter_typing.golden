@@ -5,10 +5,10 @@
 │                                                                                  │
 │  /inv                                                                            │
 │         task                         pri  due         tags                       │
-│  ▸  [ ] Rotate the api keys          H    Wed Aug 12  +infra                     │
-│     [ ] Chase the invoice            M    Tue Aug 25  +admin                     │
+│  ▸  [ ] Rotate the api keys          H    Wed Aug 12  #infra                     │
+│     [ ] Chase the invoice            M    Tue Aug 25  #admin                     │
 │     [ ] Book the flights             L    Thu Aug 20                             │
-│     [ ] Review the deploy checklist  M                +infra                     │
+│     [ ] Review the deploy checklist  M                #infra                     │
 │                                                                                  │
 │                                                                                  │
 │                                                                                  │

@@ -4,7 +4,7 @@
 │        └┴───────────────────┴───────────────
 │                                            │
 │         task             pri  due  tags    │
-│  ▸  [ ] a task with a …  H         +infra  │
+│  ▸  [ ] a task with a …  H         #infra  │
 │                                            │
 └────────────────────────────────────────────┘
  ↑↓ move · space select · tab switch    

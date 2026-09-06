@@ -42,6 +42,7 @@ var actions = []action{
 	{key: "d", label: "hand back", tray: true, apply: (*Model).handBack},
 	{key: ">", label: "move to", tray: true, rest: true, apply: (*Model).chooseDestination},
 	{key: "r", label: "rewrite", tray: true, rest: true, apply: (*Model).openForm},
+	{key: "#", label: "tag", tray: true, rest: true, apply: (*Model).openTagger},
 	{key: "E", label: "erase", tray: true, rest: true, apply: (*Model).erase},
 	{key: "R", label: "restore", tray: true, rest: true, apply: (*Model).restore},
 }
@@ -229,8 +230,8 @@ func (m *Model) picked() []core.Task {
 // The first row is what enter-enter does, so each layer leads with its own primary
 // action: restructure what you're working on, take what you jotted.
 var order = map[bool][]string{
-	true:  {"r", "x", "d", ">"}, // the tray
-	false: {"t", "r", ">", "x"}, // a garage month
+	true:  {"r", "#", "x", "d", ">"}, // the tray
+	false: {"t", "r", "#", ">", "x"}, // a garage month
 }
 
 // review is the whole of `v`'s keymap, and the only place either key appears.
@@ -545,6 +546,16 @@ func (m *Model) openForm(picked []core.Task) string {
 		return "rewrite takes one line at a time"
 	}
 	f := newForm(picked, m.layer().month, m.today)
+	m.form, m.mode = &f, editing
+	return ""
+}
+
+// openTagger is `+`: the tag field and nothing else, on either layer. Tags are the one
+// piece of structure the garage already carries — `tray dump +infra` writes one and F2
+// promises it — so this is the interface catching up with the grammar rather than 88
+// being loosened. Priority and due stay off the garage form.
+func (m *Model) openTagger(picked []core.Task) string {
+	f := newTagger(picked, m.layer().month, m.today)
 	m.form, m.mode = &f, editing
 	return ""
 }

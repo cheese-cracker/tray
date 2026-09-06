@@ -21,8 +21,13 @@ func (r row) FilterValue() string {
 	if len(r.Tags) == 0 {
 		return r.Text
 	}
-	return r.Text + " +" + strings.Join(r.Tags, " +")
+	return r.Text + " " + tagMark + strings.Join(r.Tags, " "+tagMark)
 }
+
+// tagMark is how the interface draws a tag. The file keeps Taskwarrior's `+` (see
+// core.TagMark); `#` is what a markdown editor highlights, and the screen is the one
+// place that can differ from the file without costing anything.
+const tagMark = "#"
 
 // column is one column of data: its heading, and how to fill it from a task.
 type column struct {
@@ -54,7 +59,7 @@ var (
 			if len(t.Tags) == 0 {
 				return ""
 			}
-			return "+" + strings.Join(t.Tags, " +")
+			return tagMark + strings.Join(t.Tags, " "+tagMark)
 		}}
 )
 

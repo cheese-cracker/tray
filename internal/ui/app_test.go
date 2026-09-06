@@ -200,6 +200,46 @@ func TestHandBackMovesToTheGarage(t *testing.T) {
 	}
 }
 
+// `+` is the tag key on both layers, and it must not eat the tags already there —
+// the form held Tags[0] for a long time, so a two-tag task lost one on every save.
+func TestTagKeyKeepsEveryTagOnBothLayers(t *testing.T) {
+	sandbox(t, "- [ ] two tags priority:M +infra +work")
+	garage(t, "2026-08", "- a jotting")
+
+	m := keys(New(), "#").(Model)
+	if m.mode != editing {
+		t.Fatal("# should open the tag field on the tray")
+	}
+	if got := m.form.fields(); len(got) != 1 || got[0] != fTag {
+		t.Errorf("the tagger offered %v, want the tag alone", got)
+	}
+	if m.form.tag != "infra work" {
+		t.Errorf("prefill = %q, want every tag", m.form.tag)
+	}
+	keys(m, " ", "o", "p", "s", "enter")
+	if got := trayFile(t); !strings.Contains(got, "+infra +work +ops") {
+		t.Errorf("adding a tag must keep the others:\n%s", got)
+	}
+
+	// The screen draws `#`, the file keeps Taskwarrior's `+`. Both spellings parse, so
+	// the two can differ without the file ever becoming ambiguous.
+	if view := keys(New(), "q").(Model).View(); !strings.Contains(view, "#infra") {
+		t.Errorf("the table should draw a # tag:\n%s", view)
+	}
+	if got := trayFile(t); strings.Contains(got, "#infra") {
+		t.Errorf("the file must keep the + spelling:\n%s", got)
+	}
+
+	// And the garage gets it, because `tray dump +infra` already writes tags there.
+	g := keys(New(), "tab", "#").(Model)
+	if g.mode != editing {
+		t.Fatal("# should open the tag field in the garage")
+	}
+	if got := g.form.fields(); len(got) != 1 || got[0] != fTag {
+		t.Errorf("the garage tagger offered %v, want the tag alone", got)
+	}
+}
+
 // The negative half of T18: outside review mode the key does nothing, the menu does
 // not list it, and the footer does not name it. A verb you reach for twice a month
 // should be found deliberately, not met while working.

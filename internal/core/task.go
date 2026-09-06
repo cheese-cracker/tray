@@ -14,6 +14,11 @@ var KnownAttrs = []string{"priority", "due", "project", "entry", "from", "done"}
 // into the task's own text — which is what an unknown key off the end of a line does.
 const legacyDropped = "dropped"
 
+// TagMark is what a tag is written with **in a file**. Taskwarrior's spelling, which is
+// what 4 aligns with and what `tray export | task import` rests on. Both are read (see
+// tagRe); the interface draws `#` instead, which is a rendering choice and not this one.
+const TagMark = "+"
+
 var aliases = map[string]string{"pri": "priority", "p": "priority", "proj": "project"}
 
 var (
@@ -167,7 +172,7 @@ func Line(t Task, checkbox bool) string {
 		}
 	}
 	for _, g := range t.Tags {
-		parts = append(parts, "+"+g)
+		parts = append(parts, TagMark+g)
 	}
 
 	box := ""

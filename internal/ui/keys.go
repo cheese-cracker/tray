@@ -50,8 +50,12 @@ func (m Model) keys() keyMap {
 		bind("↑↓", "move"), bind("space", "select"), bind("tab", "switch"),
 		bind("enter", "act"), bind("a", "add"),
 	}
+	// Both of these are garage-only in the footer, not in what the keys do. `t` has
+	// nowhere to take a tray line to. `#` works on the tray as well, but the tray has
+	// `r` for the whole shape of a task — the garage has nothing else, so tagging is
+	// the only structure it offers and the only place the hint earns a slot.
 	if !m.layer().isTray() {
-		short = append(short, bind("t", "take"))
+		short = append(short, bind("t", "take"), bind("#", "tag"))
 	}
 	short = append(short, bind("v", "review"), bind("/", "filter"),
 		bind("?", "help"), bind("q", "quit"))

@@ -11,10 +11,6 @@ build · `[personal]` may not belong in a general tool · `[shape]` a decision, 
 
 ## Next
 
-- [ ] **A key for tags in the garage** — `+`, no form. `tray dump +infra` already writes
-  tags there (88c), so this is the interface catching up with the grammar, not new structure.
-- [ ] **The rewrite form drops every tag but the first** — reads `first.Tags[0]`
-  (`internal/ui/form.go:64`) and writes one back (`:223`, `:253`). Correctness, not a feature.
 - [ ] **`bubbles/textinput` in the rewrite form** — hand-rolled editing has no cursor and no
   word motions. Blocked on `←`/`→` in `due`, which shifts by a day and a text input would claim.
 - [ ] **A visible cursor in the text fields** — a caret pinned to the end is unblocked and
@@ -56,6 +52,12 @@ build · `[personal]` may not belong in a general tool · `[shape]` a decision, 
 - [ ] **Journal seeding** (`- [ ]` scrape) — only if the recurring-item problem comes back.
 - [ ] **`tray dump` asking for the month on a TTY** — `a` in a garage tab covers it, so
   re-addable rather than missing.
+- [ ] `[shape]` **A row format setting, so the interface can wear another convention** —
+  `taskwarrior` would write `+tag`, show the urgency column the interface hides, and use its
+  date shape; `todo.txt` would write `x ` for done, `(A)` for priority and `@context`. Today
+  each of those is one decision hardcoded — `core.TagMark`, `columns` in `row.go`,
+  `core.DayLayout` — which is the right shape for one opinion and the wrong one for a choice.
+  Same blocker as the config file below.
 - [ ] `[shape]` **A configurable date format** — `DayLayout` is one constant, which is the
   right shape for one opinion and the wrong one for a preference. Same blocker as the config
   file below: 18 keeps vocabulary in the files rather than a registry.

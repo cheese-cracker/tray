@@ -10,6 +10,7 @@
   ↑↓  j k move          a       add        R       restore
   tab     switch layer  t       take       E       erase  
   space   select        r       rewrite    v/esc   leave  
-  enter   act           x       done                      
-  /       filter        d       hand back                 
-  v       review        >       move to                   
+  enter   act           #       tag                       
+  /       filter        x       done                      
+  v       review        d       hand back                 
+                        >       move to                   

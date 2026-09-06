@@ -54,6 +54,7 @@ The tray orders itself by priority, due date, and age.
 | `r` | rewrite. On the tray that's every field; **in the garage it's the words alone** |
 | `a` | add — a bare line in the garage, the full form on the tray |
 | `t` | take a garage line onto the tray, and give it structure |
+| `#` | tag — the tag field alone, on either layer. The footer names it in the garage, where it is the only structure on offer |
 | `v` | review — everything on the layer, live and finished. The frame changes colour, and it is the only place `R` restore and `E` erase exist. `v` or `esc` leaves |
 | `/` | filter · `?` help · `q` quit |
 
@@ -220,7 +221,7 @@ already passed is not carried.
 | `entry:` | created, feeds the age term in urgency |
 | `from:` | which garage month it graduated from |
 | `done:` | finished, with the date. The only terminal state |
-| `+tag` | `#tag` is read too, `+tag` is written |
+| `+tag` | `#tag` is read too, `+tag` is written. The interface draws `#`; the file keeps Taskwarrior's spelling |
 | `→ 2026-09` / `→ tray` | this line's live copy moved elsewhere; the line itself is history |
 
 Ids are positional and computed per report, never stored, so reordering a file by hand

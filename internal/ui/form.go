@@ -46,7 +46,8 @@ type form struct {
 	tag      string
 	touched  map[field]bool
 	vocab    []string
-	batch    bool // several tasks: the title is skipped, one name for many is never the intent
+	batch    bool    // several tasks: the title is skipped, one name for many is never the intent
+	only     []field // when set, the whole form is these fields — see newTagger
 	today    time.Time
 }
 
@@ -60,9 +61,10 @@ func newForm(tasks []core.Task, month string, today time.Time) form {
 	if f.prio == "" {
 		f.prio = defaultPriority
 	}
-	if len(first.Tags) > 0 {
-		f.tag = first.Tags[0]
-	}
+	// Every tag, space separated. It held `Tags[0]` for a long time, which meant
+	// rewriting a two-tag task silently dropped one — the grammar was never the limit,
+	// the form was.
+	f.tag = strings.Join(first.Tags, " ")
 	f.at = fTitle
 	if f.batch {
 		f.at = fPriority
@@ -80,7 +82,18 @@ func newEntry(month string, today time.Time) form {
 	return f
 }
 
+// tagging opens the same form showing nothing but the tag field. `+` is meant to be a
+// keystroke, not a form, so it does not ask about anything it was not asked about.
+func newTagger(tasks []core.Task, month string, today time.Time) form {
+	f := newForm(tasks, month, today)
+	f.only, f.at = []field{fTag}, fTag
+	return f
+}
+
 func (f form) fields() []field {
+	if len(f.only) > 0 {
+		return f.only
+	}
 	// The garage asks for the words and nothing else — when a line is new, and just
 	// as much when it is rewritten. A garage line *may* carry a priority, because one
 	// handed back from the tray keeps what it was given; there is simply no way to
@@ -221,11 +234,7 @@ func (f form) apply() (string, error) {
 			set(&t, "due", strings.TrimSpace(f.due))
 		}
 		if f.touched[fTag] {
-			if tag := strings.TrimSpace(f.tag); tag == "" {
-				t.Tags = nil
-			} else {
-				t.Tags = []string{tag}
-			}
+			t.Tags = strings.Fields(f.tag) // nil when empty, which clears them
 		}
 		doc.Set(t)
 	}
@@ -253,9 +262,7 @@ func (f form) create(doc *store.Doc) (string, error) {
 		set(&task, "priority", priority)
 		set(&task, "due", strings.TrimSpace(f.due))
 	}
-	if tag := strings.TrimSpace(f.tag); tag != "" {
-		task.Tags = []string{tag}
-	}
+	task.Tags = strings.Fields(f.tag)
 	doc.Add(task)
 	if err := doc.Save(); err != nil {
 		return "", err
