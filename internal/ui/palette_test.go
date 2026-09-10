@@ -43,6 +43,7 @@ func TestEveryColourComesFromThePalette(t *testing.T) {
 		"list":   base.(Model).View(),
 		"filter": keys(base, "/", "a").(Model).View(),
 		"form":   keys(base, "r").(Model).View(),
+		"note":   keys(base, "n").(Model).View(), // the textarea, focused
 		"menu":   keys(base, "enter").(Model).View(),
 		"review": keys(base, "v").(Model).View(),
 		"help":   keys(base, "?").(Model).View(),

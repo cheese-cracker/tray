@@ -37,8 +37,9 @@ build · `[personal]` may not belong in a general tool · `[shape]` a decision, 
   opencode on a schedule, reading Notion/Linear/Jira through their own connectors and calling
   `tray dump`. Nothing to build but a prompt and a crontab: 19 already makes the CLI the agent
   surface, so this sidesteps the plugin-surface fork that blocks every `[plugin]` item.
-- [ ] `[shell]` **Dictation into the garage** (ostt) — the garage has no schema, so a transcript
-  can land without claiming to be a task yet. Needs only a way to call `tray dump`.
+- [x] `[shell]` **Dictation into the garage** (ostt) — built as its own repo, `trashtalk`:
+  ostt → one model call, any provider → a prompt loop you can speak back into → `tray dump
+  --note`. Notes are the bridge; nothing in tray changed. Plan: `plan-2026-09-09-tray-voice-capture`.
 - [ ] `[ours]` **Eisenhower view** — `core.Quadrant` is written and `tray export` emits it;
   what is missing is somewhere to look at it.
 - [ ] `[ours]` **Priorities on tags** — urgency counts tags and never weighs which. Weighing
@@ -66,8 +67,8 @@ build · `[personal]` may not belong in a general tool · `[shape]` a decision, 
   different grammar, not a flag.
 - [ ] `[shape]` **A store that isn't markdown** — costs `store` as an interface, a second FLOWS
   suite, and gives up `find` as a rot detector and month files as a record (5, 6).
-- [ ] `[shape]` **`project`, `description` and other detail fields** — `project` was already
-  ruled out (9); `description` never has been. Reopening a settled one is allowed.
+- [ ] `[shape]` **`project` and other detail fields** — `project` was ruled out (9), and a note
+  shipped in place of a description (104). Reopening a settled one is allowed.
 - [ ] `[shape]` **`triggerAt`, so a task can act like a reminder** — nothing in tray runs on its
   own, so this wants a shell profile line before it wants a field (76).
 - [ ] `[shape]` **Nested task sets** — would this even match the ethos?

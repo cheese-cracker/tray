@@ -19,7 +19,7 @@ import (
 const Version = "0.2.0"
 
 var verbs = []string{
-	"init", "dump", "add", "take", "rewrite", "edit", "done", "erase",
+	"init", "dump", "add", "take", "rewrite", "edit", "note", "done", "erase",
 	"unload", "carryover", "list", "head", "find", "print", "export", "status",
 	"restore", "help",
 }
@@ -36,6 +36,7 @@ const usage = `tray — two layers of markdown. Dump to the garage, take onto th
   tray add <desc> pri:H due:2026-08-12
   tray 3 take [pri:H due:...]        garage → tray, the structuring step
   tray 1 done  ·  tray 2,5-7 done  ·  tray 3 erase   erase removes the line
+  tray 2 note <text>                 the indented lines under a task; --note on dump/add
   tray --all list  ·  tray 4 restore       see the finished; say one wasn't
   tray 2 rewrite pri:M               what the TUI runs on r
   tray 2 edit <new text>  ·  tray edit      one line, or the file in $EDITOR
@@ -52,11 +53,11 @@ Filters: bare ids (3, 2,5-7), +tag, and ` + "`garage`" + ` to switch layer.`
 
 type options struct {
 	json, all, run, draft, help, version bool
-	month, to                            string
+	month, to, note                      string
 	unknown                              []string // rejected, not ignored
 }
 
-var valueFlags = map[string]bool{"--month": true, "--to": true}
+var valueFlags = map[string]bool{"--month": true, "--to": true, "--note": true}
 
 func takeFlags(args []string) (options, []string) {
 	var opts options
@@ -79,10 +80,13 @@ func takeFlags(args []string) (options, []string) {
 		case arg == "--plain" || arg == "--yes":
 			// accepted and ignored: output is plain, and nothing here deletes
 		case valueFlags[arg] && i+1 < len(args):
-			if arg == "--month" {
+			switch arg {
+			case "--month":
 				opts.month = args[i+1]
-			} else {
+			case "--to":
 				opts.to = args[i+1]
+			case "--note":
+				opts.note = args[i+1]
 			}
 			i++
 		case strings.HasPrefix(arg, "--"):
@@ -142,6 +146,9 @@ func parse(args []string) request {
 }
 
 func merge(into *options, from options) {
+	if from.note != "" {
+		into.note = from.note
+	}
 	into.json = into.json || from.json
 	into.all = into.all || from.all
 	into.run = into.run || from.run
@@ -201,6 +208,8 @@ func dispatch(req request) (string, error) {
 		return cmdRestore(req)
 	case "erase":
 		return cmdErase(req)
+	case "note":
+		return cmdNote(req)
 	case "rewrite":
 		return cmdRewrite(req)
 	case "edit":

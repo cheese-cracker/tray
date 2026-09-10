@@ -190,6 +190,20 @@ Reported from use: two tasks went done when one was meant to.
 | 88b | A garage batch rewrite is **refused** | The words are all there is, and one name for many is never the intent (25) — so a batch has nothing left to change. Better to say so than open a form with no fields | live |
 | 88c | The **CLI does not enforce 88**; `rewrite` and `modify` will set a priority on a garage line | Your call. 19 says the TUI is the product and the CLI is the agent surface: the interface teaches a habit, the CLI stays the exact scriptable thing it is documented as. `dump +infra` already writes a tag to the garage, so "no structure here" was never quite true either | live |
 
+## Notes
+
+| # | Decision | Why | Status |
+|---|---|---|---|
+| 104 | A note is the **indented lines under a task** | The shape any markdown editor nests and any hand writes. Those lines were already preserved byte-for-byte as prose (F9); now they belong to the bullet above. An inline `note:"…"` would fight 17 — attrRe forbids spaces — and a paragraph on one line is unreadable in an editor | live |
+| 104a | **One note, undated.** Not Taskwarrior's dated annotations | Your framing: a bag of tasks, not a status manager. There is nothing to date, and a date on every line is what dated annotations cost | live |
+| 104b | An indented **bullet is still a task**; a blank line **ends** a note | `bulletRe` always allowed the indent, so "note" means indented-and-not-a-task. The blank line is the escape hatch for prose that sits under a task without belonging to it | live |
+| 104c | `Doc.Set` **defers to Save**, keyed by the line the task was parsed at | A task now spans lines. Every batch caller parses once and Sets in a loop; a note that grows would shift every index below it while the loop still holds the old ones. `removed` already worked this way — `Set` joins it | live |
+| 104d | The key is **`n`**, and add loses its alias | You called it (n)otes. Two keys for add was never load-bearing | live |
+| 104e | The row shows **`≡`**; the text is in the form | Rows stay one line. The column measures to nothing until the first note exists, so the table is unchanged for anyone who never writes one | live |
+| 104f | **Enter saves, `ctrl+j` is the newline** | Enter saves from every other field, and most notes are a sentence. A textarea whose enter inserts a line would make the common case two keystrokes to save the rare one | live |
+| 104g | `--note` is a **leading token on `dump`**, a flag on `add` | `dump`'s tail is literal (F3), so it cannot be a flag there. It joins `to:` and the tag as the things read off the front (F2), and past the first word of text it is just more sentence | live |
+| 104h | Exports as **one Taskwarrior annotation** | Their name for it. One entry, because the note is one thing | live |
+
 ## Colour
 
 | # | Decision | Why | Status |

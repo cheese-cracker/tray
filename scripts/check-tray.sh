@@ -143,6 +143,29 @@ tray "$(id_all_of 'Erase me once done')" erase >/dev/null
 grep -q "Erase me once done" "$TRAY_HOME/tray.md" \
   && bad "a finished line could not be erased" || pass "ids resolve against list --all"
 
+# --- F22 · a note is the indented lines under a task -------------------------
+head_ "F22 · note is the indented lines under a task"
+tray add --note "expires on the 12th" Rotate the keys pri:H >/dev/null
+has tray.md "  expires on the 12th" && pass "--note lands indented under the bullet" \
+  || bad "no note: $(grep -A1 'Rotate the keys' "$TRAY_HOME/tray.md")"
+tray "$(id_of 'Rotate the keys')" note "replaced whole" >/dev/null
+has tray.md "  replaced whole" && pass "note replaces the note" || bad "note did not land"
+grep -q "expires on the 12th" "$TRAY_HOME/tray.md" && bad "the old note lingered" \
+  || pass "and the old lines are gone, not stacked"
+tray "$(id_of 'Rotate the keys')" note | grep -q "replaced whole" \
+  && pass "note with nothing to set prints it" || bad "note did not print"
+tray export | grep -q '"annotations"' && pass "exports as a Taskwarrior annotation" \
+  || bad "no annotation in export"
+tray dump --note "why it matters" a jotting with a note >/dev/null
+has 2026-08.md "  why it matters" && pass "dump reads --note as a leading token" \
+  || bad "dump: $(grep -A1 'a jotting with a note' "$TRAY_HOME/2026-08.md")"
+tray dump this --note is literal mid-sentence >/dev/null
+has 2026-08.md "this --note is literal mid-sentence" \
+  && pass "and past the first word the tail stays literal" || bad "tail was parsed"
+tray "$(id_all_of 'Rotate the keys')" erase >/dev/null
+grep -q "replaced whole" "$TRAY_HOME/tray.md" && bad "erase left the note behind" \
+  || pass "erase takes the note with the line"
+
 # --- F7 · unload, twice ------------------------------------------------------
 head_ "F7 · unload is idempotent"
 tray unload --to 2026-08 >/dev/null

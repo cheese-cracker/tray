@@ -7,6 +7,8 @@ import (
 	"unicode"
 
 	"github.com/charmbracelet/bubbles/cursor"
+	"github.com/charmbracelet/bubbles/key"
+	"github.com/charmbracelet/bubbles/textarea"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -25,10 +27,11 @@ const (
 	fPriority
 	fDue
 	fTag
+	fNote
 )
 
 var fieldNames = map[field]string{
-	fTitle: "title", fPriority: "priority", fDue: "due", fTag: "tag",
+	fTitle: "title", fPriority: "priority", fDue: "due", fTag: "tag", fNote: "note",
 }
 
 // Left to right, exactly as the radio draws them. Stepping and drawing must read
@@ -75,8 +78,46 @@ const inputWidth = 46
 // outer colour dies at the caret and the value comes out half one colour, half another.
 var liveValue = titleStyle
 
+// newNote is the note's editor. It is a textarea because a note may run to several
+// lines — the one field where that is true — and enter still saves the form, as it
+// does from every other field; ctrl+j is the newline.
+func newNote(value string) textarea.Model {
+	a := textarea.New()
+	a.Prompt = ""
+	a.ShowLineNumbers = false
+	a.SetWidth(inputWidth)
+	a.SetHeight(noteHeight)
+	a.KeyMap.InsertNewline = key.NewBinding(key.WithKeys("ctrl+j"))
+	a.SetValue(value)
+	a.CursorEnd()
+	brandArea(&a)
+	return a
+}
+
+// Three lines on screen; the field scrolls past that. A note is a few sentences of
+// context, not a document, and the form has to stay inside the pane.
+const noteHeight = 3
+
+// brandArea is brand for a textarea: bubbles paints its cursor line and end-of-buffer
+// in colours of its own, and the palette test will name each one that is left.
+func brandArea(a *textarea.Model) {
+	plain := lipgloss.NewStyle()
+	a.Cursor.Style = cursorStyle
+	for _, st := range []*textarea.Style{&a.FocusedStyle, &a.BlurredStyle} {
+		st.Base, st.Text, st.CursorLine, st.EndOfBuffer = plain, plain, plain, plain
+		st.LineNumber, st.CursorLineNumber, st.Prompt = plain, plain, plain
+		st.Placeholder = faintStyle
+	}
+	a.FocusedStyle.Text = liveValue
+}
+
 // text is what a field currently holds. Enums are not in `inputs` and read as "".
-func (f form) text(name field) string { return f.inputs[name].Value() }
+func (f form) text(name field) string {
+	if name == fNote {
+		return strings.TrimSpace(f.note.Value())
+	}
+	return f.inputs[name].Value()
+}
 
 // setText writes a field and marks it touched, which is what makes the form only ever
 // write back what you actually changed.
@@ -91,6 +132,11 @@ func (f *form) setText(name field, value string) {
 // focus puts the caret in the field the cursor is on and takes it out of every other,
 // so exactly one input is live at a time.
 func (f *form) focus() {
+	if f.at == fNote {
+		f.note.Focus()
+	} else {
+		f.note.Blur()
+	}
 	for name, in := range f.inputs {
 		if name == f.at {
 			in.Focus()
@@ -112,7 +158,8 @@ type form struct {
 	month    string // which layer these came from; "" is the tray
 	creating bool   // a new line rather than an edit
 	at       field
-	inputs   map[field]textinput.Model // every free-text field; enums are not typed into
+	inputs   map[field]textinput.Model // every one-line field; enums are not typed into
+	note     textarea.Model            // the one field that is allowed a second line
 	prio     string
 	touched  map[field]bool
 	vocab    []string
@@ -139,6 +186,7 @@ func newForm(tasks []core.Task, month string, today time.Time) form {
 		fDue:   newInput(first.Attrs["due"]),
 		fTag:   newInput(strings.Join(first.Tags, " ")),
 	}
+	f.note = newNote(first.Note)
 	f.at = fTitle
 	if f.batch {
 		f.at = fPriority
@@ -156,6 +204,7 @@ func newEntry(month string, today time.Time) form {
 		inputs: map[field]textinput.Model{
 			fTitle: newInput(""), fDue: newInput(""), fTag: newInput(""),
 		},
+		note: newNote(""),
 	}
 	f.focus()
 	return f
@@ -166,6 +215,15 @@ func newEntry(month string, today time.Time) form {
 func newTagger(tasks []core.Task, month string, today time.Time) form {
 	f := newForm(tasks, month, today)
 	f.only, f.at = []field{fTag}, fTag
+	f.focus()
+	return f
+}
+
+// newNoter is `n`: the note and nothing else, on either layer. The garage form
+// otherwise asks for the words alone (88), and a note is more words, not structure.
+func newNoter(tasks []core.Task, month string, today time.Time) form {
+	f := newForm(tasks, month, today)
+	f.only, f.at = []field{fNote}, fNote
 	f.focus()
 	return f
 }
@@ -184,7 +242,7 @@ func (f form) fields() []field {
 	if f.batch {
 		return []field{fPriority, fDue, fTag}
 	}
-	return []field{fTitle, fPriority, fDue, fTag}
+	return []field{fTitle, fPriority, fDue, fTag, fNote}
 }
 
 func (f *form) move(by int) {
@@ -245,6 +303,14 @@ func clamp(options []string, current string, by int) string {
 // is flattened afterwards rather than trusting what arrived.
 func (f *form) edit(msg tea.KeyMsg) {
 	f.focus() // `at` is the truth; focus follows it rather than the other way round
+	if f.at == fNote {
+		before := f.note.Value()
+		f.note, _ = f.note.Update(msg)
+		if f.note.Value() != before {
+			f.touched[fNote] = true
+		}
+		return
+	}
 	in, ok := f.inputs[f.at]
 	if !ok {
 		return
@@ -301,6 +367,9 @@ func (f form) apply() (string, error) {
 		if f.touched[fTag] {
 			t.Tags = strings.Fields(f.text(fTag)) // nil when empty, which clears them
 		}
+		if f.touched[fNote] {
+			t.Note = f.text(fNote)
+		}
 		doc.Set(t)
 	}
 	if err := doc.Save(); err != nil {
@@ -328,6 +397,7 @@ func (f form) create(doc *store.Doc) (string, error) {
 		set(&task, "due", strings.TrimSpace(f.text(fDue)))
 	}
 	task.Tags = strings.Fields(f.text(fTag))
+	task.Note = f.text(fNote)
 	doc.Add(task)
 	if err := doc.Save(); err != nil {
 		return "", err
@@ -422,6 +492,8 @@ func (f form) view() string {
 		hint = "h l choose"
 	case fDue:
 		hint = "← → by a day · type a date"
+	case fNote:
+		hint = "type · ctrl+j new line"
 	case fTag:
 		hint = "type a tag"
 		if len(f.vocab) > 0 {
@@ -444,10 +516,28 @@ func (f form) value(name field) string {
 	if name == fDue {
 		return paint(live, dashed(core.Day(f.text(fDue))))
 	}
+	if name == fNote {
+		if live {
+			return hang(f.note.View(), 12)
+		}
+		first, _, more := strings.Cut(f.text(fNote), "\n")
+		if more {
+			first += " …"
+		}
+		return dashed(first)
+	}
 	if live {
 		return f.inputs[name].View() // carries its own colour; see liveValue
 	}
 	return dashed(f.text(name))
+}
+
+// hang sets a multi-line block so its first line sits beside the label, like every
+// other value, and the rest hang under the value column. Padding the first line too
+// put the editor — and the caret — a row below the word "note", which read as the
+// cursor being on the wrong field.
+func hang(block string, by int) string {
+	return strings.ReplaceAll(block, "\n", "\n"+strings.Repeat(" ", by))
 }
 
 // paint gives a plain value the same weight an input gives its own text, so a row does

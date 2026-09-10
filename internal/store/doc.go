@@ -15,7 +15,13 @@ type Doc struct {
 	Header   string
 	Checkbox bool
 	Lines    []string
+
+	// Edits are keyed by the line a task was parsed at and applied by Save, never
+	// to Lines in place. A task spans its bullet and its note, so a Set that grows a
+	// note would shift every index below it — while a batch loop still holds the old
+	// ones. Deferring keeps every index valid until the moment they are all spent.
 	removed  map[int]bool
+	replaced map[int][]string
 }
 
 func open(path, header string, checkbox bool) (*Doc, error) {
@@ -27,7 +33,7 @@ func open(path, header string, checkbox bool) (*Doc, error) {
 		return nil, err
 	}
 	return &Doc{Path: path, Header: header, Checkbox: checkbox, Lines: lines,
-		removed: map[int]bool{}}, nil
+		removed: map[int]bool{}, replaced: map[int][]string{}}, nil
 }
 
 func Tray() (*Doc, error) {
@@ -111,27 +117,38 @@ func (d *Doc) LiveTexts() map[string]bool {
 
 func (d *Doc) Set(t core.Task) {
 	if t.Index >= 0 && t.Index < len(d.Lines) {
-		d.Lines[t.Index] = core.Line(t, d.Checkbox)
+		d.replaced[t.Index] = core.Lines(t, d.Checkbox)
 	}
 }
 
+// Add appends, which shifts nothing, so it can go straight into Lines.
 func (d *Doc) Add(t core.Task) {
-	d.Lines = append(d.Lines, core.Line(t, d.Checkbox))
+	d.Lines = append(d.Lines, core.Lines(t, d.Checkbox)...)
 }
 
-func (d *Doc) Remove(t core.Task) { d.removed[t.Index] = true }
+func (d *Doc) Remove(t core.Task) {
+	for i := t.Index; i < t.Index+core.SpanAt(d.Lines, t.Index); i++ {
+		d.removed[i] = true
+	}
+}
 
 func (d *Doc) Save() error {
 	kept := make([]string, 0, len(d.Lines))
-	for i, line := range d.Lines {
-		if !d.removed[i] {
-			kept = append(kept, line)
+	for i := 0; i < len(d.Lines); {
+		if fresh, ok := d.replaced[i]; ok {
+			kept = append(kept, fresh...)
+			i += core.SpanAt(d.Lines, i) // the old bullet and its old note, together
+			continue
 		}
+		if !d.removed[i] {
+			kept = append(kept, d.Lines[i])
+		}
+		i++
 	}
 	if err := Write(d.Path, kept); err != nil {
 		return err
 	}
-	d.Lines, d.removed = kept, map[int]bool{}
+	d.Lines, d.removed, d.replaced = kept, map[int]bool{}, map[int][]string{}
 	return nil
 }
 

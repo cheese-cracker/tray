@@ -237,3 +237,63 @@ func TestDefaultHomeIsTrayInTheHomeDirectory(t *testing.T) {
 		t.Errorf("TRAY_HOME should still win, got %s", got)
 	}
 }
+
+// Set defers to Save. Every caller that edits several tasks parses once and then Sets
+// in a loop; if a growing note shifted Lines in place, the second Set would land on
+// the wrong line. This is the bug the deferral exists to prevent.
+func TestBatchSetSurvivesANoteThatGrows(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("TRAY_HOME", home)
+	path := filepath.Join(home, "tray.md")
+	os.WriteFile(path, []byte(strings.Join([]string{
+		"# tray",
+		"- [ ] first priority:H",
+		"- [ ] second priority:M",
+		"- [ ] third priority:L",
+		"",
+	}, "\n")), 0o644)
+
+	doc, err := Tray()
+	if err != nil {
+		t.Fatal(err)
+	}
+	tasks := doc.Tasks()
+	tasks[0].Note = "a note\nthat is two lines long"
+	tasks[2].Note = "third gets one too"
+	for _, task := range tasks { // the order every batch caller uses
+		doc.Set(task)
+	}
+	if err := doc.Save(); err != nil {
+		t.Fatal(err)
+	}
+
+	raw, _ := os.ReadFile(path)
+	want := strings.Join([]string{
+		"# tray",
+		"- [ ] first priority:H",
+		"  a note",
+		"  that is two lines long",
+		"- [ ] second priority:M",
+		"- [ ] third priority:L",
+		"  third gets one too",
+		"",
+	}, "\n")
+	if string(raw) != want {
+		t.Errorf("file =\n%s\nwant\n%s", raw, want)
+	}
+
+	// Shrinking is the mirror: the old note lines must go, not linger.
+	doc, _ = Tray()
+	tasks = doc.Tasks()
+	tasks[0].Note = ""
+	doc.Set(tasks[0])
+	doc.Remove(tasks[2]) // a remove takes the note with it
+	doc.Save()
+	raw, _ = os.ReadFile(path)
+	if strings.Contains(string(raw), "a note") || strings.Contains(string(raw), "third gets") {
+		t.Errorf("old note lines lingered:\n%s", raw)
+	}
+	if !strings.Contains(string(raw), "second priority:M") {
+		t.Errorf("an untouched neighbour was lost:\n%s", raw)
+	}
+}

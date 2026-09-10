@@ -471,3 +471,31 @@ func TestFlowGarageRewriteRefusesABatch(t *testing.T) {
 		t.Error("the tray should still offer a batch rewrite")
 	}
 }
+
+// T19 · `n` opens the note alone, on either layer. It saves as indented lines under
+// the bullet — the shape any markdown editor nests — and the row then carries a mark,
+// so you can tell which tasks have one without opening each.
+func TestFlowNoteIsTheIndentedLinesUnderATask(t *testing.T) {
+	sandbox(t, "- [ ] Rotate the api keys priority:H entry:2026-08-01")
+	garage(t, "2026-08", "- a jotting")
+
+	u := drive(t, New()).waitFor("Rotate the api keys")
+	u.press("n").waitFor("note")
+	for _, r := range "old keys" {
+		u.press(string(r))
+	}
+	u.press("enter").waitFor("≡")
+	m := u.press("q").final()
+
+	has(t, trayFile(t), "- [ ] Rotate the api keys priority:H entry:2026-08-01\n  old keys")
+	if got := m.items()[0].Note; got != "old keys" {
+		t.Errorf("note read back as %q", got)
+	}
+
+	// The garage form otherwise asks for the words alone (88); a note is more words,
+	// not structure, so `n` reaches it there too.
+	g := keys(New(), "tab", "n").(Model)
+	if got := g.form.fields(); len(got) != 1 || got[0] != fNote {
+		t.Errorf("the garage noter offered %v, want the note alone", got)
+	}
+}

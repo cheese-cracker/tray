@@ -1,6 +1,7 @@
 package ui
 
 import (
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/muesli/termenv"
 	"regexp"
@@ -247,8 +248,8 @@ func TestAddToGarageAsksOnlyForTheWords(t *testing.T) {
 func TestAddToTrayOffersTheWholeForm(t *testing.T) {
 	sandbox(t)
 	m := keys(New(), "a").(Model) // tray tab
-	if got := m.form.fields(); len(got) != 4 {
-		t.Errorf("the tray should expect structure, got %v", got)
+	if got := m.form.fields(); len(got) != 5 {
+		t.Errorf("the tray should expect structure and a note, got %v", got)
 	}
 
 	m = keys(m, "d", "o", " ", "i", "t").(Model)
@@ -405,4 +406,23 @@ func TestTheLiveRowIsOneColourEitherSideOfTheCaret(t *testing.T) {
 		t.Errorf("text either side of the caret differs:\n  %q %q\n  %q %q",
 			before[1], before[2], after[1], after[2])
 	}
+}
+
+// The note editor's first line sits beside the word "note", like every other value. It
+// used to start a row below, which read as the caret being on the wrong field.
+func TestTheNoteEditorStartsOnItsLabelsRow(t *testing.T) {
+	sandbox(t, "- [ ] a thing priority:M")
+	out, _ := New().Update(tea.WindowSizeMsg{Width: 60, Height: 18})
+	m := keys(out, "n", "h", "i").(Model)
+
+	plain := regexp.MustCompile(`\x1b\[[0-9;]*m`).ReplaceAllString(m.View(), "")
+	for _, l := range strings.Split(plain, "\n") {
+		if strings.Contains(l, "note") {
+			if !strings.Contains(l, "hi") {
+				t.Errorf("the typed note should share the label's row:\n%q", l)
+			}
+			return
+		}
+	}
+	t.Fatalf("no note row rendered:\n%s", plain)
 }

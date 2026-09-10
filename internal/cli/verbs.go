@@ -30,10 +30,19 @@ func cmdInit() (string, error) {
 func cmdDump(req request) (string, error) {
 	tail := req.tail
 	month, tags := "", []string{}
+	note := req.opts.note
 	for len(tail) > 0 {
 		if rest, ok := strings.CutPrefix(tail[0], "to:"); ok && rest != "" {
 			month = rest
 			tail = tail[1:]
+			continue
+		}
+		// The tail is literal (F3), so this is read here rather than as a flag — one
+		// more leading token, alongside to: and the tag, and nothing past the first
+		// word of text is ever parsed.
+		if tail[0] == "--note" && len(tail) > 1 {
+			note = tail[1]
+			tail = tail[2:]
 			continue
 		}
 		if name, ok := tagName(tail[0]); ok {
@@ -52,7 +61,9 @@ func cmdDump(req request) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	doc.Add(core.New(text, tags))
+	task := core.New(text, tags)
+	task.Note = note
+	doc.Add(task)
 	if err := doc.Save(); err != nil {
 		return "", err
 	}
@@ -70,6 +81,7 @@ func cmdAdd(req request) (string, error) {
 		return "nothing to add", nil
 	}
 	task := core.New(text, mods.AddTags)
+	task.Note = req.opts.note
 	core.ApplyMods(&task, core.Mods{Attrs: mods.Attrs})
 	if task.Attrs["entry"] == "" {
 		task.Attrs["entry"] = store.Today().Format(core.DateLayout)
@@ -201,6 +213,42 @@ func cmdRestore(req request) (string, error) {
 // strikes through in place, `unload` and `carryover` leave an arrow behind. This is
 // for a line that should not have been written — a typo, a duplicate — and there was
 // no way to remove one from the interface at all before.
+// note sets the indented lines under a task, or prints them when given nothing to
+// set. One note per task, replaced whole: a bag of tasks keeps no history of one.
+//
+// Live ids, like rewrite and edit — only restore and erase read the --all space (93b),
+// because only they have to reach a finished line.
+func cmdNote(req request) (string, error) {
+	doc, items, err := view(req, false)
+	if err != nil {
+		return "", err
+	}
+	picked := store.Resolve(items, req.ids)
+	if len(picked) == 0 {
+		return "no match", nil
+	}
+	text := strings.TrimSpace(strings.Join(req.tail, " "))
+	if text == "" {
+		var out []string
+		for _, t := range picked {
+			if t.Note == "" {
+				out = append(out, t.Text+": no note")
+			} else {
+				out = append(out, t.Text+":\n  "+strings.ReplaceAll(t.Note, "\n", "\n  "))
+			}
+		}
+		return strings.Join(out, "\n"), nil
+	}
+	for _, t := range picked {
+		t.Note = text
+		doc.Set(t)
+	}
+	if err := doc.Save(); err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("noted %d", len(picked)), nil
+}
+
 func cmdErase(req request) (string, error) {
 	doc, items, err := view(req, true)
 	if err != nil {

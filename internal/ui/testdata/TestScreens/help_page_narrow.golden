@@ -11,6 +11,7 @@
   tab     switch layer  t       take       E       erase  
   space   select        r       rewrite    v/esc   leave  
   enter   act           #       tag                       
-  /       filter        x       done                      
-  v       review        d       hand back                 
+  /       filter        n       note                      
+  v       review        x       done                      
+                        d       hand back                 
                         >       move to                   

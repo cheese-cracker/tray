@@ -2,6 +2,7 @@ package core
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -182,5 +183,51 @@ func TestCopyKeepsTerminalState(t *testing.T) {
 	struck, _ := Parse("- ~~gave up on this~~", 0)
 	if !struck.Copy().Done {
 		t.Error("a finished copy is still finished")
+	}
+}
+
+// A note is the indented lines under a bullet. One note, any length; a blank line ends
+// it, and an indented bullet is still a task rather than part of the note above.
+func TestANoteIsTheIndentedLinesUnderATask(t *testing.T) {
+	lines := []string{
+		"# tray",
+		"- [ ] Rotate the api keys priority:H +infra",
+		"  The old keys expire on the 12th.",
+		"  Rotate staging first.",
+		"- [ ] Book the flight priority:M",
+		"  - an indented bullet is a task, not a note",
+		"",
+		"  prose after a blank line belongs to nobody",
+		"- [ ] no note at all",
+	}
+	tasks := Tasks(lines)
+	if len(tasks) != 4 {
+		t.Fatalf("parsed %d tasks, want 4: %+v", len(tasks), tasks)
+	}
+	if got := tasks[0].Note; got != "The old keys expire on the 12th.\nRotate staging first." {
+		t.Errorf("note = %q", got)
+	}
+	if tasks[0].Span != 3 {
+		t.Errorf("span = %d, want the bullet and two note lines", tasks[0].Span)
+	}
+	if tasks[1].Note != "" || tasks[1].Span != 1 {
+		t.Errorf("an indented bullet must not become a note: %+v", tasks[1])
+	}
+	if tasks[2].Text != "an indented bullet is a task, not a note" {
+		t.Errorf("the indented bullet should parse as its own task, got %q", tasks[2].Text)
+	}
+	if tasks[3].Note != "" {
+		t.Errorf("prose after a blank line is not a note: %q", tasks[3].Note)
+	}
+
+	// And it writes back the way it was read.
+	got := Lines(tasks[0], true)
+	want := []string{
+		"- [ ] Rotate the api keys priority:H +infra",
+		"  The old keys expire on the 12th.",
+		"  Rotate staging first.",
+	}
+	if strings.Join(got, "\n") != strings.Join(want, "\n") {
+		t.Errorf("Lines =\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
 	}
 }

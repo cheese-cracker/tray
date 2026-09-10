@@ -134,6 +134,11 @@ func grouped(items []core.Task, today time.Time, numbered bool) string {
 				out = append(out, fmt.Sprintf("  %d  %s", r.id, r.task.Text))
 			} else {
 				out = append(out, "- [ ] "+r.task.Text)
+				for _, l := range strings.Split(r.task.Note, "\n") {
+					if l != "" {
+						out = append(out, "  "+l)
+					}
+				}
 			}
 		}
 		out = append(out, "")
@@ -174,6 +179,12 @@ func asJSON(items []core.Task, today time.Time) (string, error) {
 		}
 		if len(t.Tags) > 0 {
 			row["tags"] = t.Tags
+		}
+		// Taskwarrior's name for a note. One entry: the note is one thing, not a log.
+		if t.Note != "" {
+			row["annotations"] = []map[string]string{{
+				"entry": twStamp(t.Attrs["entry"]), "description": t.Note,
+			}}
 		}
 		row["urgency"] = core.Urgency(t, today)
 		row["quadrant"] = core.Quadrant(t, today)

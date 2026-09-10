@@ -46,6 +46,7 @@ suite rather than hanging it.
 | F18 | Nothing is inferred headlessly: `carryover` and `unload` refuse to guess a month, and an unknown flag is an error rather than a silence | `F18 · nothing is inferred headlessly` |
 | F20 | `restore` un-finishes a task, resolving ids against the same rows `list --all` prints | `F20 · restore says a task was not finished after all` |
 | F19 | `head` prints the top few compactly, says nothing at all on an empty tray, and renders dates in the one format the rest of the tool uses | `F19 · head is the terminal header` |
+| F22 | A note is the indented lines under a task: `--note` on `dump` and `add`, `tray <id> note <text>` replaces it whole, it exports as one Taskwarrior annotation, and `erase` takes it with the line | `F22 · note is the indented lines under a task` |
 | F21 | `erase` removes a line outright — the one verb that does — leaves its neighbours alone, and resolves ids against `list --all` so a finished line is reachable | `F21 · erase removes the line` |
 
 ## T · the terminal interface
@@ -69,6 +70,7 @@ suite rather than hanging it.
 | T17 | A garage rewrite refuses a batch — there is nothing left for it to change | `TestFlowGarageRewriteRefusesABatch` |
 | T15 | `v` lists everything on the layer, live lines first, and offers restore and erase alone; `a` writes nothing there | `TestFlowReviewShowsEverythingAndOffersTheRareVerbs` |
 | T13 | A pasted title lands whole, and a pasted newline collapses rather than splitting the line | `TestFlowPasteIntoTheTitle` |
+| T19 | `n` opens the note alone on either layer, saves it as indented lines, and the row shows `≡` | `TestFlowNoteIsTheIndentedLinesUnderATask` |
 | T18 | `E` removes a line outright and names it in the status, and is reachable only in review mode | `TestFlowEraseRemovesTheLineAndSaysWhatWent` |
 
 ## Screens

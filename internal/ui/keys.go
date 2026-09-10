@@ -78,7 +78,7 @@ func (m Model) keys() keyMap {
 	// `r` for the whole shape of a task — the garage has nothing else, so tagging is
 	// the only structure it offers and the only place the hint earns a slot.
 	if !m.layer().isTray() {
-		short = append(short, bind("t", "take"), bind("#", "tag"))
+		short = append(short, bind("t", "take"), bind("#", "tag"), bind("n", "note"))
 	}
 	short = append(short, bind("v", "review"), bind("/", "filter"),
 		bind("?", "help"), bind("q", "quit"))

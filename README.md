@@ -55,6 +55,7 @@ The tray orders itself by priority, due date, and age.
 | `a` | add — a bare line in the garage, the full form on the tray |
 | `t` | take a garage line onto the tray, and give it structure |
 | `#` | tag — the tag field alone, on either layer. The footer names it in the garage, where it is the only structure on offer |
+| `n` | note — a few lines of context under the task. `≡` in the row says one is there |
 | `v` | review — everything on the layer, live and finished. The frame changes colour, and it is the only place `R` restore and `E` erase exist. `v` or `esc` leaves |
 | `/` | filter · `?` help · `q` quit |
 
@@ -116,6 +117,7 @@ for more rows.
 ```markdown
 # tray.md
 - [ ] the billing page feels slow on first load priority:H due:2026-08-31 +work
+  only on the first load — the second is fine, so probably a cold cache
 - [x] ~~Renew the TLS certificate~~ priority:H done:2026-08-29 +infra
 
 # 2026-08.md
@@ -126,7 +128,8 @@ for more rows.
 
 Edit them in any editor. Attributes are read off the **end** of a line and only for
 known keys, so a colon mid-sentence survives — which is what lets the garage hold prose.
-`→ tray` marks a line whose live copy moved on.
+`→ tray` marks a line whose live copy moved on. Indented lines under a task are its
+note — the shape any markdown editor already nests.
 
 <details>
 <summary><b>🤖 The CLI — the surface for agents</b></summary>
@@ -143,6 +146,7 @@ it. This is the same tool and the same files, in the half you never have to look
 | `tray dump <text>` | A line in this month's garage. **The tail is literal** — colons, dashes and half-sentences all survive. |
 | `tray dump to:2026-11 +infra <text>` | A leading `to:` and `+tag` are the only things parsed. |
 | `tray add <desc> pri:H due:2026-08-12 +infra` | Straight onto the tray, for something already live. |
+| `tray dump --note <text> <desc>` · `tray add --note <text> …` | With a note. On `dump` it is one of the leading tokens, like `to:` and a tag. |
 
 > **Quote anything the shell would eat.** `tray dump ?? does this matter` fails in zsh —
 > `??` is a glob. Use `tray dump '?? does this matter'`. Same for `!` and `*`.
@@ -174,6 +178,7 @@ it. This is the same tool and the same files, in the half you never have to look
 | | |
 |---|---|
 | `tray 2 edit <new text>` | Rewrite one line's text, attributes untouched. |
+| `tray 2 note <text>` · `tray 2 note` | Replace the note, or print it. |
 | `tray edit` · `tray garage edit` | Open the file in `$EDITOR`. |
 
 `rewrite` will set a priority on a garage line, where the TUI's form won't offer one.
@@ -222,6 +227,7 @@ already passed is not carried.
 | `from:` | which garage month it graduated from |
 | `done:` | finished, with the date. The only terminal state |
 | `+tag` | `#tag` is read too, `+tag` is written. The interface draws `#`; the file keeps Taskwarrior's spelling |
+| indented lines | the task's note. One note, any length; a blank line ends it. Exports as an `annotation` |
 | `→ 2026-09` / `→ tray` | this line's live copy moved elsewhere; the line itself is history |
 
 Ids are positional and computed per report, never stored, so reordering a file by hand

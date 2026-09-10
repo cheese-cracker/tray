@@ -30,6 +30,9 @@ func (r row) FilterValue() string {
 // place that can differ from the file without costing anything.
 const tagMark = "#"
 
+// noteMark says a row has a note. Three lines of text, which is what a note is.
+const noteMark = "≡"
+
 // column is one column of data: its heading, and how to fill it from a task.
 type column struct {
 	head string // the heading, and the width the column starts from
@@ -45,8 +48,19 @@ type column struct {
 
 // Every column the table knows how to draw.
 var (
-	colTask = column{head: "task", pad: 2, desc: true,
+	colTask = column{head: "task", desc: true,
 		cell: func(_ *rowDelegate, t core.Task) string { return t.Text }}
+
+	// A note is read in the form, not the row — the row only says one is there. The
+	// column measures to nothing when no row has one, so the table is unchanged until
+	// the first note is written.
+	colNote = column{pad: 2,
+		cell: func(_ *rowDelegate, t core.Task) string {
+			if t.Note != "" {
+				return noteMark
+			}
+			return ""
+		}}
 
 	colUrg = column{head: "urg", pad: 2, tray: true,
 		cell: func(d *rowDelegate, t core.Task) string {
@@ -87,7 +101,7 @@ var (
 // colUrg is left out. Urgency earns its keep by deciding the order, and the order is
 // already on screen — the row above the other says everything 17.1 beside 8.1 does,
 // in no width at all. Put it back in this list for Taskwarrior's report.
-var columns = []column{colTask, colPri, colDue, colTags}
+var columns = []column{colTask, colNote, colPri, colDue, colTags}
 
 // The gutter, left of the data: cursor, selection, checkbox. Not part of `columns` —
 // it is chrome rather than fields, and there is nothing to configure about it.

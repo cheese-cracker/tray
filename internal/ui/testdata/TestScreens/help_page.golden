@@ -4,11 +4,14 @@
   Dump any task, or a half-thought, into the garage for the month you expect  
   to pick it up. Take it onto the tray when you are ready to work on it.      
   
+  ╭─ garage ─────────────────────╮       ╭─ tray ───────────────────────╮
+  │ anything, any month          │  ────▶│ what you do now              │
+  │ no structure asked           │  ◀────│ priority, due, tags          │
+  ╰──────────────────────────────╯       ╰──────────────────────────────╯
+  
   (a)dd    a line to the layer you are on                                      
   (t)ake   a garage line onto the tray, structured                             
   (d)      hand a tray task back to the garage                                 
-  (v)iew   review mode — shows all tasks, even completed ones — restore or     
-           erase tasks here                                                    
   
   ────────────────────────────────────────────────────────────────────────────
   keys                  acting             in review      
@@ -16,6 +19,7 @@
   tab     switch layer  t       take       E       erase  
   space   select        r       rewrite    v/esc   leave  
   enter   act           #       tag                       
-  /       filter        x       done                      
-  v       review        d       hand back                 
+  /       filter        n       note                      
+  v       review        x       done                      
+                        d       hand back                 
                         >       move to                   

@@ -363,13 +363,19 @@ func TestReviewRedrawsTheFrame(t *testing.T) {
 	}
 }
 
-func TestBothAAndNAdd(t *testing.T) {
-	sandbox(t)
-	for _, key := range []string{"a", "n"} {
-		m := keys(New(), key).(Model)
-		if m.form == nil || !m.form.creating {
-			t.Errorf("%q should start a new entry", key)
-		}
+// `a` adds; `n` opens the note. `n` was a second key for add, and giving it to notes
+// cost nothing — two keys for one verb was never load-bearing.
+func TestAAddsAndNOpensTheNote(t *testing.T) {
+	sandbox(t, "- [ ] a thing priority:M")
+	if m := keys(New(), "a").(Model); m.mode != editing || !m.form.creating {
+		t.Error("a should start a new entry")
+	}
+	m := keys(New(), "n").(Model)
+	if m.mode != editing || m.form.creating {
+		t.Fatal("n should open the note on the row under the cursor")
+	}
+	if got := m.form.fields(); len(got) != 1 || got[0] != fNote {
+		t.Errorf("the noter offered %v, want the note alone", got)
 	}
 }
 
@@ -462,7 +468,9 @@ func TestHelpScreenExplainsTheTwoLayers(t *testing.T) {
 	}
 	// The letter sits inside the verb, so it reads as a word and marks the key at
 	// once. `(d)` has no d-word to sit in.
-	for _, want := range []string{"(a)dd", "(t)ake", "(d)", "(v)iew"} {
+	// The concepts block is the moves between layers: add, take, hand back. `v` is a
+	// mode, not a move, and lives in the keymap — where "in review" heads its verbs.
+	for _, want := range []string{"(a)dd", "(t)ake", "(d)"} {
 		if !strings.Contains(view, want) {
 			t.Errorf("the help should show %q:\n%s", want, view)
 		}

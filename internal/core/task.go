@@ -4,6 +4,7 @@ package core
 import (
 	"regexp"
 	"strings"
+	"unicode"
 )
 
 // KnownAttrs is also the order attributes serialise in.
@@ -30,12 +31,18 @@ var (
 
 type Task struct {
 	Index int // line index in the file it came from
+	Span  int // how many lines it occupies there: the bullet, then its note
 	Raw   string
 	Text  string
 	Attrs map[string]string
 	Tags  []string
 	Done  bool
 	Moved string // "tray", "2026-09", or empty
+
+	// Note is the indented lines under the bullet, joined by newlines and with the
+	// indent stripped. One note, any length — a bag of tasks does not track history,
+	// so there is nothing to date. Empty for the common case.
+	Note string
 }
 
 func New(text string, tags []string) Task {
@@ -151,10 +158,54 @@ func Parse(raw string, index int) (Task, bool) {
 // Tasks parses every bullet in a file, keeping each one's line index.
 func Tasks(lines []string) []Task {
 	var out []Task
-	for i, raw := range lines {
-		if t, ok := Parse(raw, i); ok {
-			out = append(out, t)
+	for i := 0; i < len(lines); {
+		t, ok := Parse(lines[i], i)
+		if !ok {
+			i++
+			continue
 		}
+		t.Span = SpanAt(lines, i)
+		var note []string
+		for _, raw := range lines[i+1 : i+t.Span] {
+			note = append(note, strings.TrimSpace(raw))
+		}
+		t.Note = strings.Join(note, "\n")
+		out = append(out, t)
+		i += t.Span
+	}
+	return out
+}
+
+// SpanAt is how many lines the task at i occupies: its bullet, then every following
+// line that is indented and is not itself a bullet. A blank line ends it, which is
+// the escape hatch for prose that sits under a task without belonging to it.
+//
+// Indented bullets stay tasks — bulletRe allows the indent and always has — so a note
+// line is "indented and not a task", not merely "indented".
+func SpanAt(lines []string, i int) int {
+	n := 1
+	for i+n < len(lines) && isNoteLine(lines[i+n]) {
+		n++
+	}
+	return n
+}
+
+func isNoteLine(raw string) bool {
+	if strings.TrimSpace(raw) == "" || !unicode.IsSpace(rune(raw[0])) {
+		return false
+	}
+	return !bulletRe.MatchString(raw)
+}
+
+// Lines is Line and then the note, each note line under a two-space indent — the
+// shape any markdown editor nests, and the one SpanAt reads back.
+func Lines(t Task, checkbox bool) []string {
+	out := []string{Line(t, checkbox)}
+	if t.Note == "" {
+		return out
+	}
+	for _, l := range strings.Split(t.Note, "\n") {
+		out = append(out, "  "+strings.TrimSpace(l))
 	}
 	return out
 }
