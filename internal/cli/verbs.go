@@ -4,10 +4,12 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/cheese-cracker/tray/internal/core"
+	"github.com/cheese-cracker/tray/internal/plugin"
 	"github.com/cheese-cracker/tray/internal/store"
 	"github.com/cheese-cracker/tray/internal/ui"
 )
@@ -490,6 +492,36 @@ func cmdStatus(req request) (string, error) {
 	}
 	line := fmt.Sprintf("tray: %d live · garage: %s", len(items), store.ThisMonth())
 	return strings.Join(append(stale, line), "\n"), nil
+}
+
+// cmdPlugin lists what is installed, and that is deliberately all it does. A verb
+// that pulls on demand is the shape --nag was deleted for (76): the sync belongs to
+// opening the tab in the sweep, so there is one sync point and you cannot forget it.
+func cmdPlugin(req request) (string, error) {
+	if len(req.tail) > 0 && req.tail[0] != "list" {
+		return "", fmt.Errorf("tray plugin lists what is installed — syncing happens in `tray carryover`")
+	}
+	found := plugin.List()
+	if len(found) == 0 {
+		return "no plugins — one is a folder in " + plugin.Dir() +
+			" holding an executable `" + plugin.Runner + "`", nil
+	}
+	var rows []string
+	for _, p := range found {
+		rows = append(rows, fmt.Sprintf("%-12s %-14s %s",
+			p.Name, filepath.Base(p.Path()), pulled(p.Path())))
+	}
+	return strings.Join(rows, "\n"), nil
+}
+
+// pulled reads the garage file's mtime, because that is when the plugin last wrote
+// it. Storing a timestamp would be a second copy of something the filesystem keeps.
+func pulled(path string) string {
+	info, err := os.Stat(path)
+	if err != nil {
+		return "never pulled"
+	}
+	return "pulled " + info.ModTime().Format("2006-01-02 15:04")
 }
 
 func tagName(token string) (string, bool) {
