@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 	"unicode"
@@ -245,6 +246,10 @@ func (f form) fields() []field {
 	return []field{fTitle, fPriority, fDue, fTag, fNote}
 }
 
+// shows is whether a field is on screen at all: the garage form and the `+`/`n`
+// forms leave priority out, and a field you were never shown is not a choice you made.
+func (f form) shows(name field) bool { return slices.Contains(f.fields(), name) }
+
 func (f *form) move(by int) {
 	all := f.fields()
 	for i, name := range all {
@@ -358,7 +363,10 @@ func (f form) apply() (string, error) {
 		if f.touched[fTitle] && !f.batch && strings.TrimSpace(f.text(fTitle)) != "" {
 			t.Text = strings.TrimSpace(f.text(fTitle))
 		}
-		if f.touched[fPriority] {
+		// The form shows M for a task that has none, so leaving it alone means M.
+		// Only writing it when touched made the screen disagree with the file, and
+		// `take` is exactly the case where you never touch it — you accept the default.
+		if f.touched[fPriority] || (f.shows(fPriority) && t.Priority() == "") {
 			set(&t, "priority", f.prio)
 		}
 		if f.touched[fDue] {

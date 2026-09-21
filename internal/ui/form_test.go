@@ -426,3 +426,17 @@ func TestTheNoteEditorStartsOnItsLabelsRow(t *testing.T) {
 	}
 	t.Fatalf("no note row rendered:\n%s", plain)
 }
+
+// Taking accepts the default: the form shows M for a garage line that has no
+// priority, so pressing enter without touching it must write M. It used to write
+// nothing, and the screen and the file disagreed about what you had just chosen.
+func TestTakeWritesTheDefaultPriority(t *testing.T) {
+	sandbox(t)
+	garage(t, "2026-08", "- add retries to the sync job")
+
+	keys(New(), "tab", "t", "enter")
+
+	if got := trayFile(t); !strings.Contains(got, "priority:M") {
+		t.Errorf("take left the tray task with no priority:\n%s", got)
+	}
+}
