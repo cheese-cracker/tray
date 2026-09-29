@@ -1,0 +1,20 @@
+
+╭────────╮╭───────────────────╮                                                     
+│  tray  ││  garage · August  │                                                     
+│        └┴───────────────────┴─────────────────────────────────────────────────────
+│                                                                                  │
+│         id  task                         pri  due         tags                   │
+│  ▸  [ ] 1   Rotate the api keys          H    Wed Aug 12  #infra                 │
+│     [ ] 4   Chase the invoice            M    Tue Aug 25  #admin                 │
+│     [ ] 2   Book the flights             L    Thu Aug 20                         │
+│     [ ] 3   Review the deploy checklist  M                #infra                 │
+│                                                                                  │
+│                                                                                  │
+│                                                                                  │
+│  move 1 to                                                                       │
+│    ▸ garage · August                                                             │
+│      garage · September                                                          │
+│      garage · someday                                                            │
+│                                                                                  │
+└──────────────────────────────────────────────────────────────────────────────────┘
+ ↑↓ choose · enter apply · esc back

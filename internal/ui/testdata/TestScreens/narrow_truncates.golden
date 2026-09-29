@@ -1,0 +1,12 @@
+
+╭────────╮╭───────────────────╮               
+│  tray  ││  garage · August  │               
+│        └┴───────────────────┴───────────────
+│                                            │
+│         id  task         pri  due  tags    │
+│  ▸  [ ] 1   a task wit…  H         #infra  │
+│                                            │
+└────────────────────────────────────────────┘
+ ↑↓ move · space select · tab switch    
+ enter act · a add · v review · / filter
+ ? help · q quit                        

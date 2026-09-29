@@ -9,9 +9,12 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/charmbracelet/x/term"
+
 	"github.com/cheese-cracker/tray/internal/core"
 	"github.com/cheese-cracker/tray/internal/plugin"
 	"github.com/cheese-cracker/tray/internal/store"
+	"github.com/cheese-cracker/tray/internal/ui"
 )
 
 const Version = "0.3.0"
@@ -276,10 +279,19 @@ func dispatch(s *store.Store, req request) (string, error) {
 	case "head":
 		return cmdHead(s, req)
 	default:
-		// Bare tray is the report until the app arrives; piped it stays text either
-		// way, so an agent can never be handed a UI (20).
+		// Bare tray on a terminal is the interface; piped, it stays text so an
+		// agent can never be handed a UI (20).
+		if req.verb == "" && req.ids == "" && len(req.filters) == 0 && interactive() {
+			return "", ui.Run(s)
+		}
 		return cmdReport(s, req, false)
 	}
+}
+
+// interactive is both ends. Stat-and-check-chardevice is not enough: /dev/null is
+// a character device too, so redirected output would have looked like a terminal.
+func interactive() bool {
+	return term.IsTerminal(os.Stdin.Fd()) && term.IsTerminal(os.Stdout.Fd())
 }
 
 // view is the rows a report shows: the layer the request names, live unless asked for

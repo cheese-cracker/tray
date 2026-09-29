@@ -1,0 +1,17 @@
+
+  tray — a task tracker in two layers any key to go back
+  
+  Dump any task, or a half-thought, into the garage for   
+  the month you expect to pick it up. Take it onto the    
+  tray when you are ready to work on it.                  
+  
+  ────────────────────────────────────────────────────────
+  keys                  acting             in review      
+  ↑↓  j k move          a       add        R       restore
+  tab     switch layer  t       take       E       erase  
+  space   select        r       rewrite    v/esc   leave  
+  enter   act           #       tag                       
+  /       filter        n       note                      
+  v       review        x       done                      
+                        d       hand back                 
+                        >       move to                   

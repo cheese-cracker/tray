@@ -9,12 +9,13 @@ Two kinds:
 | | Driven by | Asserts on | Lives in |
 |---|---|---|---|
 | **F** | the real binary, from a shell | what `list --json` and `export` report | `scripts/check-tray.sh` |
-| **G** | the real app, via `fyne.io/fyne/v2/test` | final model **and** the store | `internal/gui/flows_test.go` |
+| **T** | the real bubbletea program, via `teatest` | final model **and** the store | `internal/ui/*_test.go` |
 
 F flows survived a whole-language rewrite and then a whole-store rewrite: they read
 the binary's own output and nothing else, which is why they are still bash in a repo
-that is otherwise Go. G flows are the ones that are only true end to end: several
-actions, a mode change in the middle, and a row on the far side.
+that is otherwise Go. T flows are the ones that are only true end to end: several
+keystrokes, a mode change in the middle, and a row on the far side — read back from
+the store, never from a frame.
 
 Everything else — parsing, urgency, the store, single-key handling — is a unit test,
 and does not belong here.
@@ -59,14 +60,35 @@ suite rather than hanging it.
 | F32 | `context` is the grouped report with ids and every note under its task, narrowed by ids or a filter | `F32 · context is the report with its notes` |
 | F33 | `import --format md` brings a markdown home in whole — layers by filename, notes, struck lines finished, `→` lines skipped — and twice adds nothing | `F33 · import migrates the markdown home` |
 
-## G · the app
+## T · the terminal interface
 
-The G suite arrives with the app. Until then this half of the table is empty, and
-`internal/flows` treats a missing `internal/gui/flows_test.go` as zero rows.
+| # | Must keep working | Held by |
+|---|---|---|
+| T1 | `take` moves the row onto the tray, remembers the month it left, **and then** opens the form, prefilled | `TestFlowTakeOpensTheFormAndSaves` |
+| T2 | With several marked, the form skips the title and still reaches every task | `TestFlowBatchRewriteSkipsTheTitle` |
+| T3 | An action applies to the row a filter left visible, not to the pre-filter cursor | `TestFlowFilterThenActOnAFilteredRow` |
+| T4 | **Marks survive a filter.** Filter, mark, filter again, act on all of them | `TestFlowMarksSurviveAFilter` |
+| T5 | Tabs cycle at both ends rather than stopping | `TestFlowTabsCycleBothWays` |
+| T6 | `>` moves the row to the month you chose — one row, nothing copied, nothing left behind | `TestFlowMoveToMovesTheRow` |
+| T7 | Handing back moves the row home to the month it came from — no copy, no orphan — and it keeps what the tray added | `TestFlowHandBackMovesTheRowHome` |
+| T8 | Adding in a garage tab asks for the words and writes nothing else | `TestFlowGarageAddAsksOnlyForATitle` |
+| T9 | Adding on the tray takes the whole form: priority, due and tag all land | `TestFlowTrayAddTakesTheWholeForm` |
+| T10 | `esc` clears an applied filter **before** it quits the program | `TestFlowEscClearsTheFilterBeforeItQuits` |
+| T11 | `carryover` opens the months it is about — the named one, this one, a forward slot, someday — no tray tab, focused on this month, and `>` reaches every one of them | `TestFlowSweepOpensTheMonthsAsTabs` |
+| T12 | `?` opens and closes without disturbing the list underneath | `TestFlowHelpOverlayToggles` |
+| T13 | A pasted title lands whole, and a pasted newline collapses rather than splitting the words | `TestFlowPasteIntoTheTitle` |
+| T14 | A finished task is hidden until `v`, and `R` says it wasn't finished after all | `TestFlowViewDoneThenRestore` |
+| T15 | `v` lists everything on the layer, live rows first, and offers restore and erase alone; `a` writes nothing there | `TestFlowReviewShowsEverythingAndOffersTheRareVerbs` |
+| T16 | A garage rewrite edits the words alone, and keeps whatever the row already carries | `TestFlowGarageRewriteIsTextOnly` |
+| T17 | A garage rewrite refuses a batch — there is nothing left for it to change | `TestFlowGarageRewriteRefusesABatch` |
+| T18 | `E` removes a row outright and names it in the status, and is reachable only in review mode | `TestFlowEraseRemovesTheLineAndSaysWhatWent` |
+| T19 | `n` opens the note alone on either layer, saves it on the row, and the row shows `≡` | `TestFlowNoteIsTheIndentedLinesUnderATask` |
+| T20 | The id column reads the permanent id: erase the row above and the one below keeps its number | `TestFlowTheIdColumnReadsThePermanentId` |
+| T21 | The CLI and the interface share one store: what `dump` writes the interface shows, and what the interface takes, finishes and hands back `list --json` reads by the same ids | `TestFlowTheCLIAndTheTUIShareOneStore` |
 
 ## Adding one
 
-1. Write the test. `TestFlow…` in `internal/gui/flows_test.go`, or a `head_ "F… · …"`
+1. Write the test. `TestFlow…` in `internal/ui/flows_test.go`, or a `head_ "F… · …"`
    block in `scripts/check-tray.sh`.
 2. Add the row here, with the test name in backticks in the last column.
 3. `make check`. Missing either half fails `internal/flows`.
