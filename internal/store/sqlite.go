@@ -8,12 +8,38 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/tursodatabase/libsql-client-go/libsql"
 	_ "modernc.org/sqlite"
 
 	"github.com/cheese-cracker/tray/internal/core"
 )
 
 const File = "tray.db"
+
+// Driver names the engine behind a db URL: "sqlite" for a local file, "libsql" for a
+// remote libSQL server such as Turso. Empty means the file in the home.
+func Driver(url string) string {
+	for _, scheme := range []string{"libsql://", "https://", "wss://"} {
+		if strings.HasPrefix(url, scheme) {
+			return "libsql"
+		}
+	}
+	return "sqlite"
+}
+
+// DSN is what the driver is opened with. The token is never part of it: libsql-client-go
+// refuses `?authToken=` in the URL and takes it as an option, which also keeps it out of
+// every error message that quotes the DSN.
+func DSN(dir, url string) string {
+	switch {
+	case url == "":
+		return filepath.Join(dir, File)
+	case Driver(url) == "libsql":
+		return url
+	default:
+		return strings.TrimPrefix(url, "file:")
+	}
+}
 
 // Ids are four random base36 characters (core.NewID), checked against the table on the
 // way in — an agent that remembers one across runs must never find a different task
@@ -42,7 +68,6 @@ CREATE TABLE IF NOT EXISTS plugin_run (
   name TEXT PRIMARY KEY, hook TEXT, at TEXT, ok INTEGER, message TEXT
 );
 CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
-PRAGMA user_version = 1;
 `
 
 const columns = "id, layer, month, text, priority, due, wait, recur, until, entry, done, from_month, tags, note, source"
@@ -60,20 +85,48 @@ type Store struct {
 	q  querier
 }
 
-// Open creates the home and the database if either is missing.
-func Open(dir string) (*Store, error) {
+// Open is the database in the home: tray with no config.
+func Open(dir string) (*Store, error) { return OpenAt(dir, "", "") }
+
+// OpenAt creates the home and opens the database the URL names — the file in the home
+// when it is empty, another SQLite file, or a remote libSQL server with the token. The
+// home is made either way: the mirror and the plugins live there whatever holds the rows.
+func OpenAt(dir, url, token string) (*Store, error) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return nil, err
 	}
-	db, err := sql.Open("sqlite", filepath.Join(dir, File))
-	if err != nil {
-		return nil, err
+	var db *sql.DB
+	remote := Driver(url) == "libsql"
+	if remote {
+		opts := []libsql.Option{}
+		if token != "" {
+			opts = append(opts, libsql.WithAuthToken(token))
+		}
+		c, err := libsql.NewConnector(DSN(dir, url), opts...)
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", url, err)
+		}
+		db = sql.OpenDB(c)
+	} else {
+		if err := os.MkdirAll(filepath.Dir(DSN(dir, url)), 0o755); err != nil {
+			return nil, err
+		}
+		var err error
+		if db, err = sql.Open("sqlite", DSN(dir, url)); err != nil {
+			return nil, err
+		}
 	}
 	db.SetMaxOpenConns(1) // one process, one writer; WAL readers never wait on it
-	for _, stmt := range []string{"PRAGMA journal_mode = WAL", "PRAGMA busy_timeout = 5000", schema} {
+	// Journal mode and the busy timeout are about a file on this disk; a server owns
+	// its own, and libSQL over the wire rejects the statements outright.
+	stmts := []string{schema}
+	if !remote {
+		stmts = append([]string{"PRAGMA journal_mode = WAL", "PRAGMA busy_timeout = 5000"}, schema, "PRAGMA user_version = 1")
+	}
+	for _, stmt := range stmts {
 		if _, err := db.Exec(stmt); err != nil {
 			db.Close()
-			return nil, fmt.Errorf("%s: %w", dir, err)
+			return nil, fmt.Errorf("%s: %w", DSN(dir, url), err)
 		}
 	}
 	return &Store{db: db, q: db}, nil

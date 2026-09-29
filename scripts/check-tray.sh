@@ -747,6 +747,28 @@ grep -q "already here, renamed" "$TRAY_HOME/garage.md" && pass "and comes back i
 case $(tray sync) in *"garage.md +0 ~0"*) pass "a second sync finds nothing new" ;; *) bad "got: $(tray sync)" ;; esac
 teardown
 
+# --- F37 · the config file names the store --------------------------------------------------
+head_ "F37 · the config file names the store, and tray config masks its secrets"
+setup
+rm -f "$TRAY_HOME/tray.db"   # setup's init made one; this flow is about it staying away
+CFG="$TRAY_HOME/config.yaml"; OTHER="$TRAY_HOME/elsewhere/other.db"
+printf 'db:\n  url: "%s"\n  auth_token: "eyJhbGciOiJFZDI1NTE5In0.secret1234"\nopenrouter:\n  api_key: "sk-or-v1-abcdef9876"\n' "$OTHER" > "$CFG"
+TRAY_CONFIG="$CFG" tray dump 'lands in the other file' >/dev/null
+[ -f "$OTHER" ] && pass "the URL's file was created" || bad "no file at db.url"
+[ -f "$TRAY_HOME/tray.db" ] && bad "tray.db was created in the home although db.url named another file" || pass "the home's tray.db was not touched"
+[ "$(TRAY_CONFIG="$CFG" garage_json 2026-08 | rows 'lands in the other file')" = "1" ] && pass "the row reads back from the named file" || bad "row missing from the named file"
+tray init >/dev/null
+[ "$(garage_json 2026-08 | rows 'lands in the other file')" = "0" ] && pass "without the config the home is empty" || bad "the home saw the row"
+out=$(TRAY_CONFIG="$CFG" tray config)
+case $out in *"$CFG"*) pass "config names the file" ;; *) bad "got: $out" ;; esac
+case $out in *"…1234"*) pass "the token keeps its last four characters" ;; *) bad "token not masked: $out" ;; esac
+case $out in *"secret1234"*|*"abcdef9876"*) bad "a secret was printed whole" ;; *) pass "no secret printed whole" ;; esac
+case $(TRAY_CONFIG="$CFG" TRAY_DB_TOKEN=envtok9999 tray config) in *"…9999  (env)"*) pass "an env value wins and says so" ;; *) bad "env override not reported" ;; esac
+printf 'db: [\n' > "$CFG"
+TRAY_CONFIG="$CFG" tray status >/dev/null 2>"$TRAY_HOME/err" && bad "a malformed config was ignored" || pass "a malformed config is an error"
+grep -q "$CFG" "$TRAY_HOME/err" && pass "and the error names the file" || bad "error: $(cat "$TRAY_HOME/err")"
+teardown
+
 printf '\n'
 [ "$fail" = 0 ] && printf '\033[32mtray flows pass\033[0m\n' || printf '\033[31mtray flows FAILED\033[0m\n'
 exit "$fail"

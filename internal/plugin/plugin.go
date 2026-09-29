@@ -18,6 +18,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/cheese-cracker/tray/internal/config"
 	"github.com/cheese-cracker/tray/internal/store"
 )
 
@@ -218,6 +219,10 @@ func Run(ctx context.Context, e Exec) ([]byte, error) {
 	cmd := exec.CommandContext(ctx, e.Path, e.Args...)
 	cmd.Dir = e.Dir
 	cmd.Env = append(os.Environ(), "TRAY_HOME="+store.Home(), "TRAY_PLUGIN_DIR="+e.Dir)
+	// The keys from the config file, under tray's names — a plugin never reads the file.
+	if cfg, err := config.Load(); err == nil {
+		cmd.Env = append(cmd.Env, cfg.PluginEnv()...)
+	}
 	cmd.Env = append(cmd.Env, e.Env...)
 	cmd.Stdin = bytes.NewReader(e.Stdin)
 	var out, errs bytes.Buffer

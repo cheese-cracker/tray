@@ -62,6 +62,7 @@ suite rather than hanging it.
 | F34 | One `sync` runs every installed plugin — the good plan prints, a failure is named, a slow one is cut off — and one `--apply --plugin` lands exactly that plan, whole, and hands its push back | `F34 · one sync runs every plugin and lands one plan whole` |
 | F35 | `tray.md` and `garage.md` beside the database hold one `- (id) words` bullet per open task, under month headings, rewritten after every write and left alone by a read | `F35 · the mirror is rewritten after every write` |
 | F36 | `sync` reads `garage.md` back: a bullet with no id is a new line in the month it sits under, changed words rename the task, an unknown id and a missing bullet change nothing, and `tray.md` is never read | `F36 · sync reads garage.md back: new lines and renames, nothing else` |
+| F37 | `~/.config/tray/config.yaml` (or `TRAY_CONFIG`) names the store: `db.url` pointing at another file writes there and leaves the home's `tray.db` alone; `tray config` prints the path and the effective values with secrets cut to their last four characters, says which came from the environment, and a malformed file is an error that names it | `F37 · the config file names the store, and tray config masks its secrets` |
 
 ## T · the terminal interface
 
