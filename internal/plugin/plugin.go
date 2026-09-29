@@ -78,6 +78,24 @@ func (p Plugin) SettingsKeys() []string {
 	return keys
 }
 
+// Settings is what the file holds now, as strings, so a form can show the values it
+// is about to replace. Read for display only: tray still gives none of it a meaning.
+func (p Plugin) Settings() map[string]string {
+	out := map[string]string{}
+	raw, err := os.ReadFile(filepath.Join(p.Dir, SettingsFile))
+	if err != nil {
+		return out
+	}
+	var settings map[string]any
+	if json.Unmarshal(raw, &settings) != nil {
+		return out
+	}
+	for k, v := range settings {
+		out[k] = fmt.Sprint(v)
+	}
+	return out
+}
+
 // SetSettings merges values into the plugin's settings file. tray never interprets
 // what is there; it only refuses a key the example does not name, so a typo cannot
 // become a setting nothing reads.

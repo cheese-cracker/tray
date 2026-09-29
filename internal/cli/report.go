@@ -158,6 +158,10 @@ func grouped(items []core.Task, today time.Time, numbered bool) string {
 
 // contextReport is what you hand an agent: the grouped report with ids, and under each
 // task the note it carries — the whole of what tray knows about it, in plain text.
+// ContextText is `tray context` for the app's copy button: one shape for an agent,
+// never a second one for the screen.
+func ContextText(items []core.Task, today time.Time) string { return contextReport(items, today) }
+
 func contextReport(items []core.Task, today time.Time) string {
 	names, groups := byTag(items, today)
 	var out []string

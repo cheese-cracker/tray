@@ -31,7 +31,7 @@ vet:
 
 # Rewrite the screen goldens after a deliberate restyle. Read the diff.
 golden:
-	go test ./internal/ui -run TestScreens -update
+	go test ./internal/gui -run TestScreens -update
 
 clean:
 	rm -rf build

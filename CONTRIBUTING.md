@@ -5,9 +5,15 @@ request, so neither of us writes something the other was going to reject.
 
 ## Build and test
 
-You need Go 1.24 or later, and `jq` for the shell suite. No database server, no
-services, no network once the modules are fetched — the database is a file the binary
-creates.
+You need Go 1.24 or later, a C compiler, and the OpenGL and X11 headers Fyne links
+against. No database server, no services, no network once the modules are fetched.
+
+| | |
+|---|---|
+| Arch | `pacman -S gcc mesa libx11 libxcursor libxrandr libxinerama libxi libxxf86vm jq` |
+| Debian / Ubuntu | `apt install gcc libgl1-mesa-dev xorg-dev jq` |
+
+`jq` is for the shell suite, which reads the binary's JSON back.
 
 Clone the repo and run the whole suite:
 
@@ -23,7 +29,7 @@ make check
 |---|---|
 | `make fmt` | `gofmt -l`, which fails if any file is unformatted |
 | `make vet` | `go vet ./...` |
-| `make test` | `go test -timeout 120s ./...`, including the terminal interface, driven through `teatest` |
+| `make test` | `go test -timeout 120s ./...`, including the app, driven headless through `fyne.io/fyne/v2/test` |
 | `make flows` | `scripts/check-tray.sh`, which drives the built binary against a scratch home and asserts on `tray export` and `tray list --json` |
 
 To run tray against scratch data rather than your own, point `TRAY_HOME` somewhere else:
@@ -57,8 +63,7 @@ both and fails the build when they disagree, so a new promise without a test —
 
 Add the test first, then the row:
 
-- Terminal interface: a `TestFlow…` function in `internal/ui/flows_test.go`, asserting on
-  the model **and** on what the store holds afterwards
+- The app: a `TestFlow…` function in `internal/gui/flows_test.go`
 - Command line: a `head_ "F… · …"` block in `scripts/check-tray.sh`
 
 **A check that the test can fail.** Break the code on purpose and confirm the new test
@@ -66,7 +71,7 @@ goes red. Three assertions in this repo's history passed for the wrong reason, a
 one was caught this way and no other.
 
 **A regenerated golden, if it changes what a screen looks like.** Run `make golden`
-(`go test ./internal/ui -run TestScreens -update`) and read the diff before you commit
+(`go test ./internal/gui -run TestScreens -update`) and read the diff before you commit
 it. Goldens record what happened; they do not object to it.
 
 ## What a change does not need
