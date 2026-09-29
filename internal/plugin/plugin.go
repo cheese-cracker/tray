@@ -24,14 +24,16 @@ import (
 
 // The folder is the manifest. Each name here is a fact a plugin states by having the
 // file: `sync` says it keeps a garage, a file under actions/ is a menu verb, the
-// example settings are the form it wants filled, and the on-launch marker is its
-// consent to run when the app opens. Nothing is declared and nothing is parsed (18).
+// example settings are the form it wants filled, the on-launch marker is its consent
+// to run when the app opens, and the all-rows marker asks to see the whole store rather
+// than its own rows (T38). Nothing is declared and nothing is parsed (18).
 const (
 	SyncFile        = "sync"
 	ActionsDir      = "actions"
 	SettingsExample = "settings.example.json"
 	SettingsFile    = "settings.json"
 	OnLaunchMarker  = "on-launch"
+	AllRowsMarker   = "all-rows"
 	LogFile         = "log"
 	EvidenceDir     = "evidence"
 )
@@ -44,6 +46,7 @@ type Plugin struct {
 	Sync     string   // "" when the plugin keeps no garage
 	Verbs    []string // the executables under ActionsDir, in name order
 	OnLaunch bool     // run at launch too, not only on a manual sync
+	AllRows  bool     // `sync plan` reads every row, not only the ones it keyed
 }
 
 // An Action is one verb the interface can offer. tray hands the executable the picked
@@ -131,6 +134,8 @@ func List() []Plugin {
 		}
 		_, err := os.Stat(filepath.Join(dir, OnLaunchMarker))
 		p.OnLaunch = err == nil
+		_, err = os.Stat(filepath.Join(dir, AllRowsMarker))
+		p.AllRows = err == nil
 		found = append(found, p)
 	}
 	return found

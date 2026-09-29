@@ -29,6 +29,19 @@ type Row struct {
 	Priority string   `json:"priority,omitempty"`
 	Due      string   `json:"due,omitempty"`
 	Evidence string   `json:"evidence,omitempty"`
+
+	// The rest travels only to a plugin that asked for every row (all-rows): the whole
+	// task, so a replica can tell what changed. Key is then the id.
+	ID        string `json:"id,omitempty"`
+	Layer     string `json:"layer,omitempty"`
+	Month     string `json:"month,omitempty"`
+	Wait      string `json:"wait,omitempty"`
+	Recur     string `json:"recur,omitempty"`
+	Until     string `json:"until,omitempty"`
+	Entry     string `json:"entry,omitempty"`
+	FromMonth string `json:"from_month,omitempty"`
+	Note      string `json:"note,omitempty"`
+	Source    string `json:"source,omitempty"`
 }
 
 // A Push is a change the plugin would make on its side, for you to confirm.
@@ -91,7 +104,11 @@ func Plans(s *store.Store, ev Event, only string, timeout time.Duration) ([]Resu
 		if p.Sync == "" || (only != "" && p.Name != only) || (ev == Launch && !p.OnLaunch) {
 			continue
 		}
-		rows, err := s.Tasks(store.Filter{All: true, SourcePrefix: p.Name + ":"})
+		f := store.Filter{All: true, SourcePrefix: p.Name + ":"}
+		if p.AllRows {
+			f.SourcePrefix = "" // the whole store: every layer, month and state
+		}
+		rows, err := s.Tasks(f)
 		if err != nil {
 			return nil, err
 		}
@@ -132,7 +149,7 @@ func Sync(s *store.Store, ev Event, only string, timeout time.Duration) (Summary
 
 func plan(p plugin.Plugin, rows []core.Task, timeout time.Duration) Result {
 	r := Result{Plugin: p.Name}
-	in, _ := json.Marshal(map[string]any{"tasks": asRows(p.Name, rows)})
+	in, _ := json.Marshal(map[string]any{"tasks": asRows(p.Name, rows, p.AllRows)})
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	out, err := plugin.Run(ctx, plugin.Exec{Dir: p.Dir, Path: p.Sync, Args: []string{"plan"}, Stdin: in})
@@ -151,20 +168,27 @@ func plan(p plugin.Plugin, rows []core.Task, timeout time.Duration) Result {
 			return r
 		}
 	}
-	r.Diff, r.Push, r.Evidence = compare(pl.Pull, rows, p.Name), pl.Push, pl.Evidence
+	r.Diff, r.Push, r.Evidence = compare(pl.Pull, rows, p.Name, p.AllRows), pl.Push, pl.Evidence
 	r.Message = summarize(r)
 	return r
 }
 
-// asRows is what the plugin gets on stdin: the rows it owns, keyed the way it keys them.
-func asRows(name string, rows []core.Task) []Row {
+// asRows is what the plugin gets on stdin: the rows it owns, keyed the way it keys
+// them — or, for a plugin that asked for every row, the whole task keyed by its id.
+func asRows(name string, rows []core.Task, all bool) []Row {
 	out := make([]Row, 0, len(rows))
 	for _, t := range rows {
 		done := t.Done
-		out = append(out, Row{
+		row := Row{
 			Key: strings.TrimPrefix(t.Source, name+":"), Text: t.Text, Done: &done,
 			Tags: append([]string{}, t.Tags...), Priority: t.Priority, Due: t.Due,
-		})
+		}
+		if all {
+			row.Key, row.ID, row.Layer, row.Month = t.ID, t.ID, t.Layer, t.Month
+			row.Wait, row.Recur, row.Until, row.Entry = t.Wait, t.Recur, t.Until, t.Entry
+			row.FromMonth, row.Note, row.Source = t.FromMonth, t.Note, t.Source
+		}
+		out = append(out, row)
 	}
 	return out
 }
@@ -172,10 +196,15 @@ func asRows(name string, rows []core.Task) []Row {
 // compare is the diff: a key tray has not seen is an add, a key it has is an update on
 // exactly the fields the plugin reported differently, and a key the plugin stopped
 // reporting is gone — noted, never deleted or finished, because a board hiding done
-// work is not finishing it.
-func compare(pull []Row, rows []core.Task, name string) Diff {
+// work is not finishing it. A plugin that reads every row keys an update by the task's
+// id and owns nothing, so for it nothing is ever gone.
+func compare(pull []Row, rows []core.Task, name string, all bool) Diff {
 	have := map[string]core.Task{}
 	for _, t := range rows {
+		if all {
+			have[t.ID] = t
+			continue
+		}
 		have[strings.TrimPrefix(t.Source, name+":")] = t
 	}
 	var d Diff
@@ -206,6 +235,9 @@ func compare(pull []Row, rows []core.Task, name string) Diff {
 		if len(fields) > 0 {
 			d.Updates = append(d.Updates, Update{Old: old, New: row, Fields: fields})
 		}
+	}
+	if all {
+		return d
 	}
 	for _, t := range rows {
 		if !seen[strings.TrimPrefix(t.Source, name+":")] {

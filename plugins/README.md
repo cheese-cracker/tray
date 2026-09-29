@@ -11,6 +11,7 @@ $TRAY_HOME/plugins/<name>/
   settings.example.json   {"url": "", "rules": "…"} — the keys the plugin wants filled; the app renders them as a form
   settings.json           written by the form or `tray plugin set`; tray never reads it
   on-launch               marker: run `sync plan` when the app opens too. Absent ⇒ manual only
+  all-rows                marker: `sync plan` reads the whole store, not only your rows (below)
   evidence/               plugin-written; the newest file is shown beside the plan
   log                     tray-written: stderr of the last run
 ```
@@ -18,6 +19,11 @@ $TRAY_HOME/plugins/<name>/
 The plugin's garage is the month named after it: rows it pulls land in
 `layer=garage, month=<name>` with `source=<name>:<key>`, and climb like any other line.
 A row you have already taken stays where it is and is updated in place.
+
+**Local is the source of truth.** Whatever you bring back — a remote replica, a phone, a
+board — lands through the reviewed diff and never overwrites a local row silently; your
+pushes carry local state outward. Offline is therefore the normal case, not a failure:
+tray keeps working, and your plan waits for the next sync that can reach you.
 
 ## Events and hooks
 
@@ -79,6 +85,23 @@ tray diffs `pull` against the rows you own: a new key is an add, a known key an 
 on exactly the fields you reported differently, a key you stopped reporting is noted as
 gone and left alone. Nothing lands until the user applies your plan, and then it lands
 whole or not at all.
+
+### Every row
+
+A replica has to see everything to know what changed. Leave an `all-rows` file in your
+folder and stdin carries the whole store — every layer, month and state, finished rows
+too — each task keyed by its **id** and carrying every column:
+
+```json
+{"tasks": [{"key": "k79l", "id": "k79l", "layer": "tray", "text": "…", "done": "", "tags": ["work"],
+            "priority": "H", "due": "2026-10-01", "wait": "", "recur": "", "until": "", "entry": "2026-09-28",
+            "from_month": "2026-09", "note": "", "source": ""}]}
+```
+
+Your pushes may then name any task by its id; tray does nothing with a push but hand the
+confirmed list back to you on `apply`. A pulled row keyed by an id tray holds is an
+update of that row (reviewed, only the fields you report); any other key is a new line in
+your garage with `source=<name>:<key>`. Nothing is ever *gone* for you — you own no rows.
 
 ## `sync apply`
 
