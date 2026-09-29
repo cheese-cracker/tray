@@ -5,7 +5,9 @@ request, so neither of us writes something the other was going to reject.
 
 ## Build and test
 
-You need Go 1.24 or later. Nothing else — no database, no services, no network.
+You need Go 1.24 or later, and `jq` for the shell suite. No database server, no
+services, no network once the modules are fetched — the database is a file the binary
+creates.
 
 Clone the repo and run the whole suite:
 
@@ -21,8 +23,8 @@ make check
 |---|---|
 | `make fmt` | `gofmt -l`, which fails if any file is unformatted |
 | `make vet` | `go vet ./...` |
-| `make test` | `go test -timeout 120s ./...`, including the terminal-interface tests |
-| `make flows` | `scripts/check-tray.sh`, which drives the built binary against real files |
+| `make test` | `go test -timeout 120s ./...`, including the terminal interface, driven through `teatest` |
+| `make flows` | `scripts/check-tray.sh`, which drives the built binary against a scratch home and asserts on `tray export` and `tray list --json` |
 
 To run tray against scratch data rather than your own, point `TRAY_HOME` somewhere else:
 
@@ -31,6 +33,9 @@ make build
 TRAY_HOME=/tmp/tray-scratch ./build/tray init
 TRAY_HOME=/tmp/tray-scratch ./build/tray
 ```
+
+To try a plugin without writing one, copy `internal/sync/testdata/plugins/echo` into
+that home's `plugins/` and run `tray sync`.
 
 ## Before you push
 
@@ -52,16 +57,17 @@ both and fails the build when they disagree, so a new promise without a test —
 
 Add the test first, then the row:
 
-- Terminal interface: a `TestFlow…` function in `internal/ui/flows_test.go`
+- Terminal interface: a `TestFlow…` function in `internal/ui/flows_test.go`, asserting on
+  the model **and** on what the store holds afterwards
 - Command line: a `head_ "F… · …"` block in `scripts/check-tray.sh`
 
 **A check that the test can fail.** Break the code on purpose and confirm the new test
 goes red. Three assertions in this repo's history passed for the wrong reason, and each
 one was caught this way and no other.
 
-**A regenerated golden, if it changes what a screen looks like.** Run
-`go test ./internal/ui -run TestScreens -update` and read the diff before you commit it.
-Goldens record what happened; they do not object to it.
+**A regenerated golden, if it changes what a screen looks like.** Run `make golden`
+(`go test ./internal/ui -run TestScreens -update`) and read the diff before you commit
+it. Goldens record what happened; they do not object to it.
 
 ## What a change does not need
 

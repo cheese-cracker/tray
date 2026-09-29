@@ -6,70 +6,58 @@ down so it stops being re-thought from scratch.
 One line per item. Shipped items are deleted rather than archived: every choice already
 made, including the reversed ones, is one line in [DECISIONS.md](DECISIONS.md).
 
-Tags: `[plugin]` third-party · `[shell]` a snippet calling the CLI · `[ours]` ours to
-build · `[personal]` may not belong in a general tool · `[shape]` a decision, not a feature.
+Tags: `[plugin]` on the contract in `plugins/README.md` · `[shell]` a snippet calling the
+CLI · `[ours]` ours to build · `[personal]` may not belong in a general tool · `[shape]` a
+decision, not a feature.
 
 ## Next
 
-- [ ] **`u` undo, one level** — needs a snapshot in `store`. `E` erase is the only action that
-  leaves nothing to recover by hand.
-- [ ] **`tray init` prompts on a TTY** — offers to write the `tray head` line into your shell
-  profile, `--yes` for headless. Same shape as 72: a picker on a terminal, an error when piped.
-  Absorbs what `tray install` was for; packaging is goreleaser's job, not ours.
+- [ ] `[shape]` **A desktop app in place of the TUI** — Fyne, the letters kept as shortcuts,
+  modes for what has consequences, the ladder drawn in a details pane. Built and under
+  review as a second pull request stacked on this one; whether it replaces the TUI or
+  sits beside it is the open question.
+- [ ] `[plugin]` **A web garage** — `settings.example.json` asks for a URL and a ruleset
+  ("only rows marked in progress"); `sync plan` drives the site with `web-agent` (login
+  happens in the browser it opens), screenshots it as evidence, and reads rows off the page
+  under the ruleset; `sync apply` marks done where the site allows. Done when two plans on
+  an unchanged page produce an empty diff, and the review's rows match the screenshot on
+  one real list.
+- [ ] `[plugin]` **Voice** — a trashtalk successor: `sync plan` records, one model call
+  splits the transcript into rows under a ruleset, no push. Manual only; the review is
+  the filtering.
+- [ ] `[plugin]` **Google Calendar** — `tray-gcal` is verb-only and already fits: copy the
+  folder into the new home. Nothing to port.
+- [ ] `[plugin]` **A board's API** — Linear or Jira over `sync plan|apply`; the board's
+  project is a tag (9).
+- [ ] `[plugin]` **Claude conversations** — an `actions/attach` that compacts a transcript
+  into the task's note, replaced whole (104). Needs one input, the session; how a verb asks
+  for one is decided when this is built.
+- [ ] **A sync review in the TUI** — `tray sync` prints plans and `--apply` lands them; the
+  interface has no screen for the diff yet, so the event is CLI-only for now.
 - [ ] **Prebuilt binaries** — goreleaser. `go install` is the only path today, so a Go
   toolchain is a hard requirement for anyone who wants this.
-- [ ] **CI** — `make check` is the whole suite and no workflow runs it. Also what a required
-  status check on `main` would need.
-- [ ] **A second demo take** — the recording never shows `/` or review mode. Kit is in
-  `~/tray-demo/`; the gap is not described in the README.
+- [ ] **CI** — `make check` is the whole suite and no workflow runs it.
+- [ ] **A second demo take** — the recording predates the id column, and never shows `/`
+  or review mode. Kit is in `~/tray-demo/`.
 
 ## Parked
 
-- [x] `[plugin]` **Google Calendar** — built as its own repo, `tray-gcal`: a menu verb (105),
-  `enter → schedule`, that books a time for the line under the cursor and tags it `+scheduled`.
-  One-way; a calendar is a grid of times, not a garage, so it pulls nothing back.
-- [ ] `[plugin]` **`task export | tray import`** — the missing leg; field names were kept
-  aligned for it (4).
-- [ ] `[plugin]` **todo.txt export** — one more shape of the grammar tray already writes.
-- [ ] `[plugin]` **Notion, Linear, Jira** — hosted stores keep a server-side id, which 8 says
-  tray does not hold. Pull-only as a 3P garage is the vetted first step. The cron'd agent
-  below is the cheaper answer to the same question, and does not need a plugin surface.
-- [ ] `[shell]` **A cron'd agent harness syncing the hosted stores** — Claude Code, Codex or
-  opencode on a schedule, reading Notion/Linear/Jira through their own connectors and calling
-  `tray dump`. Nothing to build but a prompt and a crontab: 19 already makes the CLI the agent
-  surface, so this sidesteps the plugin-surface fork that blocks every `[plugin]` item.
-- [x] `[shell]` **Dictation into the garage** (ostt) — built as its own repo, `trashtalk`:
-  ostt → one model call, any provider → a prompt loop you can speak back into → `tray dump
-  --note`. Notes are the bridge; nothing in tray changed. Plan: `plan-2026-09-09-tray-voice-capture`.
+- [ ] `[ours]` **A tray server** — one database, many clients, for more than one machine.
+  The CLI is already the API; what is missing is a listener and a story for the phone.
+- [ ] **`u` undo, one level** — needs a snapshot in `store`. `E` erase is the only action that
+  leaves nothing to recover by hand.
 - [ ] `[ours]` **Eisenhower view** — `core.Quadrant` is written and `tray export` emits it;
   what is missing is somewhere to look at it.
 - [ ] `[ours]` **Priorities on tags** — urgency counts tags and never weighs which. Weighing
   needs a tag registry, the thing 18 exists to avoid.
 - [ ] `[personal]` **Journal integration** — `tray print` emits the bullets; scraping them back
   is unbuilt, and a script outside this repo keeps personal shape out of a general tool.
-- [ ] **Journal seeding** (`- [ ]` scrape) — only if the recurring-item problem comes back.
-- [ ] **`tray dump` asking for the month on a TTY** — `a` in a garage tab covers it, so
-  re-addable rather than missing.
 - [ ] **Revisit the colours `tray head` uses** — it is the one surface that spends four
-  palette entries at once (priority tints the row, the due date tints itself), which is a
-  lot of colour for three lines. Every one is from the palette, so this is taste rather
-  than consistency — and a header nobody can scan at a glance is worse than a loud one.
-- [ ] `[shape]` **A row format setting, so the interface can wear another convention** —
-  `taskwarrior` would write `+tag`, show the urgency column the interface hides, and use its
-  date shape; `todo.txt` would write `x ` for done, `(A)` for priority and `@context`. Today
-  each of those is one decision hardcoded — `core.TagMark`, `columns` in `row.go`,
-  `core.DayLayout` — which is the right shape for one opinion and the wrong one for a choice.
-  Same blocker as the config file below.
-- [ ] `[shape]` **A configurable date format** — `DayLayout` is one constant, which is the
-  right shape for one opinion and the wrong one for a preference. Same blocker as the config
-  file below: 18 keeps vocabulary in the files rather than a registry.
-- [ ] `[shape]` **A config file, so the row format is a choice** — 18 keeps the tag vocabulary
-  in the files rather than a registry, and a config is the first crack in that. todo.txt is a
-  different grammar, not a flag.
-- [ ] `[shape]` **A store that isn't markdown** — costs `store` as an interface, a second FLOWS
-  suite, and gives up `find` as a rot detector and month files as a record (5, 6).
-- [ ] `[shape]` **`project` and other detail fields** — `project` was ruled out (9), and a note
-  shipped in place of a description (104). Reopening a settled one is allowed.
-- [ ] `[shape]` **`triggerAt`, so a task can act like a reminder** — nothing in tray runs on its
-  own, so this wants a shell profile line before it wants a field (76).
+  palette entries at once. Every one is from the palette, so this is taste rather than
+  consistency.
+- [ ] `[shape]` **A preferences file** — the date format is the one preference left now that
+  todo.txt is an export rather than a row format. T7 covers a plugin's settings and nothing
+  of yours; 18 still keeps the tag vocabulary in the rows.
+- [ ] `[shape]` **`project` and other detail fields** — `project` was ruled out (9) and now
+  arrives as a tag from every wire. Reopening a settled one is allowed.
 - [ ] `[shape]` **Nested task sets** — would this even match the ethos?
