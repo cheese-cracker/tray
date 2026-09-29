@@ -194,10 +194,8 @@ func newRow(l *taskList) *row {
 	r.when = grey("")
 	r.note = grey("≡")
 	r.actions = container.NewHBox()
-	for _, key := range append(append([]string{}, garageVerbs...), trayVerbs...) {
-		if _, dup := r.verbs[key]; dup {
-			continue
-		}
+	// Creation order is reading order: the layer's own verbs first, open last on both.
+	for _, key := range []string{"x", "d", ">", "t", "#", "l"} {
 		key := key
 		b := widget.NewButton(verbLabels[key], func() {
 			r.l.pick(r.idx)
