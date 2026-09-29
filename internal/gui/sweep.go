@@ -38,10 +38,8 @@ func (u *ui) openSweep() {
 	tabs.SelectIndex(1)
 	u.sw = &screen{tabs: tabs, lists: lists, load: loadSweep}
 
-	root := container.NewBorder(
-		container.NewVBox(banner("sweep", "> move to a month · t take · esc leaves", style.AccentSoft, style.Accent), u.top),
-		u.bottom, nil, nil, u.split(tabs))
-	u.enter(modeSweep, root)
+	u.enter(modeSweep, u.shell(u.sw,
+		banner("sweep", "> move to a month · t take · esc leaves", style.AccentSoft, style.Accent), nil))
 }
 
 func loadSweep(u *ui) error {

@@ -15,8 +15,8 @@ import (
 	"github.com/cheese-cracker/tray/internal/style"
 )
 
-// rowHeight gives a line of Fira Sans room to breathe and a finger something to hit.
-const rowHeight = 40
+// rowHeight is dense enough to read a list as a list and still a finger's target.
+const rowHeight = 34
 
 // taskList is one layer's rows. It owns the keyboard while you browse: the letters
 // are shortcuts for the controls on the rows, and Tab is the layer switch rather than
@@ -163,7 +163,7 @@ func (l *taskList) TypedKey(ev *fyne.KeyEvent) {
 	case fyne.KeyTab:
 		l.u.switchLayer()
 	case fyne.KeyReturn, fyne.KeyEnter:
-		l.u.do("l", l)
+		l.u.do(":", l) // the palette is the action menu (24)
 	case fyne.KeyEscape:
 		// A filter is the thing most recently put in your way, so it goes first; then
 		// the mode you are in (92f); only home quits.
@@ -186,6 +186,14 @@ func (l *taskList) TypedRune(r rune) {
 		l.move(-1)
 	default:
 		l.u.do(string(r), l)
+	}
+}
+
+// TypedShortcut is ctrl+shift+p, the palette's other key; the List's own shortcuts are
+// none of ours.
+func (l *taskList) TypedShortcut(s fyne.Shortcut) {
+	if paletteShortcut(s) {
+		l.u.do(":", l)
 	}
 }
 
@@ -242,6 +250,7 @@ func newRow(l *taskList) *row {
 	r.text = plain("")
 	r.chips = container.NewHBox()
 	r.when = mono("", style.Later)
+	r.when.TextSize = 12
 	r.note = newGlyph(glyphNote, rgba(style.Subtle))
 	r.actions = container.NewHBox()
 	// Creation order is reading order: the layer's own verbs first, open last on both.

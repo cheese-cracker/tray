@@ -547,10 +547,119 @@ func TestFlowDetailsPaneHintsTheMissingRungs(t *testing.T) {
 	}
 }
 
+func TestFlowFilterBarHidesUntilAsked(t *testing.T) {
+	h := open(t, tray("alpha"), tray("beta"))
+	h.u.tabs.SelectIndex(1)
+	if h.u.filterBar.open || !h.u.pillTap.Hidden {
+		t.Fatal("the bar is hidden until / (57)")
+	}
+	test.Type(h.u.tray, "/")
+	if !h.u.filterBar.open || h.focused() != fyne.Focusable(h.u.search) {
+		t.Fatal("/ brings the bar out and hands it the keys")
+	}
+	test.Type(h.u.search, "beta")
+	h.w.Canvas().Focus(h.u.tray)
+	if h.u.filterBar.open {
+		t.Fatal("the bar leaves with the focus")
+	}
+	if h.u.pillTap.Hidden || !strings.Contains(h.u.pillText.Text, "filter: beta") || !strings.Contains(h.u.pillText.Text, "1 hidden") {
+		t.Fatalf("an applied filter stays as a pill that says what it hid (57a): hidden %v %q", h.u.pillTap.Hidden, h.u.pillText.Text)
+	}
+	if len(h.u.tray.rows) != 1 {
+		t.Fatal("the filter is still on")
+	}
+	h.key(fyne.KeyEscape)
+	if h.u.filter != "" || !h.u.pillTap.Hidden || h.u.closed {
+		t.Fatalf("esc clears the filter and the pill, and does not quit: %q hidden %v", h.u.filter, h.u.pillTap.Hidden)
+	}
+	test.Type(h.u.tray, "/")
+	h.key(fyne.KeyEscape)
+	if h.u.filterBar.open || h.focused() != fyne.Focusable(h.u.tray) {
+		t.Fatal("esc in an empty bar hides it and gives the list the keys back")
+	}
+}
+
+func TestFlowPaletteRunsTheLayersVerbsAndAPluginsOwn(t *testing.T) {
+	taken := tray("alpha")
+	taken.FromMonth = "2026-09"
+	h := open(t, taken)
+	// A plugin verb is one executable under actions/ (105); this one writes what it was handed.
+	dir := filepath.Join(store.Home(), "plugins", "gcal", "actions")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	script := "#!/bin/sh\nprintf '%s %s' \"$TRAY_LAYER\" \"$*\" > \"$TRAY_PLUGIN_DIR/ran\"\n"
+	if err := os.WriteFile(filepath.Join(dir, "schedule"), []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	h.u.tabs.SelectIndex(1)
+	h.key(fyne.KeyReturn)
+	p := h.u.pal
+	if p == nil || h.focused() != fyne.Focusable(p.input) {
+		t.Fatal("enter opens the palette with the keys in its field (24)")
+	}
+	var labels []string
+	for _, c := range p.shown {
+		labels = append(labels, c.label)
+	}
+	for _, want := range []string{"done", "hand back to the garage", "plugin · schedule", "review", "sync"} {
+		if !contains(labels, want) {
+			t.Fatalf("the tray's palette lists %q: %v", want, labels)
+		}
+	}
+	test.Type(p.input, "hb")
+	if len(p.shown) == 0 || p.shown[0].label != "hand back to the garage" {
+		t.Fatalf("hb finds hand back first: %v", p.shown)
+	}
+	p.input.TypedKey(&fyne.KeyEvent{Name: fyne.KeyReturn})
+	if got := h.get(1); got.Layer != core.LayerGarage || got.Month != "2026-09" {
+		t.Fatalf("enter runs the command on the cursor row: %+v", got)
+	}
+	if h.u.pal != nil || h.u.pop != nil {
+		t.Fatal("the palette closes as it runs")
+	}
+
+	h.u.tabs.SelectIndex(0)
+	test.Type(h.u.garage, ":")
+	test.Type(h.u.pal.input, "sched")
+	h.u.pal.input.TypedKey(&fyne.KeyEvent{Name: fyne.KeyReturn})
+	ran, err := os.ReadFile(filepath.Join(store.Home(), "plugins", "gcal", "ran"))
+	if err != nil || string(ran) != "garage 1" {
+		t.Fatalf("the verb is handed the layer and the ids: %q %v", ran, err)
+	}
+	if !strings.Contains(h.u.status.Text, "gcal · schedule: done") {
+		t.Fatalf("the status says the verb ran: %q", h.u.status.Text)
+	}
+}
+
+func TestFlowPaletteCapturesWhatMatchesNothing(t *testing.T) {
+	h := open(t)
+	test.Type(h.u.garage, ":")
+	test.Type(h.u.pal.input, "call the bank about the card")
+	if len(h.u.pal.shown) != 1 || !strings.HasPrefix(h.u.pal.shown[0].label, "dump “call the bank") {
+		t.Fatalf("words that name no command are offered as a line to dump: %v", h.u.pal.shown)
+	}
+	h.u.pal.input.TypedKey(&fyne.KeyEvent{Name: fyne.KeyReturn})
+	got := h.get(1)
+	if got.Layer != core.LayerGarage || got.Text != "call the bank about the card" || got.Month != "2026-09" {
+		t.Fatalf("and the dump lands as the capture bar's would: %+v", got)
+	}
+	h.u.tabs.SelectIndex(1)
+	test.Type(h.u.tray, ":")
+	test.Type(h.u.pal.input, "renew the cert before friday")
+	if !strings.HasPrefix(h.u.pal.shown[0].label, "add “renew the cert") {
+		t.Fatalf("on the tray the floor is add: %v", h.u.pal.shown)
+	}
+	h.u.pal.input.TypedKey(&fyne.KeyEvent{Name: fyne.KeyReturn})
+	if got := h.get(2); got.Layer != core.LayerTray || got.Text != "renew the cert before friday" {
+		t.Fatalf("add lands on the tray: %+v", got)
+	}
+}
+
 func TestFlowShortcutsAreDeadWhileAnEntryHasFocus(t *testing.T) {
 	h := open(t, tray("alpha"))
 	h.u.tabs.SelectIndex(1)
-	h.w.Canvas().Focus(h.u.search)
+	test.Type(h.u.tray, "/") // the field is hidden until asked for, so ask
 	h.focused().TypedRune('x')
 	if h.get(1).Done != "" {
 		t.Fatal("a letter typed into a field is text, not a verb")

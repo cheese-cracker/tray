@@ -48,10 +48,10 @@ func (u *ui) leave() {
 // arriving (92f). Its colour says which mode before a word is read (92g).
 func banner(name, exit string, fill, ink lipgloss.AdaptiveColor) fyne.CanvasObject {
 	label := semibold(name, ink)
-	label.TextSize = 16
+	label.TextSize = 13
 	way := caption(exit, ink)
 	strip := container.NewBorder(nil, nil, container.NewCenter(label), container.NewCenter(way))
-	return container.NewStack(rounded(fill, 0), container.NewPadded(strip))
+	return container.NewStack(rounded(fill, 0), inset(strip, 12, 5))
 }
 
 // framed is a mode's colour drawn around its content, two pixels all the way round.
@@ -81,10 +81,9 @@ func (u *ui) openReview() {
 	tabs.SelectIndex(u.tabs.SelectedIndex()) // review the layer you were looking at
 	u.rv = &screen{tabs: tabs, lists: []*taskList{garage, tray}, load: loadReview}
 
-	root := container.NewBorder(
-		container.NewVBox(banner("review", "everything on the layer · R restore · E erase · v or esc leaves", style.ReviewSoft, style.Review), u.top),
-		u.bottom, nil, nil, framed(u.split(tabs), style.Review))
-	u.enter(modeReview, root)
+	frame := style.Review
+	u.enter(modeReview, u.shell(u.rv,
+		banner("review", "everything on the layer · R restore · E erase · v or esc leaves", style.ReviewSoft, style.Review), &frame))
 }
 
 // loadReview is everything on the layer, in review order (92d).

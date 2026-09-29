@@ -227,6 +227,7 @@ func newRung(name string, head, body fyne.CanvasObject, hint *canvas.Text) *rung
 	r := &rung{hint: hint}
 	r.label = caption(strings.ToUpper(name), style.Ink2)
 	r.label.TextStyle.Bold = true
+	r.label.TextSize = 11
 	r.marker = dot(12, color.Transparent, rgba(style.Line), 1.5)
 	r.rail = canvas.NewRectangle(rgba(style.Line))
 	if head == nil {
@@ -291,8 +292,8 @@ func (railLayout) Layout(objs []fyne.CanvasObject, size fyne.Size) {
 	marker, rail := objs[0], objs[1]
 	marker.Resize(fyne.NewSize(12, 12))
 	marker.Move(fyne.NewPos(6, 8))
-	rail.Resize(fyne.NewSize(2, max(size.Height-22, 0)))
-	rail.Move(fyne.NewPos(11, 22))
+	rail.Resize(fyne.NewSize(1, max(size.Height-22, 0)))
+	rail.Move(fyne.NewPos(11.5, 22))
 }
 
 // fold is a section behind a chevron: closed, it costs one line; open, it unfolds over
@@ -313,6 +314,7 @@ func newFold(content fyne.CanvasObject, onGrow func()) *fold {
 	// A scroll clips to its bounds, which is the whole reason it is here: while the fold
 	// opens the fields are cut at the moving edge rather than drawn over the next rung.
 	f.scroll = container.NewVScroll(content)
+	f.scroll.Hide() // closed until told otherwise; a zero-height clip would still paint (grow)
 	f.box = container.New(&foldLayout{f}, f.scroll)
 	return f
 }
@@ -321,6 +323,7 @@ func newFold(content fyne.CanvasObject, onGrow func()) *fold {
 func (f *fold) head(name string) fyne.CanvasObject {
 	label := caption(strings.ToUpper(name), style.Ink2)
 	label.TextStyle.Bold = true
+	label.TextSize = 11
 	return newTap(container.NewHBox(container.NewCenter(label), fixed(f.chev, 14, 14)), f.toggle)
 }
 

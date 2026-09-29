@@ -56,7 +56,7 @@ func (u *ui) runSync(run func() (sync.Summary, []sync.Result, error), then func(
 		return
 	}
 	u.syncing = true
-	u.status.SetText(u.statusText())
+	u.setStatus(u.statusText())
 	var (
 		sum     sync.Summary
 		results []sync.Result

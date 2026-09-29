@@ -74,8 +74,10 @@ func (p *palette) Color(name fyne.ThemeColorName, _ fyne.ThemeVariant) color.Col
 	case theme.ColorNameSelection, theme.ColorNamePressed:
 		return rgba(style.AccentSoft)
 	case theme.ColorNameHover, theme.ColorNameButton, theme.ColorNameDisabledButton,
-		theme.ColorNameOverlayBackground, theme.ColorNameMenuBackground, theme.ColorNameHeaderBackground:
+		theme.ColorNameMenuBackground, theme.ColorNameHeaderBackground:
 		return rgba(style.Card)
+	case theme.ColorNameOverlayBackground:
+		return color.Transparent // a modal wears the card shell; a second fill behind it would show at the corners
 	case theme.ColorNameInputBorder, theme.ColorNameSeparator, theme.ColorNameScrollBar:
 		return rgba(style.Line)
 	case theme.ColorNameScrollBarBackground:
@@ -129,6 +131,8 @@ func (p *palette) Size(n fyne.ThemeSizeName) float32 {
 		return 10
 	case theme.SizeNameInputRadius, theme.SizeNameSelectionRadius:
 		return 6
+	case theme.SizeNamePopupRadius:
+		return 8
 	case theme.SizeNameScrollBar:
 		return 8
 	case theme.SizeNameScrollBarSmall:

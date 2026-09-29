@@ -78,11 +78,12 @@ func (u *ui) openHelp() {
 	// Two pairs a line: twenty keys in ten rows fit under the picture on a laptop screen.
 	keys := container.NewGridWithColumns(4)
 	for _, k := range [][2]string{
-		{"↑ ↓  j k", "move"}, {"tab", "switch layer"}, {"space", "select"}, {"enter  l", "open the pane"},
+		{"↑ ↓  j k", "move"}, {"tab", "switch layer"}, {"space", "select"}, {"l", "open the pane"},
+		{"enter  :", "the command palette — every action, typed at"}, {"ctrl+shift+p", "the palette, from anywhere"},
 		{"t", "take"}, {"x", "done"}, {"d", "hand back"}, {">", "move to a month"},
 		{"r", "rewrite"}, {"#", "tag"}, {"n", "note"}, {"a", "add"},
 		{"v", "review — R restore and E erase live there"}, {"s", "sync"}, {"p", "plugins"}, {"c", "copy context"},
-		{"/", "filter"}, {"esc", "clear the filter, leave the mode, then quit"}, {"?", "this page"}, {"q", "quit"},
+		{"/", "filter — hidden until you ask"}, {"esc", "clear the filter, leave the mode, then quit"}, {"?", "this page"}, {"q", "quit"},
 	} {
 		keys.Add(mono(k[0], style.Ink))
 		keys.Add(text(k[1], style.Ink2))

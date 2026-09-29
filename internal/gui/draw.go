@@ -21,7 +21,8 @@ import (
 // depends on which fonts a machine happens to have.
 
 const (
-	quick  = 120 * time.Millisecond // an action appearing
+	flick  = 100 * time.Millisecond // a row's actions arriving
+	quick  = 120 * time.Millisecond // a modal, a bar, the palette
 	settle = 200 * time.Millisecond // a rung filling
 	unfold = 160 * time.Millisecond // a section opening
 	linger = 400 * time.Millisecond // a new row's fill fading out
@@ -91,11 +92,66 @@ func (l *fixedLayout) Layout(objs []fyne.CanvasObject, size fyne.Size) {
 	}
 }
 
-// vrule is a one-pixel line across; hrule the same, down.
+// vrule is a one-pixel line across; vline the same, down. Borders are lines here, never
+// filled bars: the paper stays one surface with a few seams.
 func vrule() fyne.CanvasObject {
 	r := canvas.NewRectangle(rgba(style.Line))
 	r.SetMinSize(fyne.NewSize(0, 1))
 	return r
+}
+
+func vline() fyne.CanvasObject {
+	r := canvas.NewRectangle(rgba(style.Line))
+	r.SetMinSize(fyne.NewSize(1, 0))
+	return r
+}
+
+// inset pads an object by exact amounts, where the theme's one padding is too much or
+// too little: a chip, a header, a status bar.
+func inset(o fyne.CanvasObject, x, y float32) fyne.CanvasObject {
+	return container.New(&insetLayout{x, y}, o)
+}
+
+type insetLayout struct{ x, y float32 }
+
+func (l *insetLayout) MinSize(objs []fyne.CanvasObject) fyne.Size {
+	s := objs[0].MinSize()
+	return fyne.NewSize(s.Width+2*l.x, s.Height+2*l.y)
+}
+
+func (l *insetLayout) Layout(objs []fyne.CanvasObject, size fyne.Size) {
+	objs[0].Move(fyne.NewPos(l.x, l.y))
+	objs[0].Resize(fyne.NewSize(size.Width-2*l.x, size.Height-2*l.y))
+}
+
+// card is the one shell every modal wears — the palette, a form, a picker: a soft
+// rectangle with a hairline edge, and it arrives rather than appears (slideIn).
+func card(content fyne.CanvasObject) fyne.CanvasObject {
+	bg := rounded(style.Card, 8)
+	bg.StrokeColor, bg.StrokeWidth = rgba(style.Line), 1
+	return container.NewStack(bg, inset(content, 14, 12))
+}
+
+// slideIn drops content eight pixels into place while its shell fades up from nothing.
+// Under 150 ms, eased, so it reads as arriving, not bouncing.
+func slideIn(content fyne.CanvasObject) fyne.CanvasObject {
+	l := &slideLayout{dy: -8}
+	box := container.New(l, content)
+	a := fyne.NewAnimation(quick, func(f float32) {
+		l.dy = -8 * (1 - f)
+		box.Refresh()
+	})
+	a.Curve = fyne.AnimationEaseOut
+	a.Start()
+	return box
+}
+
+type slideLayout struct{ dy float32 }
+
+func (l *slideLayout) MinSize(objs []fyne.CanvasObject) fyne.Size { return objs[0].MinSize() }
+func (l *slideLayout) Layout(objs []fyne.CanvasObject, size fyne.Size) {
+	objs[0].Resize(size)
+	objs[0].Move(fyne.NewPos(0, l.dy))
 }
 
 // fade eases a text from one colour to another. The test driver ticks an animation to
@@ -275,7 +331,7 @@ func (l *link) appear() {
 	if l.hushed {
 		c = style.Ink2
 	}
-	fade(l.label, rgba(style.Paper), rgba(c), quick)
+	fade(l.label, rgba(style.Paper), rgba(c), flick)
 }
 
 // primary is the one filled button a screen may have: apply, save, take.
@@ -292,9 +348,10 @@ func lowButton(label string, tap func()) *widget.Button {
 	return b
 }
 
-// chip is a tag as the screen draws it: #tag on a soft accent pill.
+// chip is a tag as the screen draws it: #tag on a soft accent pill, no taller than the
+// line it sits in.
 func chip(label string) fyne.CanvasObject {
 	t := caption(label, style.Ink2)
-	bg := rounded(style.AccentSoft, 10)
-	return container.NewStack(bg, container.NewPadded(container.NewCenter(t)))
+	bg := rounded(style.AccentSoft, 8)
+	return container.NewStack(bg, inset(container.NewCenter(t), 6, 1))
 }

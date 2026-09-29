@@ -61,6 +61,8 @@ func TestScreens(t *testing.T) {
 		{"sweep.png", func(h *harness) { h.u.openSweep() }},
 		{"syncreview.png", func(h *harness) { h.u.openSyncReview(reviewResults()) }},
 		{"plugins.png", func(h *harness) { h.install("echo"); h.u.openPlugins() }},
+		{"palette.png", func(h *harness) { h.u.tabs.SelectIndex(1); test.Type(h.u.tray, ":"); test.Type(h.u.pal.input, "hb") }},
+		{"filter.png", func(h *harness) { test.Type(h.u.garage, "/"); test.Type(h.u.search, "bill") }},
 	} {
 		t.Run(sc.name, func(t *testing.T) {
 			h := open(t, seed()...)

@@ -14,8 +14,9 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
+
+	"github.com/charmbracelet/lipgloss"
 
 	"github.com/cheese-cracker/tray/internal/cli"
 	"github.com/cheese-cracker/tray/internal/core"
@@ -50,9 +51,13 @@ type ui struct {
 	rv, sw       *screen // review and the sweep, built on entering
 	search       *escEntry
 	hidden       *canvas.Text
-	top          *fyne.Container
+	filterBar    *fold           // the search field, out only while you use it
+	top          *fyne.Container // the filter bar's box, under the header
+	pillTap      *tap            // an applied filter, folded to a pill beside the layers
+	pillText     *canvas.Text
+	head         fyne.CanvasObject // home's doors to the modes, at the header's right
 	capture      *escEntry
-	status       *widget.Label
+	status       *canvas.Text
 	notice       *link
 	bottom       *fyne.Container
 	details      *details
@@ -73,6 +78,7 @@ type ui struct {
 	view     *syncView    // the open sync review
 	pane     *pluginsPane // the open plugins pane
 	page     *page        // holds the keys in a mode that has no list
+	pal      *cmdPalette  // the open command palette
 }
 
 func newUI(s *store.Store, w fyne.Window) *ui {
@@ -97,32 +103,52 @@ func newUI(s *store.Store, w fyne.Window) *ui {
 
 	u.tabs = newTabs(
 		container.NewTabItem("garage · "+store.ThisMonth(),
-			container.NewBorder(nil, container.NewPadded(container.NewBorder(nil, nil, nil, sweep, u.capture)), nil, nil, u.garage.view())),
+			container.NewBorder(nil, inset(container.NewBorder(nil, nil, nil, sweep, u.capture), 10, 6), nil, nil, u.garage.view())),
 		container.NewTabItem("tray",
-			container.NewBorder(nil, container.NewPadded(container.NewBorder(nil, nil, add, unload)), nil, nil, u.tray.view())),
+			container.NewBorder(nil, inset(container.NewBorder(nil, nil, add, unload), 10, 6), nil, nil, u.tray.view())),
 	)
 	u.tabs.OnSelected = u.tabChanged
 	u.home = &screen{tabs: u.tabs, lists: []*taskList{u.garage, u.tray}, load: loadHome}
 
+	// The filter bar is out only while you type in it (57): / brings it down under the
+	// header, and it leaves with the focus — as a pill beside the layers if a filter is
+	// on, so the list never quietly shows 3 of 17 rows (57a).
 	u.search = newEscEntry(func() {
 		u.clearFilter()
 		u.focusList()
 	})
-	u.search.SetPlaceHolder("/ filter by words or tag")
+	u.search.onBlur = u.collapseFilter
+	u.search.SetPlaceHolder("filter by words or tag")
 	u.search.OnChanged = func(text string) {
 		u.filter = text
 		u.refilter()
 	}
 	u.hidden = caption("", style.Subtle)
-	u.status = widget.NewLabel("")
-	u.status.SizeName = theme.SizeNameCaptionText
-	u.status.Importance = widget.LowImportance
+	u.filterBar = newFold(inset(container.NewBorder(nil, nil, nil, container.NewCenter(u.hidden), u.search), 10, 4), func() {
+		// The bar's height changed under everything below it; only the root's layout
+		// can move the list down to make room.
+		if u.win.Content() != nil {
+			u.win.Content().Refresh()
+		}
+	})
+	u.top = u.filterBar.box
+	u.pillText = caption("", style.Ink2)
+	u.pillTap = newTap(container.NewStack(rounded(style.AccentSoft, 8),
+		inset(container.NewHBox(u.pillText, caption("×", style.Ink2)), 8, 2)), u.clearFilter)
+	u.pillTap.Hide()
+
+	// The doors to the modes, quiet, at the header's right: the way in without a footer
+	// and without knowing a letter.
+	u.head = container.NewHBox(
+		newLink("sync", u.syncNow).hush(), newLink("plugins", u.openPlugins).hush(), newLink("?", u.openHelp).hush())
+
+	u.status = caption("", style.Ink2)
 	u.notice = newLink("", u.openPending)
 	u.notice.Hide()
-	u.bottom = container.NewPadded(container.NewBorder(nil, nil, nil, u.notice, u.status))
+	u.bottom = container.NewBorder(vrule(), nil, nil, nil,
+		inset(container.NewBorder(nil, nil, container.NewCenter(u.status), u.notice), 10, 3))
 
-	u.top = container.NewPadded(container.NewBorder(nil, nil, nil, container.NewCenter(u.hidden), u.search))
-	u.root = u.frame(container.NewBorder(u.top, u.bottom, nil, nil, u.split(u.tabs)))
+	u.root = u.frame(u.shell(u.home, nil, nil))
 	u.reload()
 	return u
 }
@@ -134,13 +160,69 @@ func (u *ui) frame(content fyne.CanvasObject) fyne.CanvasObject {
 	return container.NewStack(floor, content)
 }
 
+// shell is the one shape every list screen has: a header line — the layer pills, the
+// filter pill when a filter is on, and on home the doors to the modes — the filter bar
+// while it is out, the lists beside the pane, and the status bar under a hairline. A mode
+// puts its banner above the header, and may draw its colour around the middle.
+func (u *ui) shell(sc *screen, ban fyne.CanvasObject, frame *lipgloss.AdaptiveColor) fyne.CanvasObject {
+	var right fyne.CanvasObject
+	if sc == u.home {
+		right = u.head
+	}
+	head := inset(container.NewBorder(nil, nil,
+		container.NewHBox(sc.tabs.bar, container.NewCenter(u.pillTap)), right), 10, 6)
+	top := container.NewVBox()
+	if ban != nil {
+		top.Add(ban)
+	}
+	top.Add(head)
+	top.Add(u.top)
+	middle := u.split(sc.tabs)
+	if frame != nil {
+		middle = framed(middle, *frame)
+	}
+	return container.NewBorder(top, u.bottom, nil, nil, middle)
+}
+
 // split is the list beside the pane; every screen with a list gets the same pair. The
-// pane sits on card, one step up from the paper, so the ladder reads as its own place.
+// pane is the same paper behind a hairline, so the ladder reads as a margin, not a box.
 func (u *ui) split(lists fyne.CanvasObject) fyne.CanvasObject {
-	pane := container.NewStack(rounded(style.Card, 0), container.NewVScroll(container.NewPadded(u.details.box)))
+	pane := container.NewBorder(nil, nil, vline(), nil, container.NewVScroll(inset(u.details.box, 16, 12)))
 	sp := container.NewHSplit(lists, pane)
 	sp.Offset = 0.62
 	return sp
+}
+
+// openFilter brings the bar down and hands it the keys.
+func (u *ui) openFilter() {
+	u.filterBar.setOpen(true, true)
+	u.pillTap.Hide()
+	u.win.Canvas().Focus(u.search)
+}
+
+// collapseFilter is the bar leaving with the focus: an applied filter stays as a pill
+// that says what it hid; an empty one simply goes.
+func (u *ui) collapseFilter() {
+	if !u.filterBar.open {
+		return
+	}
+	u.filterBar.setOpen(false, true)
+	u.syncPill()
+}
+
+func (u *ui) syncPill() {
+	text := "filter: " + u.filter
+	if u.hidden.Text != "" {
+		text += " · " + u.hidden.Text
+	}
+	u.pillText.Text = text
+	u.pillText.Refresh()
+	setShown(u.pillTap, u.filter != "" && !u.filterBar.open)
+}
+
+func (u *ui) setStatus(s string) {
+	u.status.Text = s
+	u.status.Refresh()
 }
 
 func (u *ui) tabChanged(*container.TabItem) {
@@ -192,7 +274,7 @@ func (u *ui) reload() {
 		}
 	}
 	u.refilter()
-	u.status.SetText(u.statusText())
+	u.setStatus(u.statusText())
 	u.flash = ""
 	u.details.show(u.current().cursorTask())
 }
@@ -230,6 +312,7 @@ func (u *ui) refilter() {
 	}
 	u.hidden.Refresh()
 	u.top.Refresh() // the label's width changed; the search field takes up the rest
+	u.syncPill()
 }
 
 func (u *ui) clearFilter() {
@@ -275,7 +358,7 @@ func (u *ui) fail(err error) { u.say("error: " + err.Error()) }
 // say puts one line about what just happened in the status, until the next reload.
 func (u *ui) say(msg string) {
 	u.flash = msg
-	u.status.SetText(u.statusText())
+	u.setStatus(u.statusText())
 }
 
 // targets is what an action applies to: the marks, or the row under the cursor.
@@ -308,7 +391,7 @@ func (u *ui) setMark(id int64, on bool) {
 // that move a line, home everything but those two. A letter a mode does not offer is
 // dead there, so a key pressed in the wrong room does nothing rather than something.
 func (u *ui) offers(verb string) bool {
-	const always = " l/?qc"
+	const always = " l/?qc:"
 	switch u.mode {
 	case modeHome:
 		return !strings.Contains("RE", verb)
@@ -406,7 +489,9 @@ func (u *ui) do(verb string, l *taskList) {
 	case "l":
 		u.details.focus()
 	case "/":
-		u.win.Canvas().Focus(u.search)
+		u.openFilter()
+	case ":":
+		u.openPalette(l)
 	case "?":
 		u.openHelp()
 	case "q":
@@ -521,12 +606,21 @@ func (u *ui) tagHint() string {
 	return "in use: " + strings.Join(tags, " ")
 }
 
-// show puts content over the screen and hands it the keyboard. One popup at a time: a
-// form over a form is a question you cannot see.
-func (u *ui) show(content fyne.CanvasObject, focus fyne.Focusable) {
+// show puts content over the screen in the card shell and hands it the keyboard. One
+// popup at a time: a form over a form is a question you cannot see.
+func (u *ui) show(content fyne.CanvasObject, focus fyne.Focusable) { u.showAt(content, focus, false) }
+
+// showAt is show with a choice of where: the palette drops from near the top, where an
+// editor's does; everything else sits in the middle.
+func (u *ui) showAt(content fyne.CanvasObject, focus fyne.Focusable, top bool) {
 	u.hide()
-	u.pop = widget.NewModalPopUp(container.NewPadded(content), u.win.Canvas())
-	u.pop.Show()
+	u.pop = widget.NewModalPopUp(slideIn(card(content)), u.win.Canvas())
+	if top {
+		w := u.pop.Content.MinSize().Width
+		u.pop.ShowAtPosition(fyne.NewPos((u.win.Canvas().Size().Width-w)/2, 48))
+	} else {
+		u.pop.Show()
+	}
 	if focus != nil {
 		u.win.Canvas().Focus(focus)
 	}
@@ -537,6 +631,7 @@ func (u *ui) hide() {
 		u.pop.Hide()
 		u.pop = nil
 	}
+	u.pal = nil
 	u.focusList()
 }
 

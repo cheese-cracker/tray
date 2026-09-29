@@ -11,7 +11,9 @@ import (
 
 // tabs is a segmented control: the layers as pills, the chosen one on a soft accent
 // fill, and one content shown under them. It keeps AppTabs' shape — Items, SelectIndex,
-// SelectedIndex, OnSelected — so a screen and its tests read the same either way.
+// SelectedIndex, OnSelected — so a screen and its tests read the same either way. The
+// pills are not drawn over the body: the screen puts them in its one header line (bar),
+// beside whatever else that line carries.
 type tabs struct {
 	widget.BaseWidget
 	Items      []*container.TabItem
@@ -36,9 +38,7 @@ func newTabs(items ...*container.TabItem) *tabs {
 	return t
 }
 
-func (t *tabs) CreateRenderer() fyne.WidgetRenderer {
-	return widget.NewSimpleRenderer(container.NewBorder(container.NewPadded(t.bar), nil, nil, nil, t.body))
-}
+func (t *tabs) CreateRenderer() fyne.WidgetRenderer { return widget.NewSimpleRenderer(t.body) }
 
 func (t *tabs) SelectedIndex() int { return t.selected }
 
@@ -74,18 +74,19 @@ type pill struct {
 func newPill(text string, tap func()) *pill {
 	p := &pill{onTap: tap}
 	p.label = semibold(text, style.Ink2)
-	p.bg = rounded(style.AccentSoft, 12)
+	p.label.TextSize = 13
+	p.bg = rounded(style.AccentSoft, 10)
 	p.ExtendBaseWidget(p)
 	return p
 }
 
 func (p *pill) CreateRenderer() fyne.WidgetRenderer {
-	return widget.NewSimpleRenderer(container.NewStack(p.bg, container.NewPadded(container.NewCenter(p.label))))
+	return widget.NewSimpleRenderer(container.NewStack(p.bg, inset(container.NewCenter(p.label), 10, 3)))
 }
 
 func (p *pill) MinSize() fyne.Size {
 	s := p.label.MinSize()
-	return fyne.NewSize(s.Width+20, s.Height+10)
+	return fyne.NewSize(s.Width+20, s.Height+6)
 }
 
 func (p *pill) Refresh() {

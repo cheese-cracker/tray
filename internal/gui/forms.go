@@ -12,16 +12,25 @@ import (
 )
 
 // escEntry is an Entry that knows how to be left. Fyne's does nothing on Escape, and
-// a field you cannot back out of is a trap.
+// a field you cannot back out of is a trap. onBlur says the focus went elsewhere, for a
+// field that should get out of the way when it does.
 type escEntry struct {
 	widget.Entry
 	onEscape func()
+	onBlur   func()
 }
 
 func newEscEntry(onEscape func()) *escEntry {
 	e := &escEntry{onEscape: onEscape}
 	e.ExtendBaseWidget(e)
 	return e
+}
+
+func (e *escEntry) FocusLost() {
+	e.Entry.FocusLost()
+	if e.onBlur != nil {
+		e.onBlur()
+	}
 }
 
 func (e *escEntry) TypedKey(k *fyne.KeyEvent) {

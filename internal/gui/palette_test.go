@@ -55,6 +55,12 @@ func TestEveryColourIsThePalettes(t *testing.T) {
 		{"sweep", func(h *harness) { h.u.openSweep() }},
 		{"syncreview", func(h *harness) { h.u.openSyncReview(reviewResults()) }},
 		{"plugins", func(h *harness) { h.install("echo"); h.u.openPlugins() }},
+		{"palette", func(h *harness) { h.u.tabs.SelectIndex(1); test.Type(h.u.tray, ":"); test.Type(h.u.pal.input, "hb") }},
+		{"filter", func(h *harness) {
+			test.Type(h.u.garage, "/")
+			test.Type(h.u.search, "bill")
+			h.w.Canvas().Focus(h.u.garage)
+		}},
 	} {
 		t.Run(sc.name, func(t *testing.T) {
 			h := open(t, seedScreens()...)

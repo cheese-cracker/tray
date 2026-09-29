@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/test"
 	"fyne.io/fyne/v2/theme"
 
 	"github.com/cheese-cracker/tray/internal/core"
@@ -55,6 +56,13 @@ func TestShots(t *testing.T) {
 		{"syncreview", func(h *harness) { h.u.openSyncReview(reviewResults()) }},
 		{"plugins", func(h *harness) { h.install("echo"); h.u.openPlugins() }},
 		{"help", func(h *harness) { h.u.do("?", h.u.garage) }},
+		{"palette", func(h *harness) { h.u.tabs.SelectIndex(1); test.Type(h.u.tray, ":"); test.Type(h.u.pal.input, "hb") }},
+		{"filter-open", func(h *harness) { test.Type(h.u.garage, "/"); test.Type(h.u.search, "bill") }},
+		{"filter-pill", func(h *harness) {
+			test.Type(h.u.garage, "/")
+			test.Type(h.u.search, "bill")
+			h.w.Canvas().Focus(h.u.garage)
+		}},
 	}
 	for _, v := range []struct {
 		name    string
