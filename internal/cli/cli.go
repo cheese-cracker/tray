@@ -19,7 +19,7 @@ const Version = "0.3.0"
 var verbs = []string{
 	"init", "dump", "add", "take", "rewrite", "edit", "note", "done", "erase",
 	"unload", "carryover", "list", "head", "find", "print", "export", "import", "context",
-	"status", "restore", "plugin", "help",
+	"sync", "status", "restore", "plugin", "help",
 }
 
 var idSpec = regexp.MustCompile(`^\d+([,-]\d+)*$`)
@@ -48,16 +48,21 @@ const usage = `tray — two layers, one database. Dump to the garage, take onto 
   tray export [--format tw|todotxt|md] [--all]    Taskwarrior JSON by default
   tray import --format tw|todotxt [file|-]        from a file or stdin; --format md ~/tray for the old home
   tray context [ids]                 the report with ids and every note, for pasting to an agent
+  tray add <desc> recur:weekly due:2026-10-03    a template; sync keeps one live child of it
+  tray sync [--plugin <name>] [--apply] [--json]  the one event: recurrence and waiting rows land,
+                                     plugin plans print — and land whole only under --apply
 
 Ids are permanent. Filters: ids (12, 2,5-7), +tag, key:value, and ` + "`garage`" + ` to switch layer.`
 
 type options struct {
-	json, all, run, help, version bool
-	month, to, note, format       string
-	unknown                       []string // rejected, not ignored
+	json, all, run, apply, help, version     bool
+	month, to, note, format, plugin, timeout string
+	unknown                                  []string // rejected, not ignored
 }
 
-var valueFlags = map[string]bool{"--month": true, "--to": true, "--note": true, "--format": true}
+var valueFlags = map[string]bool{
+	"--month": true, "--to": true, "--note": true, "--format": true, "--plugin": true, "--timeout": true,
+}
 
 func takeFlags(args []string) (options, []string) {
 	var opts options
@@ -71,6 +76,8 @@ func takeFlags(args []string) (options, []string) {
 			opts.all = true
 		case arg == "--run":
 			opts.run = true
+		case arg == "--apply":
+			opts.apply = true
 		case arg == "--help" || arg == "-h":
 			opts.help = true
 		case arg == "--version":
@@ -87,6 +94,10 @@ func takeFlags(args []string) (options, []string) {
 				opts.note = args[i+1]
 			case "--format":
 				opts.format = args[i+1]
+			case "--plugin":
+				opts.plugin = args[i+1]
+			case "--timeout":
+				opts.timeout = args[i+1]
 			}
 			i++
 		case strings.HasPrefix(arg, "--"):
@@ -152,9 +163,16 @@ func merge(into *options, from options) {
 	if from.format != "" {
 		into.format = from.format
 	}
+	if from.plugin != "" {
+		into.plugin = from.plugin
+	}
+	if from.timeout != "" {
+		into.timeout = from.timeout
+	}
 	into.json = into.json || from.json
 	into.all = into.all || from.all
 	into.run = into.run || from.run
+	into.apply = into.apply || from.apply
 	into.unknown = append(into.unknown, from.unknown...)
 	into.help = into.help || from.help
 	into.version = into.version || from.version
@@ -247,6 +265,8 @@ func dispatch(s *store.Store, req request) (string, error) {
 		return cmdImport(s, req)
 	case "context":
 		return cmdContext(s, req)
+	case "sync":
+		return cmdSync(s, req)
 	case "status":
 		return cmdStatus(s)
 	case "plugin":

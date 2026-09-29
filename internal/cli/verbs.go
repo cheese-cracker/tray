@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/cheese-cracker/tray/internal/core"
-	"github.com/cheese-cracker/tray/internal/plugin"
 	"github.com/cheese-cracker/tray/internal/store"
 	"github.com/cheese-cracker/tray/internal/wire"
 )
@@ -72,20 +71,56 @@ func cmdAdd(s *store.Store, req request) (string, error) {
 	task := core.New(text, mods.AddTags)
 	task.Note = req.opts.note
 	core.ApplyMods(&task, core.Mods{Attrs: mods.Attrs})
+	if err := period(task); err != nil {
+		return "", err
+	}
 	// A waiting task lies in the garage of its day until sync lifts it, so adding one
-	// is a dump with a date rather than a tray task you cannot see.
-	if d, ok := core.Date(task.Wait); ok {
+	// is a dump with a date rather than a tray task you cannot see. A template is the
+	// tray's own furniture whatever else it carries.
+	if d, ok := core.Date(task.Wait); ok && task.Recur == "" {
 		task.Layer, task.Month = core.LayerGarage, d.Format("2006-01")
 	} else {
 		task.Layer = core.LayerTray
 	}
-	if err := s.Put(&task); err != nil {
+	// The first child exists the moment the template does — same function sync runs,
+	// one more caller — so a weekly you just added is on the tray without waiting.
+	var children []core.Task
+	err := s.Update(func(tx *store.Store) error {
+		if err := tx.Put(&task); err != nil {
+			return err
+		}
+		if task.Recur == "" {
+			return nil
+		}
+		children = core.Materialize([]core.Task{task}, nil, store.Today())
+		for i := range children {
+			if err := tx.Put(&children[i]); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
 		return "", err
 	}
-	if task.Layer == core.LayerGarage {
+	switch {
+	case len(children) > 0:
+		return fmt.Sprintf("added template: %s · next %s", text, core.Day(children[0].Due)), nil
+	case task.Recur != "":
+		return fmt.Sprintf("added template: %s · nothing before until:%s", text, task.Until), nil
+	case task.Layer == core.LayerGarage:
 		return fmt.Sprintf("added: %s → %s, waiting until %s", text, task.Month, core.Day(task.Wait)), nil
 	}
 	return "added: " + text + missing(task), nil
+}
+
+// period refuses a recur value tray cannot step through, at the door rather than as a
+// template that never materializes.
+func period(t core.Task) error {
+	if _, ok := core.Period(t.Recur); t.Recur != "" && !ok {
+		return fmt.Errorf("recur:%s is not a period — daily, weekly, monthly, yearly, or 3d, 2w", t.Recur)
+	}
+	return nil
 }
 
 // missing names what a tray task still wants. The garage asks for nothing; the tray
@@ -286,6 +321,9 @@ func cmdRewrite(s *store.Store, req request) (string, error) {
 			if len(mods.Words) > 0 {
 				t.Text = strings.Join(mods.Words, " ")
 			}
+			if err := period(t); err != nil {
+				return err
+			}
 			if err := tx.Put(&t); err != nil {
 				return err
 			}
@@ -457,48 +495,30 @@ func cmdStatus(s *store.Store) (string, error) {
 	}
 	lines = append(lines, fmt.Sprintf("tray: %d live · waiting %d · templates %d · garage %s",
 		len(tray), waiting, templates, store.ThisMonth()))
+
+	// The plugins' last word: when sync last ran, and who did not come back clean.
+	runs, err := s.Runs()
+	if err != nil {
+		return "", err
+	}
+	last := ""
+	var names []string
+	for name, r := range runs {
+		if r.At > last {
+			last = r.At
+		}
+		if !r.OK {
+			names = append(names, name)
+		}
+	}
+	if last != "" {
+		lines = append(lines, "last sync "+last)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		lines = append(lines, fmt.Sprintf("%s failed — %s", name, runs[name].Message))
+	}
 	return strings.Join(lines, "\n"), nil
-}
-
-// cmdPlugin lists what is installed, and that is deliberately all it does. A verb
-// that pulls on demand is the shape --nag was deleted for (76): the sync belongs to
-// opening the tab in the sweep, so there is one sync point and you cannot forget it.
-func cmdPlugin(s *store.Store, req request) (string, error) {
-	if len(req.tail) > 0 && req.tail[0] != "list" {
-		return "", fmt.Errorf("tray plugin lists what is installed — syncing happens in `tray carryover`")
-	}
-	found := plugin.List()
-	if len(found) == 0 {
-		return "no plugins — one is a folder in " + plugin.Dir() +
-			" holding an executable `" + plugin.Runner + "`", nil
-	}
-	var rows []string
-	for _, p := range found {
-		desc, err := describe(s, p)
-		if err != nil {
-			return "", err
-		}
-		rows = append(rows, fmt.Sprintf("%-12s %s", p.Name, desc))
-	}
-	return strings.Join(rows, "\n"), nil
-}
-
-// describe says what a plugin is doing here: the garage it keeps, as rows in the
-// store, and the verbs it puts in the menu. A plugin with verbs and no runner keeps no
-// garage, so none is claimed for it.
-func describe(s *store.Store, p plugin.Plugin) (string, error) {
-	var parts []string
-	if p.Run != "" {
-		rows, err := s.Tasks(store.Filter{Layer: core.LayerGarage, Month: p.Garage(), All: true})
-		if err != nil {
-			return "", err
-		}
-		parts = append(parts, "garage "+count(len(rows), "row"))
-	}
-	if len(p.Verbs) > 0 {
-		parts = append(parts, "enter → "+strings.Join(p.Verbs, ", "))
-	}
-	return strings.Join(parts, " · "), nil
 }
 
 func count(n int, noun string) string {

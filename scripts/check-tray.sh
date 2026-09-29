@@ -50,6 +50,10 @@ command -v jq >/dev/null 2>&1 || {
 }
 valid_json() { jq -e . >/dev/null 2>&1; }
 
+# The fixture plugins: three-line shell scripts that stand in for a real one.
+FIXTURES="$ROOT/internal/sync/testdata/plugins"
+install_plugin() { mkdir -p "$TRAY_HOME/plugins"; cp -R "$FIXTURES/$1" "$TRAY_HOME/plugins/"; }
+
 # macOS ships no timeout(1); coreutils installs it prefixed. Neither is required.
 if command -v timeout >/dev/null 2>&1; then limit() { timeout 5 "$@"; }
 elif command -v gtimeout >/dev/null 2>&1; then limit() { gtimeout 5 "$@"; }
@@ -376,7 +380,7 @@ teardown
 
 # --- F23 · plugin ----------------------------------------------------------------
 # A plugin is a folder holding an executable, and the folder name is the whole
-# manifest. Nothing here runs one: this asserts what tray is willing to believe.
+# manifest. This asserts what tray is willing to believe about one.
 head_ "F23 · plugin lists what is installed"
 setup
 
@@ -389,15 +393,16 @@ tray help | grep -q "tray plugin" && bad "help advertises plugin with none insta
   || pass "help is untouched until a plugin exists"
 
 mkdir -p "$TRAY_HOME/plugins/notion" "$TRAY_HOME/plugins/halfdone"
-printf '#!/bin/sh\n' > "$TRAY_HOME/plugins/notion/run"; chmod +x "$TRAY_HOME/plugins/notion/run"
-printf '#!/bin/sh\n' > "$TRAY_HOME/plugins/halfdone/run"   # deliberately not executable
+printf '#!/bin/sh\necho "{\\"pull\\":[]}"\n' > "$TRAY_HOME/plugins/notion/sync"; chmod +x "$TRAY_HOME/plugins/notion/sync"
+printf '#!/bin/sh\n' > "$TRAY_HOME/plugins/halfdone/sync"   # deliberately not executable
 
 out=$(tray plugin list)
 case $out in *notion*) pass "an installed plugin is listed" ;; *) bad "got: $out" ;; esac
 tray help | grep -q "tray plugin" && pass "and now the help says so" || bad "help still silent with a plugin installed"
-case $out in *halfdone*) bad "a non-executable run counted as a plugin: $out" ;;
-  *) pass "a folder without an executable run is half an install" ;; esac
+case $out in *halfdone*) bad "a non-executable sync counted as a plugin: $out" ;;
+  *) pass "a folder without an executable sync is half an install" ;; esac
 case $out in *"garage empty"*) pass "a garage never written says so" ;; *) bad "got: $out" ;; esac
+case $out in *"never run"*) pass "and so does a plugin never run" ;; *) bad "got: $out" ;; esac
 
 # The garage a plugin owns is ordinary rows in the store, so it reads with no plugin
 # involved at all — which is what keeps a deleted plugin from taking your tasks.
@@ -412,8 +417,21 @@ tray "$(gid_of notion 'ship the billing migration')" take pri:H >/dev/null
 [ "$(garage_json notion | rows 'ship the billing migration')" = "0" ] \
   && pass "and the row moved rather than copied" || bad "the plugin garage kept a copy"
 
-out=$(tray plugin sync 2>&1)
-case $out in *carryover*) pass "sync is refused, and says where syncing happens" ;; *) bad "got: $out" ;; esac
+out=$(tray plugin run notion)
+case $out in *"notion: nothing new"*) pass "run prints one plugin's plan and lands nothing" ;; *) bad "got: $out" ;; esac
+tray plugin | grep -q "notion.*last manual.*ok" && pass "and the listing remembers the run" || bad "got: $(tray plugin)"
+tray plugin run nope >/dev/null 2>&1 && bad "an unknown plugin ran" || pass "an unknown plugin is an error"
+
+# The example settings are the form; tray writes the answers and never reads them.
+printf '{"url":"","rules":"in progress only"}' > "$TRAY_HOME/plugins/notion/settings.example.json"
+tray plugin set notion url=https://example.test >/dev/null
+[ "$(jq -r .url "$TRAY_HOME/plugins/notion/settings.json")" = "https://example.test" ] \
+  && pass "set writes the plugin's settings file" || bad "settings not written"
+tray plugin set notion colour=red >/dev/null 2>&1 && bad "a key the example does not name was accepted" \
+  || pass "a key the example does not name is refused"
+tray plugin | grep -q "on-launch" && bad "on-launch claimed without the marker" || pass "manual only until the marker exists"
+touch "$TRAY_HOME/plugins/notion/on-launch"
+tray plugin | grep -q "on-launch" && pass "the marker opts a plugin into launch" || bad "marker ignored"
 
 # A menu verb is an executable under actions/, named after itself (105). A plugin may
 # be nothing but verbs — then it keeps no garage, and the listing says what it adds
@@ -540,6 +558,112 @@ out=$(tray "$(id_of Plain)" context)
 case $out in *Rotate*) bad "an id should narrow it: $out" ;; *Plain*) pass "an id narrows it to that task" ;; *) bad "got: $out" ;; esac
 case $(tray +infra context) in *Plain*) bad "a filter should narrow it" ;; *Rotate*) pass "a filter narrows it too" ;; *) bad "filter broke it" ;; esac
 case $(tray 999 context) in "nothing to copy") pass "an unknown id says so" ;; *) bad "got: $(tray 999 context)" ;; esac
+teardown
+
+# --- F25 · waiting ---------------------------------------------------------------------
+# A waiting task lies in the garage of its month — a line that waits for a day, not for
+# you to look — and the one event lifts it onto the tray when the day comes.
+head_ "F25 · a waiting task lies in the garage until its day"
+setup
+tray add Call mom wait:2026-08-10 due:2026-08-11 pri:H >/dev/null
+[ "$(garage_json 2026-08 | rows 'Call mom')" = "1" ] && pass "it lands in the garage of its month" || bad "not in the garage"
+[ "$(garage_json 2026-08 | field 'Call mom' status)" = "waiting" ] && pass "and reads as waiting" || bad "status: $(garage_json 2026-08 | field 'Call mom' status)"
+tray garage list | grep -q "WAIT" && pass "the garage shows the day" || bad "no WAIT column"
+tray status | grep -q "waiting 1" && pass "status counts it" || bad "got: $(tray status)"
+case $(tray sync) in *"lifted 0"*) pass "before its day, sync leaves it there" ;; *) bad "lifted early" ;; esac
+case $(TRAY_TODAY=2026-08-10 tray sync) in *"lifted 1"*) pass "on its day, sync lifts it" ;; *) bad "not lifted" ;; esac
+[ "$(tray_json | field 'Call mom' priority)" = "H" ] && [ "$(tray_json | field 'Call mom' due)" = "20260811T000000Z" ] \
+  && pass "onto the tray with what it carried" || bad "attrs lost: $(tray_json)"
+[ "$(tray_json | field 'Call mom' wait)" = "null" ] && pass "its wait spent" || bad "wait lingered"
+tray "$(id_of 'Call mom')" unload >/dev/null
+case $(TRAY_TODAY=2026-08-12 tray sync) in *"lifted 0"*) pass "handed back, it is not lifted again" ;; *) bad "lifted twice" ;; esac
+teardown
+
+# --- F26 · recurrence -------------------------------------------------------------------
+# A template keeps one live child at a time. The next one is due on the first occurrence
+# on or after today and after the last — never the same period twice, never a backlog.
+head_ "F26 · recurrence serves each period once"
+setup
+out=$(tray add Weekly review recur:weekly due:2026-08-08 pri:M +ops)
+case $out in *template*next*"Sat Aug 8"*) pass "adding a template names the next occurrence" ;; *) bad "got: $out" ;; esac
+[ "$(tray_json | rows 'Weekly review')" = "2" ] && pass "a template and one child exist" || bad "rows: $(tray_json | rows 'Weekly review')"
+[ "$(tray list | grep -c 'Weekly review')" = "1" ] && pass "the default list shows the child alone" || bad "got: $(tray list)"
+tray list --all | grep -q "↻" && pass "the template is marked under --all" || bad "no mark"
+tray status | grep -q "templates 1" && pass "status counts it" || bad "got: $(tray status)"
+case $(tray sync) in *"materialized 0"*) pass "a live child blocks a second" ;; *) bad "materialized again" ;; esac
+child() { tray_json | jq -r 'first(.[] | select(.description=="Weekly review" and .status=="pending")) | .id'; }
+child_due() { tray_json | jq -r 'first(.[] | select(.description=="Weekly review" and .status=="pending")) | .due'; }
+tray "$(child)" done >/dev/null
+case $(tray sync) in *"materialized 1"*) pass "once the child is done, the next period gets one" ;; *) bad "nothing materialized" ;; esac
+[ "$(child_due)" = "20260815T000000Z" ] && pass "due one period on — the same period is never served twice" || bad "due: $(child_due)"
+tray "$(child)" done >/dev/null
+TRAY_TODAY=2026-09-20 tray sync >/dev/null
+[ "$(child_due)" = "20260926T000000Z" ] && pass "missed periods are skipped, not stacked" || bad "due: $(child_due)"
+tray add Odd recur:fortnightly due:2026-08-08 >/dev/null 2>&1 && bad "an unknown period was accepted" || pass "an unknown period is refused"
+tpl=$(tray_json | jq -r 'first(.[] | select(.recur=="weekly")) | .id')
+tray "$tpl" done >/dev/null
+tray "$(child)" done >/dev/null
+case $(TRAY_TODAY=2026-10-01 tray sync) in *"materialized 0"*) pass "done on a template ends it" ;; *) bad "an ended template materialized" ;; esac
+teardown
+
+# --- F28 · sync plans --------------------------------------------------------------------
+# What a plugin reports is shown, never landed, until you say so.
+head_ "F28 · sync prints a plan and lands nothing without --apply"
+setup
+install_plugin echo
+out=$(tray sync)
+case $out in "materialized 0 · lifted 0"*) pass "the summary leads" ;; *) bad "got: $out" ;; esac
+case $out in *"echo: 2 adds · 0 updates · 1 push"*) pass "then each plugin's plan" ;; *) bad "got: $out" ;; esac
+case $out in *"+ Ship the notes  +work"*) pass "adds are listed with their tags" ;; *) bad "no add line: $out" ;; esac
+case $out in *"↑ n0 done=2026-08-07"*) pass "and what the plugin would push" ;; *) bad "no push line: $out" ;; esac
+case $out in *"evidence: evidence/shot.png"*) pass "with the evidence it gathered" ;; *) bad "no evidence" ;; esac
+case $out in *"tray sync --apply"*) pass "and names the way to land it" ;; *) bad "no hint" ;; esac
+[ "$(garage_json echo | jq length)" = "0" ] && pass "nothing landed" || bad "rows landed: $(garage_json echo)"
+tray sync --json | valid_json && pass "--json is valid" || bad "--json broken"
+[ "$(tray sync --json | jq -r '.plugins[0].adds | length')" = "2" ] && pass "and carries the plan" || bad "json plan wrong"
+teardown
+
+# --- F29 · apply ---------------------------------------------------------------------------
+head_ "F29 · apply lands a plugin's plan whole or not at all"
+setup
+install_plugin echo
+tray sync --apply | grep -q "applied: 2 adds" && pass "--apply lands it" || bad "got: $(tray sync --apply)"
+[ "$(garage_json echo | rows 'Ship the notes')" = "1" ] && pass "adds arrive in the plugin's garage" || bad "not in the garage"
+[ "$(garage_json echo | field 'Renew the cert' status)" = "completed" ] \
+  && [ "$(garage_json echo | field 'Renew the cert' priority)" = "H" ] \
+  && pass "with what the plugin reported" || bad "fields lost: $(garage_json echo)"
+grep -q '"n0"' "$TRAY_HOME/plugins/echo/applied.json" && pass "the push reached the plugin" || bad "no applied.json"
+tray plugin | grep -q "echo.*last apply.*ok" && pass "the listing remembers the apply" || bad "got: $(tray plugin)"
+case $(tray sync) in *"echo: 0 adds"*) pass "a second sync finds the rows it knows" ;; *) bad "got: $(tray sync)" ;; esac
+printf '{"pull":[{"key":"a","text":"good row"},{"key":"b","text":"bad row","priority":"Z"}],"push":[]}' > "$TRAY_HOME/plugins/echo/plan.json"
+tray sync --apply >/dev/null 2>&1 && bad "a plan the store rejects was applied" || pass "a row the store refuses fails the apply"
+[ "$(garage_json echo | rows 'good row')" = "0" ] && pass "and the good row did not land alone" || bad "half a plan landed"
+teardown
+
+# --- F30 · failure isolation ---------------------------------------------------------------
+head_ "F30 · a failing plugin fails alone"
+setup
+install_plugin echo; install_plugin fail; install_plugin ask
+out=$(tray sync)
+case $out in *"fail: failed — boom"*) pass "a failure is named with its first stderr line" ;; *) bad "got: $out" ;; esac
+case $out in *"ask: needs you — login needed"*) pass "exit 2 is a question, not a failure" ;; *) bad "got: $out" ;; esac
+case $out in *"echo: 2 adds"*) pass "the others still plan" ;; *) bad "echo suffered: $out" ;; esac
+grep -q "and more detail" "$TRAY_HOME/plugins/fail/log" && pass "the whole of stderr is in the log" || bad "log missing"
+tray sync --apply >/dev/null
+[ "$(garage_json echo | jq length)" = "2" ] && pass "--apply lands the ones that planned" || bad "echo did not land"
+[ "$(garage_json fail | jq length)" = "0" ] && pass "and a failed one landed nothing" || bad "fail landed rows"
+tray plugin | grep -q "fail.*failed — boom" && pass "the listing names the failure" || bad "got: $(tray plugin)"
+tray status | grep -q "fail failed — boom" && pass "so does status" || bad "got: $(tray status)"
+teardown
+
+# --- F31 · timeout ---------------------------------------------------------------------------
+head_ "F31 · a slow plugin times out alone"
+setup
+install_plugin echo; install_plugin slow
+out=$(limit "$BIN" sync --timeout 1s </dev/null)
+case $out in *"slow: failed — timed out"*) pass "the slow one is cut off and named" ;; *) bad "got: $out" ;; esac
+case $out in *"echo: 2 adds"*) pass "echo's plan still prints" ;; *) bad "echo suffered: $out" ;; esac
+tray sync --timeout soon >/dev/null 2>&1 && bad "a bad timeout was accepted" || pass "a bad --timeout is an error"
 teardown
 
 printf '\n'
