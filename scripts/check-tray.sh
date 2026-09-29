@@ -17,7 +17,8 @@ setup() {
   TRAY_HOME=$(mktemp -d)
   export TRAY_HOME
   export TRAY_TODAY=2026-08-07
-  export TRAY_CONFIG="$TRAY_HOME/config.yaml"   # never the user's — a real db.url would send every flow elsewhere
+  export TRAY_CONFIG="$TRAY_HOME/config.yaml"   # never the user's file, and never their environment either
+  unset OPENROUTER_API_KEY OPENROUTER_MODEL
   tray() { "$BIN" "$@" </dev/null; }
   tray init >/dev/null
 }
@@ -748,26 +749,44 @@ grep -q "already here, renamed" "$TRAY_HOME/garage.md" && pass "and comes back i
 case $(tray sync) in *"garage.md +0 ~0"*) pass "a second sync finds nothing new" ;; *) bad "got: $(tray sync)" ;; esac
 teardown
 
-# --- F37 · the config file names the store --------------------------------------------------
-head_ "F37 · the config file names the store, and tray config masks its secrets"
+# --- F37 · the config file reaches the plugins ----------------------------------------------
+head_ "F37 · the config file's keys reach a plugin, tray config masks them, and the store is not a setting"
 setup
-rm -f "$TRAY_HOME/tray.db"   # setup's init made one; this flow is about it staying away
-CFG="$TRAY_HOME/cfg.yaml"; OTHER="$TRAY_HOME/elsewhere/other.db"
-printf 'db:\n  url: "%s"\n  auth_token: "eyJhbGciOiJFZDI1NTE5In0.secret1234"\nopenrouter:\n  api_key: "sk-or-v1-abcdef9876"\n' "$OTHER" > "$CFG"
-TRAY_CONFIG="$CFG" tray dump 'lands in the other file' >/dev/null
-[ -f "$OTHER" ] && pass "the URL's file was created" || bad "no file at db.url"
-[ -f "$TRAY_HOME/tray.db" ] && bad "tray.db was created in the home although db.url named another file" || pass "the home's tray.db was not touched"
-[ "$(TRAY_CONFIG="$CFG" garage_json 2026-08 | rows 'lands in the other file')" = "1" ] && pass "the row reads back from the named file" || bad "row missing from the named file"
-tray init >/dev/null
-[ "$(garage_json 2026-08 | rows 'lands in the other file')" = "0" ] && pass "without the config the home is empty" || bad "the home saw the row"
+CFG="$TRAY_HOME/cfg.yaml"
+printf 'db:\n  url: "libsql://not-a-setting.example"\nopenrouter:\n  api_key: "sk-or-v1-abcdef9876"\n  model: "m/one"\n' > "$CFG"
+install_plugin envp
+TRAY_CONFIG="$CFG" tray dump 'stays in the home' >/dev/null
+[ "$(garage_json 2026-08 | rows 'stays in the home')" = "1" ] && pass "a db.url in the file changes nothing: the row is in the home's tray.db" || bad "the row is not in the home"
+case $(TRAY_CONFIG="$CFG" tray plugin run envp) in *"model=m/one key=set"*) pass "the plugin saw the key and the model" ;; *) bad "got: $(TRAY_CONFIG="$CFG" tray plugin run envp)" ;; esac
+case $(tray plugin run envp) in *"model=unset key="*) pass "and nothing without the file" ;; *) bad "got: $(tray plugin run envp)" ;; esac
 out=$(TRAY_CONFIG="$CFG" tray config)
 case $out in *"$CFG"*) pass "config names the file" ;; *) bad "got: $out" ;; esac
-case $out in *"…1234"*) pass "the token keeps its last four characters" ;; *) bad "token not masked: $out" ;; esac
-case $out in *"secret1234"*|*"abcdef9876"*) bad "a secret was printed whole" ;; *) pass "no secret printed whole" ;; esac
-case $(TRAY_CONFIG="$CFG" TRAY_DB_TOKEN=envtok9999 tray config) in *"…9999  (env)"*) pass "an env value wins and says so" ;; *) bad "env override not reported" ;; esac
-printf 'db: [\n' > "$CFG"
+case $out in *"…9876"*) pass "the key keeps its last four characters" ;; *) bad "key not masked: $out" ;; esac
+case $out in *"abcdef9876"*) bad "a secret was printed whole" ;; *) pass "no secret printed whole" ;; esac
+case $out in *"db."*) bad "config still speaks of a db: $out" ;; *) pass "the store is not a setting" ;; esac
+case $(TRAY_CONFIG="$CFG" OPENROUTER_MODEL=m/env tray config) in *"m/env  (env)"*) pass "an env value wins and says so" ;; *) bad "env override not reported" ;; esac
+printf 'openrouter: [\n' > "$CFG"
 TRAY_CONFIG="$CFG" tray status >/dev/null 2>"$TRAY_HOME/err" && bad "a malformed config was ignored" || pass "a malformed config is an error"
 grep -q "$CFG" "$TRAY_HOME/err" && pass "and the error names the file" || bad "error: $(cat "$TRAY_HOME/err")"
+teardown
+
+# --- F39 · a plugin may ask for every row ---------------------------------------------------
+head_ "F39 · an all-rows plugin reads the whole store; without the marker a plugin reads only its own rows"
+setup
+install_plugin allrows; install_plugin own
+tray dump 'a garage line' >/dev/null
+tray add 'a tray task' pri:H >/dev/null
+tray dump 'finished already' >/dev/null
+tray "$(garage_json 2026-08 | field 'finished already' id)" done >/dev/null
+tray plugin run allrows >/dev/null
+SEEN="$TRAY_HOME/plugins/allrows/seen.json"
+[ "$(jq '.tasks | length' "$SEEN")" = "3" ] && pass "all three rows arrived" || bad "got $(jq -c '.tasks | map(.text)' "$SEEN")"
+[ "$(jq -r '.tasks[] | select(.text=="a tray task") | .layer' "$SEEN")" = "tray" ] && pass "the tray row came with its layer" || bad "layer missing"
+[ "$(jq -r '.tasks[] | select(.text=="finished already") | .done' "$SEEN")" = "2026-08-07" ] && pass "the done row came with its date" || bad "done row missing or undated"
+[ "$(jq -r '[.tasks[] | select(.id != null and (.id|length)==4)] | length' "$SEEN")" = "3" ] && pass "every row carries its id" || bad "ids missing"
+[ "$(jq -r '.tasks[] | select(.text=="a garage line") | .key == .id' "$SEEN")" = "true" ] && pass "and is keyed by it" || bad "key is not the id"
+tray plugin run own >/dev/null
+[ "$(jq '.tasks | length' "$TRAY_HOME/plugins/own/seen.json")" = "0" ] && pass "without the marker a plugin sees only rows it keyed — none" || bad "own saw $(jq '.tasks | length' "$TRAY_HOME/plugins/own/seen.json") rows"
 teardown
 
 printf '\n'

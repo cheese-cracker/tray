@@ -48,8 +48,6 @@ func cmdConfig(c config.Config) string {
 	}
 	return strings.Join([]string{
 		config.Path(),
-		"db.url             " + show(c.DB.URL) + from("db.url"),
-		"db.auth_token      " + config.Mask(c.DB.AuthToken) + from("db.auth_token"),
 		"openrouter.api_key " + config.Mask(c.OpenRouter.APIKey) + from("openrouter.api_key"),
 		"openrouter.model   " + show(c.OpenRouter.Model) + from("openrouter.model"),
 		"dates.format       " + show(c.Dates.Format),

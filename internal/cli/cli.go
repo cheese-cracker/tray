@@ -242,7 +242,7 @@ func Run(args []string) int {
 		fmt.Println(cmdConfig(cfg))
 		return 0
 	}
-	s, err := store.OpenAt(store.Home(), cfg.DB.URL, cfg.DB.AuthToken)
+	s, err := store.Open(store.Home())
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "tray: "+err.Error())
 		return 2

@@ -1,7 +1,8 @@
-// Package config is the one file tray reads about itself: where the database is and
-// the keys plugins need. Everything in it is optional — tray with no file at all is the
-// tray of every earlier release. Tags and the row format stay out of it (18): those
-// live in the data, not beside it.
+// Package config is the one file tray reads about itself: the keys plugins need, and
+// room for a preference or two. Everything in it is optional — tray with no file at all
+// is the tray of every earlier release. Where the data lives is not a config matter: the
+// store is $TRAY_HOME/tray.db, and anything that mirrors it elsewhere is a plugin. Tags
+// and the row format stay out of it too (18): those live in the data, not beside it.
 package config
 
 import (
@@ -14,10 +15,6 @@ import (
 )
 
 type Config struct {
-	DB struct {
-		URL       string `yaml:"url"`
-		AuthToken string `yaml:"auth_token"`
-	} `yaml:"db"`
 	OpenRouter struct {
 		APIKey string `yaml:"api_key"`
 		Model  string `yaml:"model"`
@@ -34,12 +31,10 @@ type Config struct {
 // Template is what `tray init` writes when there is no file: every key present, every
 // value empty, the comment saying what fills it.
 const Template = `# tray — every key is optional; delete this file and tray behaves as before.
-db:
-  url: ""            # empty → $TRAY_HOME/tray.db. A path or file: URL → local SQLite. libsql://<db>.turso.io → Turso
-  auth_token: ""     # Turso token; or TRAY_DB_TOKEN
+# The database is $TRAY_HOME/tray.db and is not a setting; a copy elsewhere is a plugin.
 openrouter:
   api_key: ""        # or OPENROUTER_API_KEY. Not needed to install tray — plugins read it
-  model: ""
+  model: ""          # or OPENROUTER_MODEL
 dates:
   format: ""         # reserved; parsed, unused for now
 `
@@ -62,7 +57,7 @@ func Path() string {
 
 // Load reads the file, then lets the environment override it. A missing file is the
 // default; a file that does not parse is an error that names it, because a silently
-// ignored typo is how a token ends up in the wrong place.
+// ignored typo is how a key ends up in the wrong place.
 func Load() (Config, error) {
 	var c Config
 	raw, err := os.ReadFile(Path())
@@ -80,8 +75,6 @@ func Load() (Config, error) {
 		dst *string
 		key string
 	}{
-		{"TRAY_DB_URL", &c.DB.URL, "db.url"},
-		{"TRAY_DB_TOKEN", &c.DB.AuthToken, "db.auth_token"},
 		{"OPENROUTER_API_KEY", &c.OpenRouter.APIKey, "openrouter.api_key"},
 		{"OPENROUTER_MODEL", &c.OpenRouter.Model, "openrouter.model"},
 	} {

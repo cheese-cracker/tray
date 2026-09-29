@@ -1,0 +1,8 @@
+#!/bin/sh
+# A fixture plugin: its plan says what tray handed it from the config, so a flow can see
+# that the keys crossed the process boundary.
+case "$1" in
+  plan)  printf '{"pull":[{"key":"cfg","text":"model=%s key=%s","done":""}],"push":[]}\n' "${TRAY_OPENROUTER_MODEL:-unset}" "${TRAY_OPENROUTER_API_KEY:+set}" ;;
+  apply) echo '{"ok":[],"failed":[]}' ;;
+  *) echo "usage: sync plan|apply" >&2; exit 1 ;;
+esac

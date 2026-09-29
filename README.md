@@ -140,35 +140,22 @@ grammar you knew from the files is now the CLI's and the exports': `+tag` and
 nothing here is needed to install or use it:
 
 ```yaml
-db:
-  url: ""            # empty → $TRAY_HOME/tray.db. A path or file: URL → local SQLite. libsql://<db>.turso.io → Turso
-  auth_token: ""     # Turso token; or TRAY_DB_TOKEN
 openrouter:
   api_key: ""        # or OPENROUTER_API_KEY. Not needed to install tray — plugins read it
-  model: ""
+  model: ""          # or OPENROUTER_MODEL
 dates:
   format: ""         # reserved; parsed, unused for now
 ```
 
 `tray config` prints the path and the effective values, secrets cut to their last four
-characters, and says which came from the environment (`TRAY_DB_URL`, `TRAY_DB_TOKEN`,
-`OPENROUTER_API_KEY`, `OPENROUTER_MODEL` override the file). Plugins see the keys as
-`TRAY_OPENROUTER_API_KEY` and `TRAY_OPENROUTER_MODEL`; they never read the file.
+characters, and says which came from the environment (`OPENROUTER_API_KEY` and
+`OPENROUTER_MODEL` override the file). Plugins see the keys as `TRAY_OPENROUTER_API_KEY`
+and `TRAY_OPENROUTER_MODEL`; they never read the file.
 
-**A remote store.** With `db.url: libsql://<db>.turso.io` and the token, tray keeps its
-rows on [Turso](https://turso.tech) and the same binary runs on every machine against
-one list. The mirror, the plugins and the config stay local. The cost is honest: every
-save crosses the network, and the TUI needs a connection. To move a local home there:
-
-```sh
-sqlite3 ~/.local/share/tray/tray.db .dump | grep -v -E '^(BEGIN|COMMIT)' > /tmp/tray.sql
-turso db create tray && turso db shell tray < /tmp/tray.sql
-turso db show tray --url        # → db.url
-turso db tokens create tray     # → db.auth_token
-```
-
-A dump rather than `--from-file`: the local file is in WAL mode, and `--from-file` reads the main
-file alone, so rows still in the log never arrive.
+Where the data lives is not a config matter. The store is `$TRAY_HOME/tray.db`, full
+stop, and a save never waits on anything but this disk. A copy of it somewhere else — a
+Turso database, a phone — is a plugin's job, and it arrives the way everything from
+outside does: as a plan you review, with the local row winning.
 
 The two `.md` files are the **mirror**: the lightest view of your tasks there is, and the
 reason the folder can sit inside an Obsidian vault. Every write rewrites them. On the next
@@ -312,12 +299,15 @@ executable makes it a garage that fills itself: `sync plan` prints what it sees 
 it would push back, tray shows you the diff, and `sync apply` runs only after you land
 it. Executables under `actions/` become rows in the `enter` menu and get the terminal
 while they run. `settings.example.json` names what it needs; an `on-launch` file means
-it also runs when the interface opens. The contract is
-[`plugins/README.md`](plugins/README.md).
+it also runs when the interface opens; an `all-rows` file means it reads the whole store,
+the way a replica must. The contract is [`plugins/README.md`](plugins/README.md).
 
-No plugin ships on this branch yet. The order they will: a web garage (a URL and a
-ruleset, a browser does the rest), voice, the calendar verb, a board's API, and Claude
-conversations compacted into a task's note.
+Whatever a plugin brings back lands the same way: as a plan you review, with the local
+row winning. That is what keeps tray offline-first — the store is this disk, and a copy
+of it anywhere else is a plugin's concern. Plugins live in their own repos: `tray-gcal`
+(a verb that books a time), `tray-turso` (a replica of your tasks on Turso, local wins).
+Next in line: a web garage (a URL and a ruleset, a browser does the rest), voice, a
+board's API, and Claude conversations compacted into a task's note.
 
 ## 🎯 What it's for
 

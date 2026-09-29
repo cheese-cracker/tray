@@ -10,13 +10,11 @@ require (
 	github.com/charmbracelet/x/exp/teatest v0.0.0-20260803091719-3755ebad01b1
 	github.com/charmbracelet/x/term v0.2.2
 	github.com/muesli/termenv v0.16.0
-	github.com/tursodatabase/libsql-client-go v0.0.0-20260528064733-9d5d30a29a60
 	gopkg.in/yaml.v3 v3.0.1
 	modernc.org/sqlite v1.60.0
 )
 
 require (
-	github.com/antlr4-go/antlr/v4 v4.13.0 // indirect
 	github.com/atotto/clipboard v0.1.4 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/aymanbagabas/go-udiff v0.4.1 // indirect
@@ -26,7 +24,6 @@ require (
 	github.com/clipperhouse/displaywidth v0.9.0 // indirect
 	github.com/clipperhouse/stringish v0.1.1 // indirect
 	github.com/clipperhouse/uax29/v2 v2.5.0 // indirect
-	github.com/coder/websocket v1.8.12 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f // indirect
 	github.com/google/uuid v1.6.0 // indirect
