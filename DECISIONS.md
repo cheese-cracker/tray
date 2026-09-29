@@ -16,7 +16,7 @@ and the two are meant to agree.
 | 1 | Two layers: **garage** (dump) and **tray** (worklist) | Classifying at capture costs you the thought you were having | live |
 | 2 | Markdown files are the truth | You must be able to edit them with no tool in the loop | superseded by T1 |
 | 4 | Keep TW's field names and urgency coefficients | `tray export \| task import` stays a one-way hatch | live |
-| 5 | **Nothing is ever deleted.** `done`/`drop` strike through in place | The file is the record; that's what makes `find` a rot detector | superseded by 5a |
+| 5 | **Nothing is ever deleted.** `done`/`drop` strike through in place | The file is the record; that's what makes `find` a rot detector | superseded by 5a, then T2 |
 | 5a | **A line only leaves the file from review mode.** Finishing still strikes through in place; `E` erase is the one verb that removes one | 5 covered every case but one: a line that should not have been written. Narrowing it keeps what it was protecting — a record you can trust `find` against — and gives up only the part that was protecting typos | superseded by T2 |
 | 6 | Copy-forward with an arrow: the source line stays, annotated `→ 2026-09` | Month files stay a record, and nothing can move twice | superseded by T2 |
 | 7 | take · hand back · carry forward are **one operation** | Three rituals were three code paths for the same move | live — but see 71: sharing the *move* is not sharing the *command* |
@@ -29,18 +29,18 @@ and the two are meant to agree.
 | # | Decision | Why | Status |
 |---|---|---|---|
 | 14 | Full Go rewrite is safe because `check-tray.sh` is **black-box** | It drives the binary and reads markdown, so it ported unchanged | live |
-| 15 | **One Go binary**, zero runtime dependencies | No interpreter, no fzf, no gum; `go` builds it under `--tui` | live |
+| 15 | **One Go binary**, zero runtime dependencies | No interpreter, no fzf, no gum; `go` builds it under `--tui` | narrowed by T10: one binary still, linked against the system's GL and X11 |
 | 16 | `ui` and `cmd` are clients of `core`; neither parses a line or writes a file | If the UI needs the grammar, the boundary is wrong | live |
-| 17 | Attributes are read off the **end** of a line, known keys only | A colon mid-sentence must survive, or the garage can't hold prose | live for the wire — the CLI's mods, import and export; on disk superseded by T1 |
+| 17 | Attributes are read off the **end** of a line, known keys only | A colon mid-sentence must survive, or the garage can't hold prose | live for the wire; the disk half superseded by T1 |
 | 18 | The tag vocabulary comes from what's already in use | No config, no registry | live |
 
 ## Interface
 
 | # | Decision | Why | Status |
 |---|---|---|---|
-| 19 | The TUI is the product; the CLI is the agent surface | ~90% of use is the terminal UI | live |
-| 20 | Bare `tray` is the TUI **only when both ends are a terminal** | Piped, an agent must never be handed a UI | live |
-| 22 | bubbletea, with tabs and a real pane | A picker can select a line; it can't do in-place editing or panes | live |
+| 19 | The TUI is the product; the CLI is the agent surface | ~90% of use is the terminal UI | superseded by T10 |
+| 20 | Bare `tray` is the TUI **only when both ends are a terminal** | Piped, an agent must never be handed a UI | superseded by T10: a terminal *and* a display open the app; piped stays text |
+| 22 | bubbletea, with tabs and a real pane | A picker can select a line; it can't do in-place editing or panes | superseded by T10 |
 | 24 | `enter` opens a menu whose letters **also work from the list** | Discoverable on day one, one keystroke by week two | live |
 | 25 | `rewrite` is **one form, every field prefilled** | Only what you touch changes; no wizard | live |
 | 26 | `d` hands back to the garage | Your mapping. `D` deleted, in the same breath; see 27 | live |
@@ -59,7 +59,7 @@ and the two are meant to agree.
 
 | # | Decision | Why | Status |
 |---|---|---|---|
-| 37 | Shell suite asserts **file contents**, not internals | It survived a whole-language rewrite unchanged | narrowed by T1: it asserts `export` and `list --json`, which is still the binary and not its internals |
+| 37 | Shell suite asserts **file contents**, not internals | It survived a whole-language rewrite unchanged | narrowed by T1: it asserts `export` and `list --json` now, still black-box |
 | 38 | stdin closed throughout the shell suite | A prompt an agent could hit fails the suite instead of hanging it | live |
 | 39 | Subprocess assertions run from `/` with a stripped environment | Two blank-screen bugs passed CI by inheriting my `PATH`, `PYTHONPATH` and cwd | live |
 | 40 | UI: assert **model state and files**; frames only for structure | Golden frames break on every restyle and prove nothing about what was written | live, narrowed by 64 |
@@ -92,7 +92,7 @@ lived in was orphaned, so none of the history came with it — the import is one
 | 57a | An applied filter states what it hid | A table quietly showing 3 of 17 rows is a table you will misread | live |
 | 57b | **A mark survives a filter** | Hiding a row is not deselecting it. Filter, mark, filter again, act on all of it | live |
 | 58 | The list's `h`/`l`/`d` paging keys are unbound, and its quit keys disabled | `h`/`l` are the tabs and `d` hands back. The cursor keys page on their own | live |
-| 59 | `?` is **`bubbles/help`** over one `keyMap` that also renders the footer | The overlay and the footer cannot drift apart, because they are the same value rendered at two lengths | live |
+| 59 | `?` is **`bubbles/help`** over one `keyMap` that also renders the footer | The overlay and the footer cannot drift apart, because they are the same value rendered at two lengths | superseded by T11 |
 | 60 | The form stays **hand-rolled** — no `bubbles/textinput` yet | `←`/`→` on the `due` field shift by a day (25, and documented). A text input would take those keys for cursor movement — and it already sanitises a pasted rune the way T13 requires, which hand-rolled editing had to be taught | open |
 
 ## Flows
@@ -158,7 +158,7 @@ Reported from use: two tasks went done when one was meant to.
 
 | # | Decision | Why | Status |
 |---|---|---|---|
-| 84 | The footer **wraps**; it does not truncate | `bubbles/help` cuts the line with an ellipsis, which silently hides whichever keys sort last — on an eighty-column terminal that was most of them. Wrapping costs one row and drops nothing | live |
+| 84 | The footer **wraps**; it does not truncate | `bubbles/help` cuts the line with an ellipsis, which silently hides whichever keys sort last — on an eighty-column terminal that was most of them. Wrapping costs one row and drops nothing | superseded by T11 |
 | 84a | So `space mark` is back, and `v` is named whether it is on or off | Both had been sacrificed to the one-line budget. `v` was worse: it appeared only once already enabled, so the footer could never tell you the key existed | live |
 | 84b | The test asserts **every binding the keymap knows** appears on screen | Asserting specific labels would not have caught this: the footer was correct, it was just cut off. Mutation-checked against the truncating version | live |
 
@@ -166,11 +166,11 @@ Reported from use: two tasks went done when one was meant to.
 
 | # | Decision | Why | Status |
 |---|---|---|---|
-| 85 | The footer names **the arrows**; `h j k l` work but are written down only in `?` | They are the keys someone opening this for the first time already tries. A footer that lists two ways to do one thing teaches neither | live |
+| 85 | The footer names **the arrows**; `h j k l` work but are written down only in `?` | They are the keys someone opening this for the first time already tries. A footer that lists two ways to do one thing teaches neither | superseded by T11 |
 | 85c | **`tab` alone** switches layers; `←→` and `h` `l` are unbound | ↑↓ move within a layer and nothing here moves sideways, so every sideways key was another idiom for a job `tab` already names. `⇧tab` goes back and is not advertised. `j` `k` survive as the one alias, because moving is the thing you do constantly | live |
 | 85a | `g` `G` `home` `end` `pgup` `pgdn` are **unbound** | Four more ways to move one cursor. Paging follows the cursor on its own | live |
 | 85b | `mark` is called **select** everywhere now | The menu had said "N selected" since the beginning while the footer said "mark". One of them had to give | live |
-| 86 | `?` is a **page**, not a keymap strip | Narrows 59. A keymap tells you which letter does a thing you already understand; what needs explaining here is why there are two layers at all. So the diagram comes first and the keys come last, as one section | live |
+| 86 | `?` is a **page**, not a keymap strip | Narrows 59. A keymap tells you which letter does a thing you already understand; what needs explaining here is why there are two layers at all. So the diagram comes first and the keys come last, as one section | live — narrowed by T11: still the page, now the only place letters are taught |
 | 86b | Help column widths are **measured from the labels**, not chosen | Hand-picked widths broke three times running, and a test now asserts the dialog fits in both directions with nothing truncated — goldens record what happened, they do not object to it | live |
 | 86e | **Any key dismisses it**, and the key is spent doing so | You should never have to work out which key closes a thing that is in your way. `ctrl+c` still quits | live |
 | 86n | On a terminal too small for it, the **diagram is what goes** | Something has to give, and losing the keymap or clipping mid-sentence would both be worse. It is the decorative half. Three rungs now — picture, then concepts, then keys alone | live |
@@ -333,24 +333,25 @@ Reported from use: two tasks went done when one was meant to.
 
 ## traytable
 
-An experiment, cut 2026-09-28: the README's "What it's for" kept, the machinery under it
-replaced. Planned in `vault/tasks/poc-traytable/plan.md` in the imarobot vault and
+An experiment branch, cut 2026-09-28: the README's "What it's for" kept, the machinery
+under it replaced. Planned in `vault/tasks/poc-traytable/plan.md` in the imarobot vault and
 reviewed in two Plannotator rounds. Rows are numbered `T-n` so they never collide with the
-ones above; a row above that this branch retires says so in its Status. The interface
-half of the experiment — a desktop app in place of the TUI — is a second pull request
-stacked on this one, and its rows (T10–T12, T26–T28) arrive with it.
+ones above; a row above that this branch retires says so in its Status.
 
 | # | Decision | Why | Status |
 |---|---|---|---|
 | T1 | **SQLite is the truth**; markdown, todo.txt and Taskwarrior JSON are wire formats | Stable ids, recurrence and sync-back all need a store you do not hand-edit; the grammar keeps its job on the way in and out (supersedes 2, the disk half of 17, 53) | live |
 | T2 | **No history.** Done is a date on the row; erase deletes it | Few things well. The record that arrows and month files kept was the price of files, and a database does not need to pay it (supersedes 5, 5a, 6) | live |
-| T3 | **Ids are permanent integers**, printed first by the CLI and dim in the interface's first column | Agents address a task across runs; people address it by looking. `AUTOINCREMENT`, so an erased id is never reused (supersedes 8, 82, 93b) | live |
-| T4 | **Event-driven**: nothing runs on its own. `sync` is the one event, fired by hand | One binary, one process; a plugin that fails cannot take the tool with it (supersedes 76) | live |
+| T3 | **Ids are permanent integers**, printed first by the CLI, grey in the app | Agents address a task across runs; people address it by looking. `AUTOINCREMENT`, so an erased id is never reused (supersedes 8, 82, 93b) | live |
+| T4 | **Event-driven**: nothing runs on its own. `sync` is the one event, fired by hand or by opening the app | One binary, one process; a plugin failing at launch cannot take the app with it (supersedes 76) | live |
 | T5 | **Outside data lands through a reviewed diff**, all or none, per plugin | "Glitches not allowed" as a rule — and the review is also the merge: when both sides changed, you see old → new and the pull wins only if you apply it | live |
 | T6 | **A plugin is one `sync` executable with `plan` and `apply` phases**, plus `actions/` | Both directions get reviewed before anything happens; one file, no manifest. `run` is gone (extends 105) | live |
 | T7 | **`settings.example.json` is the onboarding form**; tray writes `settings.json` and never reads it | The folder stays the manifest and the plugin owns what its settings mean (18, 105) | live |
-| T8 | **`on-launch` is a marker file**; absent means manual only | The exec-bit idiom for one more fact. A web garage takes minutes, so it should not run every time an interface opens | live |
+| T8 | **`on-launch` is a marker file**; absent means manual only | The exec-bit idiom for one more fact. A web garage takes minutes, so it should not run every time the window opens | live |
 | T9 | **Plugin rows land in the garage**, in the month named after the plugin, and climb like any line | Iteratively clearer applies to outside data too. A row you already took is updated where it is | live |
+| T10 | **Fyne; the TUI is dropped** | A desktop app that can later be a phone app, and one keymap instead of two that drift (59). Bare `tray` opens the window when there is a terminal and a display; piped it stays text (narrows 15, supersedes 19, 20, 22) | live |
+| T11 | **Letters are shortcuts; modes are the design.** No footer | The footer taught letters because a TUI had nothing else to show; a control on screen is its own teaching. Simple actions are one step from the row, a question is a form, consequences get a mode with a named exit (supersedes 59, 84, 85) | live |
+| T12 | **Iteratively clearer** is a principle; the layers are its two big steps | The garage/tray split was one instance of a rule the forms, the details pane and the plugins all follow: a task carries only as much structure as you have decided | live |
 | T13 | **A waiting task lies in the garage; `sync` lifts it** onto the tray on its day | The garage is where a line waits for you to look; a date only decides when. One event (T4) moves it, like everything else that changes a layer | live |
 | T14 | **Recurrence keeps one live child** and skips missed periods — the next is due on or after today | A backlog of skipped weeklies is noise; the tray is the small deliberate list. A deliberate departure from Taskwarrior, whose names we keep (4) | live |
 | T15 | **Tags stay a text column** | Filters parse fifty thousand rows in Go faster than a join is worth; marked `ponytail:` in the schema as the ceiling | live |
@@ -363,7 +364,7 @@ stacked on this one, and its rows (T10–T12, T26–T28) arrive with it.
 | T22 | A pulled row's **`done` is tri-state**: `null` not reported, `""` open, a date finished | A plugin that cannot see a field must be able to say nothing about it, or every sync would clear what the site never knew | live |
 | T23 | **A plan with a keyless or textless row is refused whole** | Never guess. Half a plan landing is the glitch T5 exists to prevent | live |
 | T24 | **`Materialize` reads every child**, not only the live ones | The next due must also follow the last child's due, or a child finished early gets its period served twice | live |
-| T25 | **`plugin_run` keeps the last run only** | `status` wants one line per plugin; a history is T2's argument again | live |
-| T29 | **The TUI moves rows, it never copies them.** `>`, hand back and take are one `core.Move`; the tabs and `>` still read from the store's months | 7 kept as a store operation. The arrow the source line used to keep was the record 6 wanted, and T2 gave that up on purpose | live |
-| T30 | **Marks are by id**, not by words | A mark used to survive a reload by its text; the id is what survives everything, including a rewrite | live |
-| T31 | **The TUI's seed and read-back are the markdown wire** | Tests still read like the file they used to write — `has(trayFile, "priority:H")` — while asserting on the store (63). One grammar, three jobs | live |
+| T25 | **`plugin_run` keeps the last run only** | `status` and the plugins pane want one line per plugin; a history is T2's argument again | live |
+| T26 | **Rows are Hoverable, not Focusable**; the list owns the keys | `widget.List` recycles its item widgets, so focus on a row would jump tasks as you scroll. The cursor row shows its actions instead | live |
+| T27 | **Home's row box is the mark**; `x` finishes | Home is live-only, so a done state has nothing to draw there. Review draws the finished ones struck through | live |
+| T28 | **lipgloss stays**, for `head`'s box and the palette's adaptive colours | The shell header is still a terminal surface; the app reads the same hex strings through `style.RGBA` (78g, 102) | live |
