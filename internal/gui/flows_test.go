@@ -1,6 +1,8 @@
 package gui
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -10,6 +12,7 @@ import (
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/cheese-cracker/tray/internal/core"
+	"github.com/cheese-cracker/tray/internal/plugin"
 	"github.com/cheese-cracker/tray/internal/store"
 )
 
@@ -26,8 +29,16 @@ type harness struct {
 func open(t *testing.T, seed ...core.Task) *harness {
 	t.Helper()
 	t.Setenv("TRAY_TODAY", "2026-09-28")
+	home := t.TempDir()
+	t.Setenv("TRAY_HOME", home) // plugins are found under the home, like the store
+	// A sync runs in the background in the app; a flow wants the answer before its
+	// next line, so the hand-off runs inline here.
+	background = func(work, then func()) {
+		work()
+		then()
+	}
 	test.NewTempApp(t)
-	s, err := store.Open(t.TempDir())
+	s, err := store.Open(home)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -84,6 +95,216 @@ func (h *harness) form() *form {
 		h.t.Fatal("no form is open")
 	}
 	return h.u.form
+}
+
+// install copies a fixture plugin from the sync suite into this home's plugins folder.
+func (h *harness) install(name string) string {
+	h.t.Helper()
+	dst := filepath.Join(store.Home(), "plugins", name)
+	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+		h.t.Fatal(err)
+	}
+	if err := os.CopyFS(dst, os.DirFS(filepath.Join("..", "sync", "testdata", "plugins", name))); err != nil {
+		h.t.Fatal(err)
+	}
+	return dst
+}
+
+func ids(rows []core.Task) []int64 {
+	out := make([]int64, len(rows))
+	for i, t := range rows {
+		out[i] = t.ID
+	}
+	return out
+}
+
+func TestFlowSweepOpensTheMonthsAndCarriesForward(t *testing.T) {
+	old := garage("left in august")
+	old.Month, old.Due = "2026-08", "2026-08-15"
+	h := open(t, old, garage("this month"))
+	h.u.openSweep()
+	if h.u.mode != modeSweep {
+		t.Fatal("the sweep is a mode of its own")
+	}
+	tabs := h.u.sw.tabs
+	for i, want := range []string{"2026-08", "2026-09", "2026-10", "someday"} {
+		if tabs.Items[i].Text != want {
+			t.Fatalf("tab %d is %q, want %q", i, tabs.Items[i].Text, want)
+		}
+	}
+	if tabs.SelectedIndex() != 1 {
+		t.Fatal("the sweep opens on this month (73a)")
+	}
+	tabs.SelectIndex(0)
+	l := h.u.current()
+	if len(l.rows) != 1 || l.rows[0].ID != 1 {
+		t.Fatalf("the august tab shows august: %v", ids(l.rows))
+	}
+	test.Type(l, ">")
+	h.focused().TypedRune('4')
+	if got := h.get(1); got.Month != store.Someday {
+		t.Fatalf("> reaches every tab on screen (73d): %+v", got)
+	}
+
+	back := h.get(1)
+	core.Move(&back, core.LayerGarage, "2026-08")
+	if err := h.s.Put(&back); err != nil {
+		t.Fatal(err)
+	}
+	h.u.carry("2026-08")
+	if got := h.get(1); got.Month != "2026-09" || got.Due != "" {
+		t.Fatalf("carry forward moves the named month on and drops a due that passed (75): %+v", got)
+	}
+	if !strings.Contains(h.u.status.Text, "1 2026-08 to 2026-09") {
+		t.Fatalf("the status names what moved: %q", h.u.status.Text)
+	}
+	h.key(fyne.KeyEscape)
+	if h.u.mode != modeHome || h.u.closed {
+		t.Fatal("esc leaves the sweep and does not quit")
+	}
+}
+
+func TestFlowReviewShowsEverythingAndOffersTheRareVerbs(t *testing.T) {
+	done := tray("beta")
+	done.Done = "2026-09-20"
+	tmpl := tray("weekly review")
+	tmpl.Recur, tmpl.Due = "weekly", "2026-10-02"
+	h := open(t, done, tmpl, tray("alpha"))
+	h.u.tabs.SelectIndex(1)
+	if len(h.u.tray.rows) != 1 {
+		t.Fatalf("home shows the live rows alone: %v", ids(h.u.tray.rows))
+	}
+	test.Type(h.u.tray, "v")
+	if h.u.mode != modeReview {
+		t.Fatal("v opens review")
+	}
+	l := h.u.current()
+	if got := ids(l.rows); len(got) != 3 || got[0] != 3 || got[1] != 1 || got[2] != 2 {
+		t.Fatalf("review is live first, then finished, then templates: %v", got)
+	}
+	test.Type(l, "a")
+	if h.u.pop != nil || h.focused() != fyne.Focusable(l) {
+		t.Fatal("a writes nothing in review (92e)")
+	}
+	test.Type(l, "x")
+	if h.get(3).Done != "" {
+		t.Fatal("done is not a review verb")
+	}
+	l.pick(1)
+	test.Type(l, "R")
+	if h.get(1).Done != "" {
+		t.Fatal("R says it was not finished after all")
+	}
+	test.Type(h.u.current(), "v")
+	if h.u.mode != modeHome {
+		t.Fatal("v leaves review")
+	}
+}
+
+func TestFlowEraseIsReachableOnlyInReview(t *testing.T) {
+	h := open(t, tray("alpha"), tray("beta"))
+	h.u.tabs.SelectIndex(1)
+	test.Type(h.u.tray, "E")
+	if _, ok, _ := h.s.Get(1); !ok {
+		t.Fatal("E is dead outside review (93)")
+	}
+	test.Type(h.u.tray, "v")
+	l := h.u.current()
+	l.pick(1)
+	test.Type(l, "E")
+	if _, ok, _ := h.s.Get(2); ok {
+		t.Fatal("E removes the row")
+	}
+	if _, ok, _ := h.s.Get(1); !ok {
+		t.Fatal("its neighbour stays")
+	}
+	if !strings.Contains(h.u.status.Text, "erased: beta") {
+		t.Fatalf("the status names what went: %q", h.u.status.Text)
+	}
+}
+
+func TestFlowSyncReviewAppliesAPluginPlanWholeOrNotAtAll(t *testing.T) {
+	h := open(t)
+	dir := h.install("echo")
+	test.Type(h.u.garage, "s")
+	if h.u.mode != modeSyncReview || h.u.view == nil || len(h.u.view.cards) != 1 {
+		t.Fatalf("s opens the review of what echo reported: mode %d", h.u.mode)
+	}
+	h.focused().TypedRune('y')
+	rows, err := h.s.Tasks(store.Filter{Layer: core.LayerGarage, Month: "echo", All: true})
+	if err != nil || len(rows) != 2 {
+		t.Fatalf("echo's plan lands whole, in its garage: %d rows, %v", len(rows), err)
+	}
+	if rows[0].Source != "echo:n1" || rows[1].Done == "" {
+		t.Fatalf("adds carry their key and what the plugin reported: %+v", rows)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "applied.json")); err != nil {
+		t.Fatal("the confirmed push should reach the plugin")
+	}
+	h.key(fyne.KeyEscape)
+	if h.u.mode != modeHome {
+		t.Fatal("esc leaves the review")
+	}
+
+	// A plan the store refuses lands nothing, not half.
+	bad := `{"pull":[{"key":"n3","text":"fine"},{"key":"n4","text":"no such priority","priority":"Z"}],"push":[]}`
+	if err := os.WriteFile(filepath.Join(dir, "plan.json"), []byte(bad), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	test.Type(h.u.garage, "s")
+	h.focused().TypedRune('y')
+	rows, _ = h.s.Tasks(store.Filter{Layer: core.LayerGarage, Month: "echo", All: true})
+	if len(rows) != 2 {
+		t.Fatalf("a refused plan must land nothing: %d rows", len(rows))
+	}
+	if state := h.u.view.cards[0].state.Text; !strings.HasPrefix(state, "not applied") {
+		t.Fatalf("the card says why: %q", state)
+	}
+}
+
+func TestFlowAFailedPluginFailsAlone(t *testing.T) {
+	h := open(t)
+	dir := h.install("fail")
+	// Only a plugin that opted in runs at launch (T8); this one did, and breaks.
+	if err := os.WriteFile(filepath.Join(dir, plugin.OnLaunchMarker), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	h.u.launch()
+	if h.u.notice.Hidden || !strings.Contains(h.u.notice.Text, "1 failed") {
+		t.Fatalf("the status line names the failure: %q hidden %v", h.u.notice.Text, h.u.notice.Hidden)
+	}
+	if h.u.mode != modeHome || h.u.pop != nil {
+		t.Fatal("a failure at launch is a line, never a modal")
+	}
+	test.Type(h.u.capture, "still works")
+	h.u.capture.TypedKey(&fyne.KeyEvent{Name: fyne.KeyReturn})
+	if h.get(1).Text != "still works" {
+		t.Fatal("the app still takes a dump")
+	}
+	test.Type(h.u.garage, "s")
+	if h.u.mode != modeSyncReview || len(h.u.view.cards) != 1 || !h.u.view.cards[0].done {
+		t.Fatal("s opens what waited, and a failed plan has nothing to apply")
+	}
+}
+
+func TestFlowLaunchLiftsAWaitingRowWithoutAsking(t *testing.T) {
+	w := garage("call mom")
+	w.Wait, w.Priority = "2026-09-28", "H"
+	h := open(t, w)
+	if len(h.u.garage.rows) != 1 {
+		t.Fatal("until sync, the row lies in the garage")
+	}
+	h.u.launch()
+	got := h.get(1)
+	if got.Layer != core.LayerTray || got.Wait != "" || got.Priority != "H" {
+		t.Fatalf("its day came, and it kept what it carried: %+v", got)
+	}
+	if h.u.pop != nil || h.u.mode != modeHome || !h.u.notice.Hidden {
+		t.Fatal("nothing prompts at launch")
+	}
+	if !strings.Contains(h.u.status.Text, "synced") {
+		t.Fatalf("the status says when: %q", h.u.status.Text)
+	}
 }
 
 func TestFlowTakeOpensTheFormAndSaves(t *testing.T) {

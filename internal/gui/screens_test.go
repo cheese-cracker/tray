@@ -1,6 +1,7 @@
 package gui
 
 import (
+	"errors"
 	"flag"
 	"image/png"
 	"os"
@@ -10,6 +11,7 @@ import (
 	"fyne.io/fyne/v2/test"
 
 	"github.com/cheese-cracker/tray/internal/core"
+	"github.com/cheese-cracker/tray/internal/sync"
 )
 
 var update = flag.Bool("update", false, "rewrite the screen goldens, then read the diff")
@@ -25,7 +27,24 @@ func seedScreens() []core.Task {
 	c := garage("the billing page is slow", "work")
 	d := garage("ask whether the offsite dates are fixed yet")
 	d.Wait = "2026-10-10"
-	return []core.Task{a, b, c, d}
+	e := tray("Renew the TLS certificate")
+	e.Priority, e.Done = "H", "2026-09-20"
+	f := tray("Weekly review")
+	f.Recur, f.Due = "weekly", "2026-10-02"
+	return []core.Task{a, b, c, d, e, f}
+}
+
+// reviewResults is a sync review with nothing to run: one plugin with a plan, one that
+// failed, so the screen shows both shapes without a plugin process in the golden.
+func reviewResults() []sync.Result {
+	done := "2026-08-01"
+	return []sync.Result{
+		{Plugin: "echo", Message: "2 adds · 0 updates · 1 push", Diff: sync.Diff{Adds: []sync.Row{
+			{Key: "n1", Text: "Ship the notes", Tags: []string{"work"}},
+			{Key: "n2", Text: "Renew the cert", Done: &done, Priority: "H"},
+		}}, Push: []sync.Push{{Key: "n0", Set: map[string]string{"done": "2026-08-07"}}}},
+		{Plugin: "fail", Err: errors.New("boom"), Message: "boom"},
+	}
 }
 
 func TestScreens(t *testing.T) {
@@ -38,6 +57,10 @@ func TestScreens(t *testing.T) {
 		{"tray.png", func(h *harness) { h.u.tabs.SelectIndex(1) }},
 		{"take.png", func(h *harness) { test.Type(h.u.garage, "t") }},
 		{"help.png", func(h *harness) { test.Type(h.u.garage, "?") }},
+		{"review.png", func(h *harness) { h.u.tabs.SelectIndex(1); test.Type(h.u.tray, "v") }},
+		{"sweep.png", func(h *harness) { h.u.openSweep() }},
+		{"syncreview.png", func(h *harness) { h.u.openSyncReview(reviewResults()) }},
+		{"plugins.png", func(h *harness) { h.install("echo"); h.u.openPlugins() }},
 	} {
 		t.Run(sc.name, func(t *testing.T) {
 			h := open(t, seed()...)
