@@ -19,10 +19,10 @@ const (
 // the CLI accepts as key:value. Each is a column; `from` is spelled from_month there.
 var KnownAttrs = []string{"priority", "due", "wait", "recur", "until", "entry", "from", "done"}
 
-// Read and discarded: project never became a column (9), and a file written by an
-// older build may still carry dropped:, which reads as done rather than being
-// swallowed into the words — an unknown key off the end of a line is just more
-// sentence (17).
+// Read, never written: a project is a tag here (9), so project: on the wire becomes
+// one; and a file written by an older build may still carry dropped:, which reads as
+// done. Both have to be recognised, or the key is swallowed into the words — an unknown
+// key off the end of a line is just more sentence (17).
 const (
 	legacyDropped = "dropped"
 	legacyProject = "project"
@@ -205,6 +205,9 @@ func Parse(raw string, today time.Time) (Task, bool) {
 	if when, was := attrs[legacyDropped]; was && t.Done == "" {
 		t.Done = when
 	}
+	if p, was := attrs[legacyProject]; was && !contains(t.Tags, p) {
+		t.Tags = append(t.Tags, p)
+	}
 	if (strings.EqualFold(box, "x") || struck) && t.Done == "" {
 		t.Done = today.Format(DateLayout)
 	}
@@ -330,6 +333,12 @@ func SplitMods(tokens []string) Mods {
 // ApplyMods writes mods onto a task. An empty value removes the attribute.
 func ApplyMods(t *Task, mods Mods) {
 	for key, val := range mods.Attrs {
+		if key == legacyProject {
+			if val != "" && !contains(mods.AddTags, val) {
+				mods.AddTags = append(mods.AddTags, val)
+			}
+			continue
+		}
 		t.SetAttr(key, val)
 	}
 	if len(mods.DelTags) > 0 {

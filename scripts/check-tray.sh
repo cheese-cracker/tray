@@ -478,6 +478,70 @@ tray import --format md "$ROOT/scripts/testdata/migrate" >/dev/null
 [ "$(tray_json | jq length)" = "$before" ] && pass "importing twice adds nothing" || bad "the second import duplicated rows"
 teardown
 
+# --- F27 · round trips ---------------------------------------------------------------
+# Another tool's shape is the wire, not the disk: what leaves as Taskwarrior JSON or
+# todo.txt comes back field for field, and where it lands is read off the row itself.
+head_ "F27 · export and import round-trip"
+setup
+tray add --note "only on the first load" Exportable pri:H due:2026-08-12 +infra >/dev/null
+tray add Plain pri:M >/dev/null
+tray add Finished pri:L >/dev/null
+tray "$(id_of Finished)" done >/dev/null
+first=$TRAY_HOME
+tray export --all > "$first/tw.json"
+tray export --format todotxt --all > "$first/todo.txt" 2>/dev/null
+grep -q '^(A) 2026-08-07 Exportable +infra due:2026-08-12$' "$first/todo.txt" \
+  && pass "todo.txt: priority letter, creation date, +tag, due:" || bad "got: $(cat "$first/todo.txt")"
+grep -q '^x 2026-08-07 2026-08-07 Finished pri:C$' "$first/todo.txt" \
+  && pass "a finished line leads with x and its date" || bad "got: $(cat "$first/todo.txt")"
+tray export --format todotxt --all 2>&1 >/dev/null | grep -q "note" \
+  && pass "and says when a note was left out" || bad "notes dropped silently"
+
+TRAY_HOME=$(mktemp -d); export TRAY_HOME; tray init >/dev/null
+tray import --format tw "$first/tw.json" | grep -q "3 imported" && pass "tw import lands every row" \
+  || bad "got: $(tray import --format tw "$first/tw.json")"
+[ "$(tray_json | field Exportable priority)" = "H" ] && pass "on the tray, since it had structure" || bad "not on the tray"
+[ "$(jq 'map(del(.id)) | sort_by(.description)' "$first/tw.json")" = "$(tray_json | jq 'map(del(.id)) | sort_by(.description)')" ] \
+  && pass "and exports again field for field" || bad "round trip drifted: $(tray_json)"
+# stdin is closed throughout (F16), so the wire arrives as a file here.
+printf '[{"description":"filed under a project","status":"pending","project":"alpha","uuid":"u-1","priority":"H"}]' > "$TRAY_HOME/in.json"
+tray import --format tw "$TRAY_HOME/in.json" >/dev/null
+[ "$(tray_json | field 'filed under a project' tags)" = '["alpha"]' ] && pass "a project comes in as a tag" || bad "no tag"
+[ "$(tray_json | field 'filed under a project' uuid)" = "u-1" ] && pass "and keeps its uuid" || bad "uuid lost"
+printf '[{"description":"filed under a project, renamed","status":"pending","project":"alpha","uuid":"u-1","priority":"H"}]' > "$TRAY_HOME/in.json"
+tray import --format tw "$TRAY_HOME/in.json" | grep -q "1 updated" && pass "the same uuid updates in place" || bad "did not update"
+[ "$(tray_json | jq length)" = "4" ] && pass "rather than adding a row" || bad "$(tray_json | jq length) rows"
+rm -rf "$TRAY_HOME"
+
+TRAY_HOME=$(mktemp -d); export TRAY_HOME; tray init >/dev/null
+tray import --format todotxt "$first/todo.txt" >/dev/null
+tray export --format todotxt --all 2>/dev/null | diff -q "$first/todo.txt" - >/dev/null \
+  && pass "todo.txt round-trips line for line" || bad "todo.txt drifted: $(tray export --format todotxt --all 2>/dev/null)"
+printf 'a bare jotting\n(B) committed thing due:2026-08-20 @work\n' > "$TRAY_HOME/in.txt"
+tray import --format todotxt "$TRAY_HOME/in.txt" >/dev/null
+[ "$(garage_json 2026-08 | rows 'a bare jotting')" = "1" ] \
+  && pass "a line with no structure is a jotting for this month" || bad "jotting went elsewhere"
+[ "$(tray_json | field 'committed thing' tags)" = '["work"]' ] \
+  && pass "@context is a tag, and a priority puts the line on the tray" || bad "got: $(tray_json)"
+rm -rf "$first"
+teardown
+
+# --- F32 · context ---------------------------------------------------------------------
+# What you hand an agent is the report you read plus what it cannot see from a list.
+head_ "F32 · context is the report with its notes"
+setup
+tray add --note "expires on the 12th" Rotate the keys pri:H +infra >/dev/null
+tray add Plain pri:M >/dev/null
+out=$(tray context)
+case $out in *"**infra**"*) pass "grouped like the report" ;; *) bad "got: $out" ;; esac
+case $out in *"$(id_of 'Rotate the keys')  Rotate the keys"*) pass "with ids" ;; *) bad "no id: $out" ;; esac
+case $out in *"expires on the 12th"*) pass "and the note under its task" ;; *) bad "no note: $out" ;; esac
+out=$(tray "$(id_of Plain)" context)
+case $out in *Rotate*) bad "an id should narrow it: $out" ;; *Plain*) pass "an id narrows it to that task" ;; *) bad "got: $out" ;; esac
+case $(tray +infra context) in *Plain*) bad "a filter should narrow it" ;; *Rotate*) pass "a filter narrows it too" ;; *) bad "filter broke it" ;; esac
+case $(tray 999 context) in "nothing to copy") pass "an unknown id says so" ;; *) bad "got: $(tray 999 context)" ;; esac
+teardown
+
 printf '\n'
 [ "$fail" = 0 ] && printf '\033[32mtray flows pass\033[0m\n' || printf '\033[31mtray flows FAILED\033[0m\n'
 exit "$fail"

@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"sort"
@@ -15,6 +14,7 @@ import (
 	"github.com/cheese-cracker/tray/internal/core"
 	"github.com/cheese-cracker/tray/internal/store"
 	"github.com/cheese-cracker/tray/internal/style"
+	"github.com/cheese-cracker/tray/internal/wire"
 )
 
 const untagged = "untagged"
@@ -107,12 +107,8 @@ func garageTable(items []core.Task, month string) string {
 	return table(rows, headers)
 }
 
-// grouped is the default view and the journal print: bullets by tag, no attributes.
-// Numbered keeps ids on screen, so what you read is addressable.
-func grouped(items []core.Task, today time.Time, numbered bool) string {
-	if len(items) == 0 {
-		return "tray empty"
-	}
+// byTag buckets rows under their first tag, each bucket in urgency order, names sorted.
+func byTag(items []core.Task, today time.Time) ([]string, map[string][]core.Task) {
 	groups := map[string][]core.Task{}
 	for _, t := range items {
 		key := untagged
@@ -121,30 +117,38 @@ func grouped(items []core.Task, today time.Time, numbered bool) string {
 		}
 		groups[key] = append(groups[key], t)
 	}
-
 	names := make([]string, 0, len(groups))
-	for name := range groups {
+	for name, rows := range groups {
 		names = append(names, name)
-	}
-	sort.Strings(names)
-
-	var out []string
-	for _, name := range names {
-		out = append(out, "**"+name+"**")
-		rows := groups[name]
 		sort.SliceStable(rows, func(i, j int) bool {
 			return core.Urgency(rows[i], today) > core.Urgency(rows[j], today)
 		})
-		for _, t := range rows {
-			if numbered {
+	}
+	sort.Strings(names)
+	return names, groups
+}
+
+// grouped is the default view and the journal print: bullets by tag, no attributes.
+// Numbered keeps ids on screen, so what you read is addressable.
+func grouped(items []core.Task, today time.Time, numbered bool) string {
+	if len(items) == 0 {
+		return "tray empty"
+	}
+	names, groups := byTag(items, today)
+	var out []string
+	for _, name := range names {
+		out = append(out, "**"+name+"**")
+		for _, t := range groups[name] {
+			switch {
+			case numbered:
 				out = append(out, fmt.Sprintf("  %d  %s", t.ID, t.Text))
-			} else {
+			case t.Terminal():
+				out = append(out, "- [x] ~~"+t.Text+"~~")
+			default:
 				out = append(out, "- [ ] "+t.Text)
-				for _, l := range strings.Split(t.Note, "\n") {
-					if l != "" {
-						out = append(out, "  "+l)
-					}
-				}
+			}
+			if !numbered {
+				out = append(out, indented(t.Note, "  ")...)
 			}
 		}
 		out = append(out, "")
@@ -152,67 +156,30 @@ func grouped(items []core.Task, today time.Time, numbered bool) string {
 	return strings.TrimRight(strings.Join(out, "\n"), "\n")
 }
 
-// asJSON is Taskwarrior's import shape, so `tray export | task import` works, plus the
-// id — which is what an agent addresses a task by — and the fields Taskwarrior does
-// not have but a tray reader wants back.
-func asJSON(items []core.Task, today time.Time) (string, error) {
-	out := make([]map[string]any, 0, len(items))
-	for _, t := range items {
-		row := map[string]any{"id": t.ID, "description": t.Text, "status": status(t, today)}
-		if t.Priority != "" {
-			row["priority"] = t.Priority
+// contextReport is what you hand an agent: the grouped report with ids, and under each
+// task the note it carries — the whole of what tray knows about it, in plain text.
+func contextReport(items []core.Task, today time.Time) string {
+	names, groups := byTag(items, today)
+	var out []string
+	for _, name := range names {
+		out = append(out, "**"+name+"**")
+		for _, t := range groups[name] {
+			out = append(out, fmt.Sprintf("  %d  %s", t.ID, t.Text))
+			out = append(out, indented(t.Note, "      ")...)
 		}
-		for field, value := range map[string]string{
-			"due": t.Due, "wait": t.Wait, "until": t.Until, "entry": t.Entry, "end": t.Done,
-		} {
-			if stamp := twStamp(value); stamp != "" {
-				row[field] = stamp
-			}
-		}
-		if t.Recur != "" {
-			row["recur"] = t.Recur
-		}
-		if t.FromMonth != "" {
-			row["from"] = t.FromMonth
-		}
-		if uuid, ok := strings.CutPrefix(t.Source, "tw:"); ok {
-			row["uuid"] = uuid
-		}
-		if len(t.Tags) > 0 {
-			row["tags"] = t.Tags
-		}
-		// Taskwarrior's name for a note. One entry: the note is one thing, not a log.
-		if t.Note != "" {
-			row["annotations"] = []map[string]string{{
-				"entry": twStamp(t.Entry), "description": t.Note,
-			}}
-		}
-		row["urgency"] = core.Urgency(t, today)
-		row["quadrant"] = core.Quadrant(t, today)
-		out = append(out, row)
+		out = append(out, "")
 	}
-	blob, err := json.MarshalIndent(out, "", "  ")
-	return string(blob), err
+	return strings.TrimRight(strings.Join(out, "\n"), "\n")
 }
 
-func status(t core.Task, today time.Time) string {
-	switch {
-	case t.Terminal():
-		return "completed"
-	case t.Recur != "":
-		return "recurring"
-	case t.Waiting(today):
-		return "waiting"
+func indented(note, prefix string) []string {
+	var out []string
+	for _, l := range strings.Split(note, "\n") {
+		if l != "" {
+			out = append(out, prefix+l)
+		}
 	}
-	return "pending"
-}
-
-func twStamp(value string) string {
-	d, ok := core.Date(value)
-	if !ok {
-		return ""
-	}
-	return d.Format("20060102T000000Z")
+	return out
 }
 
 func dash(s string) string {
@@ -230,7 +197,7 @@ func cmdReport(s *store.Store, req request, dense bool) (string, error) {
 	}
 	today := store.Today()
 	if req.opts.json {
-		return asJSON(items, today)
+		return wire.ExportTaskwarrior(items, today)
 	}
 	if req.scope == "garage" {
 		month := req.opts.month

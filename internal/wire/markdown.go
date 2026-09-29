@@ -1,6 +1,6 @@
 // Package wire reads and writes the shapes tray shares with other tools — markdown
 // bullets, todo.txt, Taskwarrior JSON. The grammar is core's; this package only knows
-// which file is which layer.
+// which file is which layer, and where an imported row lands.
 package wire
 
 import (
@@ -18,8 +18,7 @@ import (
 // ImportMarkdown brings a markdown home — or one file of it — into the store. tray.md
 // is the tray; a month, someday or a plugin's name is that garage. A `→` line is
 // history whose live copy went elsewhere, so it is skipped; a struck or ticked line
-// arrives finished. A row already present (same layer, month and words) is skipped,
-// which is what lets the import run twice.
+// arrives finished.
 func ImportMarkdown(s *store.Store, path string, today time.Time) (string, error) {
 	info, err := os.Stat(path)
 	if err != nil {
@@ -36,15 +35,10 @@ func ImportMarkdown(s *store.Store, path string, today time.Time) (string, error
 		return "", fmt.Errorf("%s: no markdown files", path)
 	}
 
-	present, err := s.Tasks(store.Filter{All: true})
+	l, err := newLander(s)
 	if err != nil {
 		return "", err
 	}
-	seen := map[string]bool{}
-	for _, t := range present {
-		seen[key(t)] = true
-	}
-
 	var report []string
 	err = s.Update(func(tx *store.Store) error {
 		for _, file := range files {
@@ -56,15 +50,19 @@ func ImportMarkdown(s *store.Store, path string, today time.Time) (string, error
 			added, skipped := 0, 0
 			for _, t := range core.Tasks(strings.Split(strings.TrimRight(string(raw), "\n"), "\n"), today) {
 				t.Layer, t.Month = layer, month
-				if t.Moved != "" || t.Text == "" || seen[key(t)] {
+				if t.Moved != "" {
 					skipped++
 					continue
 				}
-				if err := tx.Put(&t); err != nil {
+				outcome, err := l.land(tx, t, today)
+				if err != nil {
 					return err
 				}
-				seen[key(t)] = true
-				added++
+				if outcome == "added" {
+					added++
+				} else {
+					skipped++
+				}
 			}
 			report = append(report, fmt.Sprintf("%s: %d imported, %d skipped", filepath.Base(file), added, skipped))
 		}
@@ -80,5 +78,3 @@ func place(file string) (layer, month string) {
 	}
 	return core.LayerGarage, stem
 }
-
-func key(t core.Task) string { return t.Layer + "\x00" + t.Month + "\x00" + t.Text }

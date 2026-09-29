@@ -31,8 +31,10 @@ func TestParseTrayLine(t *testing.T) {
 	if got.Priority != "H" || got.Due != "2026-08-12" || got.Entry != "2026-08-07" {
 		t.Errorf("fields = %+v", got)
 	}
-	if !reflect.DeepEqual(got.Tags, []string{"infra"}) {
-		t.Errorf("tags = %v", got.Tags)
+	// A project is a tag (9): the one axis, so nothing another tool files under a
+	// project is lost on the way in.
+	if !reflect.DeepEqual(got.Tags, []string{"infra", "alpha"}) {
+		t.Errorf("tags = %v, want project: read as a tag", got.Tags)
 	}
 	if got.Terminal() || !got.Live() {
 		t.Error("should be live")

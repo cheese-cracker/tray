@@ -18,8 +18,8 @@ const Version = "0.3.0"
 
 var verbs = []string{
 	"init", "dump", "add", "take", "rewrite", "edit", "note", "done", "erase",
-	"unload", "carryover", "list", "head", "find", "print", "export", "import", "status",
-	"restore", "plugin", "help",
+	"unload", "carryover", "list", "head", "find", "print", "export", "import", "context",
+	"status", "restore", "plugin", "help",
 }
 
 var idSpec = regexp.MustCompile(`^\d+([,-]\d+)*$`)
@@ -44,8 +44,10 @@ const usage = `tray — two layers, one database. Dump to the garage, take onto 
   tray carryover --run --month 2026-08     that month's leftovers move to the next
   tray garage list  ·  tray +infra list  ·  tray list --all (with the finished)
   tray find <text>                   every layer, every month
-  tray print  ·  tray export  ·  tray status
-  tray import --format md ~/tray     bring a markdown home into the database
+  tray print  ·  tray status
+  tray export [--format tw|todotxt|md] [--all]    Taskwarrior JSON by default
+  tray import --format tw|todotxt [file|-]        from a file or stdin; --format md ~/tray for the old home
+  tray context [ids]                 the report with ids and every note, for pasting to an agent
 
 Ids are permanent. Filters: ids (12, 2,5-7), +tag, key:value, and ` + "`garage`" + ` to switch layer.`
 
@@ -240,10 +242,11 @@ func dispatch(s *store.Store, req request) (string, error) {
 	case "print":
 		return cmdPrint(s, req)
 	case "export":
-		req.opts.json = true
-		return cmdReport(s, req, true)
+		return cmdExport(s, req)
 	case "import":
 		return cmdImport(s, req)
+	case "context":
+		return cmdContext(s, req)
 	case "status":
 		return cmdStatus(s)
 	case "plugin":

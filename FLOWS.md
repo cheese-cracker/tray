@@ -49,6 +49,8 @@ suite rather than hanging it.
 | F22 | A note is the lines under a task: `--note` on `dump` and `add`, `tray <id> note <text>` replaces it whole, it exports as one Taskwarrior annotation | `F22 · note is the indented lines under a task` |
 | F23 | `plugin` lists what is installed — the garage a plugin keeps, as rows, and the verbs under its `actions/` — counts a file without the exec bit as half an install, and refuses to sync | `F23 · plugin lists what is installed` |
 | F24 | Ids are permanent: erasing or finishing a neighbour renumbers nothing, and an erased id is never handed out again | `F24 · ids are permanent` |
+| F27 | `export` and `import` round-trip Taskwarrior JSON and todo.txt field for field; a project comes in as a tag, a uuid updates the row it names, and a line with no structure lands in this month's garage | `F27 · export and import round-trip` |
+| F32 | `context` is the grouped report with ids and every note under its task, narrowed by ids or a filter | `F32 · context is the report with its notes` |
 | F33 | `import --format md` brings a markdown home in whole — layers by filename, notes, struck lines finished, `→` lines skipped — and twice adds nothing | `F33 · import migrates the markdown home` |
 
 ## G · the app

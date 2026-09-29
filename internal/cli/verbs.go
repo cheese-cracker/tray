@@ -2,6 +2,9 @@ package cli
 
 import (
 	"fmt"
+	"io"
+	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -537,14 +540,89 @@ func where(t core.Task) string {
 	return t.Month
 }
 
+// export is the tray in another tool's shape. Taskwarrior JSON by default, because
+// `tray export | task import` is the promise 4 keeps; todo.txt and markdown bullets are
+// the other two grammars tray already speaks.
+func cmdExport(s *store.Store, req request) (string, error) {
+	items, err := view(s, req, req.opts.all)
+	if err != nil {
+		return "", err
+	}
+	today := store.Today()
+	switch req.opts.format {
+	case "", "tw":
+		return wire.ExportTaskwarrior(items, today)
+	case "todotxt":
+		text, dropped := wire.ExportTodotxt(items)
+		if dropped > 0 {
+			fmt.Fprintf(os.Stderr, "tray: %d note(s) have no line in todo.txt and were left out\n", dropped)
+		}
+		return text, nil
+	case "md":
+		return grouped(items, today, false), nil
+	}
+	return "", fmt.Errorf("unknown format %q — tw, todotxt or md", req.opts.format)
+}
+
+// import never guesses a format (18): the same line reads differently in each grammar.
 func cmdImport(s *store.Store, req request) (string, error) {
-	if req.opts.format != "md" {
-		return "", fmt.Errorf("import needs a format — tray import --format md <dir>")
+	today := store.Today()
+	switch req.opts.format {
+	case "md":
+		if len(req.tail) == 0 {
+			return "", fmt.Errorf("import needs a path — tray import --format md ~/tray")
+		}
+		return wire.ImportMarkdown(s, req.tail[0], today)
+	case "tw", "todotxt":
+		r, name, err := input(req.tail)
+		if err != nil {
+			return "", err
+		}
+		defer r.Close()
+		var tasks []core.Task
+		if req.opts.format == "tw" {
+			tasks, err = wire.ImportTaskwarrior(r, today)
+		} else {
+			tasks, err = wire.ImportTodotxt(r, today)
+		}
+		if err != nil {
+			return "", fmt.Errorf("%s: %w", name, err)
+		}
+		added, updated, skipped, err := wire.Land(s, tasks, today)
+		if err != nil {
+			return "", err
+		}
+		return fmt.Sprintf("%s: %d imported, %d updated, %d skipped", name, added, updated, skipped), nil
 	}
-	if len(req.tail) == 0 {
-		return "", fmt.Errorf("import needs a path — tray import --format md ~/tray")
+	return "", fmt.Errorf("import needs a format — tray import --format tw|todotxt|md [file|-]")
+}
+
+// input is the file named, or stdin when none is or `-` stands in for one.
+func input(tail []string) (io.ReadCloser, string, error) {
+	if len(tail) == 0 || tail[0] == "-" {
+		return os.Stdin, "stdin", nil
 	}
-	return wire.ImportMarkdown(s, req.tail[0], store.Today())
+	f, err := os.Open(tail[0])
+	return f, filepath.Base(tail[0]), err
+}
+
+// context is what you paste to an agent: the rows you named, or the report you would
+// have read, with every note under its task.
+func cmdContext(s *store.Store, req request) (string, error) {
+	var items []core.Task
+	var err error
+	if req.ids != "" {
+		items, err = pick(s, req)
+	} else {
+		items, err = view(s, req, req.opts.all)
+	}
+	if err != nil {
+		return "", err
+	}
+	if len(items) == 0 {
+		return "nothing to copy", nil
+	}
+	return contextReport(items, store.Today()), nil
 }
 
 func tagName(token string) (string, bool) {
