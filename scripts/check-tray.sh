@@ -694,6 +694,59 @@ grep -q '"n0"' "$TRAY_HOME/plugins/echo/applied.json" && pass "the push reached 
 tray status | grep -q "fail failed — boom" && pass "status still names the failure" || bad "got: $(tray status)"
 teardown
 
+# --- F35 · the mirror -------------------------------------------------------------------------
+# Two markdown files beside the database, one bullet per open task with its id, rewritten
+# after every write. The lightest view there is: drop the folder in a vault and read it
+# from a phone.
+head_ "F35 · the mirror is rewritten after every write"
+setup
+tray dump 'from the shell' >/dev/null
+tray add 'on the tray' pri:H >/dev/null
+gid=$(gid_of 2026-08 'from the shell'); tid=$(id_of 'on the tray')
+grep -q "^- ($gid) from the shell\$" "$TRAY_HOME/garage.md" && pass "garage.md has the line with its id" || bad "garage.md: $(cat "$TRAY_HOME/garage.md")"
+grep -q "^## 2026-08\$" "$TRAY_HOME/garage.md" && pass "under its month" || bad "no month heading"
+grep -q "^- ($tid) on the tray\$" "$TRAY_HOME/tray.md" && pass "tray.md has the tray task" || bad "tray.md: $(cat "$TRAY_HOME/tray.md")"
+grep -q "pri\|+" "$TRAY_HOME/garage.md" "$TRAY_HOME/tray.md" && bad "the mirror carries more than ids and words" || pass "ids and words, nothing else"
+tray "$tid" done >/dev/null
+grep -q "on the tray" "$TRAY_HOME/tray.md" && bad "a finished task is still in tray.md" || pass "a finished task leaves tray.md"
+tray "$gid" take >/dev/null
+grep -q "from the shell" "$TRAY_HOME/garage.md" && bad "a taken line is still in garage.md" || pass "take moves the line from garage.md to tray.md"
+grep -q "^- ($gid) from the shell\$" "$TRAY_HOME/tray.md" && pass "with the same id" || bad "tray.md: $(cat "$TRAY_HOME/tray.md")"
+before=$(stat -c %Y "$TRAY_HOME/tray.md" 2>/dev/null || stat -f %m "$TRAY_HOME/tray.md")
+sleep 1; tray list >/dev/null
+after=$(stat -c %Y "$TRAY_HOME/tray.md" 2>/dev/null || stat -f %m "$TRAY_HOME/tray.md")
+[ "$before" = "$after" ] && pass "a read rewrites nothing" || bad "list touched the mirror"
+teardown
+
+# --- F36 · garage.md read back ---------------------------------------------------------------
+# What you type into garage.md on a phone comes in on the next sync: a new bullet is a new
+# line, changed words are a rename. Nothing is deleted from here, and tray.md is never read.
+head_ "F36 · sync reads garage.md back: new lines and renames, nothing else"
+setup
+tray dump 'already here' >/dev/null
+tray add 'sensitive tray task' pri:H >/dev/null
+gid=$(gid_of 2026-08 'already here'); tid=$(id_of 'sensitive tray task')
+printf '# garage\n\n## 2026-08\n- from the phone\n- (%s) already here, renamed\n\n## 2026-11\n- for november\n\n## someday\n- (zz9z) with an id tray never gave\n' "$gid" > "$TRAY_HOME/garage.md"
+printf '# tray\n\n- (%s) sensitive tray task, edited on the phone\n- a tray line typed on the phone\n' "$tid" > "$TRAY_HOME/tray.md"
+out=$(tray sync)
+case $out in *"garage.md +2 ~1 ?1"*) pass "the summary counts new, renamed and unknown" ;; *) bad "got: $out" ;; esac
+[ "$(garage_json 2026-08 | rows 'from the phone')" = "1" ] && pass "a new bullet is a new line in its month" || bad "phone line missing"
+[ "$(garage_json 2026-11 | rows 'for november')" = "1" ] && pass "a heading names the month" || bad "november line missing"
+[ "$(garage_json 2026-08 | field 'already here, renamed' id)" = "$gid" ] && pass "changed words rename the task, id kept" || bad "rename lost: $(garage_json 2026-08 | jq -c 'map(.description)')"
+[ "$(garage_json someday | jq length)" = "0" ] && pass "an unknown id lands nothing" || bad "unknown id was imported"
+[ "$(tray_json | field 'sensitive tray task' id)" = "$tid" ] && [ "$(tray_json | jq length)" = "1" ] \
+  && pass "tray.md is never read" || bad "tray.md was read: $(tray_json | jq -c 'map(.description)')"
+grep -q "^- ($gid) already here, renamed\$" "$TRAY_HOME/garage.md" && pass "the mirror shows the rename" || bad "garage.md: $(cat "$TRAY_HOME/garage.md")"
+grep -q "^- ([0-9a-z][0-9a-z][0-9a-z][0-9a-z]) from the phone\$" "$TRAY_HOME/garage.md" && pass "and the new line has an id now" || bad "phone line has no id"
+grep -q "zz9z" "$TRAY_HOME/garage.md" && bad "the unknown line was kept" || pass "the unknown line is gone from the view"
+grep -q "^- ($tid) sensitive tray task\$" "$TRAY_HOME/tray.md" && pass "tray.md is rewritten from the store" || bad "tray.md: $(cat "$TRAY_HOME/tray.md")"
+grep -v "already here" "$TRAY_HOME/garage.md" > "$TRAY_HOME/g.tmp" && mv "$TRAY_HOME/g.tmp" "$TRAY_HOME/garage.md"
+tray sync >/dev/null
+[ "$(garage_json 2026-08 | rows 'already here, renamed')" = "1" ] && pass "a missing bullet deletes nothing" || bad "the row was deleted"
+grep -q "already here, renamed" "$TRAY_HOME/garage.md" && pass "and comes back into the file" || bad "the row did not return"
+case $(tray sync) in *"garage.md +0 ~0"*) pass "a second sync finds nothing new" ;; *) bad "got: $(tray sync)" ;; esac
+teardown
+
 printf '\n'
 [ "$fail" = 0 ] && printf '\033[32mtray flows pass\033[0m\n' || printf '\033[31mtray flows FAILED\033[0m\n'
 exit "$fail"

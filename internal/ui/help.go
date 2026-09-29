@@ -116,7 +116,7 @@ func helpKeys() string {
 		{
 			{"", "keys"},
 			{"↑↓  j k", "move"}, {"tab", "switch layer"}, {"space", "select"},
-			{"enter", "act"}, {"/", "filter"}, {"v", "review"},
+			{"enter", "act"}, {"/", "filter"}, {"v", "review"}, {"S", "sync"},
 		},
 		{
 			{"", "acting"},

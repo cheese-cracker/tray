@@ -1,9 +1,13 @@
 package ui
 
 import (
+	"os"
+	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
+	"github.com/cheese-cracker/tray/internal/core"
 	"github.com/cheese-cracker/tray/internal/store"
 )
 
@@ -549,4 +553,48 @@ func TestFlowNoteIsTheIndentedLinesUnderATask(t *testing.T) {
 	if got := g.form.fields(); len(got) != 1 || got[0] != fNote {
 		t.Errorf("the garage noter offered %v, want the note alone", got)
 	}
+}
+
+// T22 · `S` runs the sync event: what a phone typed into garage.md comes in, what it
+// renamed is renamed, what it removed survives, and tray.md is never read. Both files
+// are rewritten afterwards, so the new line carries an id from then on.
+func TestFlowSyncReadsTheGarageFileBack(t *testing.T) {
+	sandbox(t, "- [ ] sensitive tray task priority:H")
+	garage(t, "2026-08", "- already here", "- to be removed from the file")
+	rows, _ := ts.Tasks(store.Filter{Layer: core.LayerGarage})
+	here := rows[0].ID
+	tray, _ := ts.Tasks(store.Filter{Layer: core.LayerTray})
+	tid := tray[0].ID
+
+	home := os.Getenv("TRAY_HOME")
+	os.WriteFile(filepath.Join(home, "garage.md"), []byte(
+		"# garage\n\n## 2026-08\n- from the phone\n- ("+here+") already here, renamed\n"), 0o644)
+	os.WriteFile(filepath.Join(home, "tray.md"), []byte(
+		"# tray\n\n- ("+tid+") edited on the phone\n- typed on the phone\n"), 0o644)
+
+	u := drive(t, New(ts)).waitFor("sensitive")
+	u.press("S").waitFor("garage.md +1 ~1")
+	m := u.press("q").final()
+	if !strings.Contains(m.status, "synced") {
+		t.Errorf("status = %q", m.status)
+	}
+
+	month := monthFile(t, "2026-08")
+	has(t, month, "from the phone")
+	has(t, month, "already here, renamed")
+	has(t, month, "to be removed from the file") // a missing bullet deletes nothing
+	hasNot(t, trayFile(t), "edited on the phone")
+	hasNot(t, trayFile(t), "typed on the phone")
+	if got, _, _ := ts.Get(here); got.Text != "already here, renamed" {
+		t.Errorf("the rename should land on %s, got %q", here, got.Text)
+	}
+
+	file, _ := os.ReadFile(filepath.Join(home, "garage.md"))
+	has(t, string(file), "already here, renamed")
+	has(t, string(file), "to be removed from the file")
+	if !regexp.MustCompile(`- \([0-9a-z]{4}\) from the phone`).Match(file) {
+		t.Errorf("the new line should carry an id now:\n%s", file)
+	}
+	file, _ = os.ReadFile(filepath.Join(home, "tray.md"))
+	has(t, string(file), "- ("+tid+") sensitive tray task")
 }

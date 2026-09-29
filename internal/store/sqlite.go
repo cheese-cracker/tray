@@ -41,6 +41,7 @@ CREATE INDEX IF NOT EXISTS task_source ON task (source);
 CREATE TABLE IF NOT EXISTS plugin_run (
   name TEXT PRIMARY KEY, hook TEXT, at TEXT, ok INTEGER, message TEXT
 );
+CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 PRAGMA user_version = 1;
 `
 
@@ -264,14 +265,14 @@ func (s *Store) Months() ([]string, error) {
 // A Run is the last thing a plugin did: one row per plugin, because the plugins pane
 // and `status` ask "how did it go last time", never for a history.
 type Run struct {
-	Name, Hook, At string
-	OK             bool
-	Message        string
+	Name, Event, At string
+	OK              bool
+	Message         string
 }
 
 func (s *Store) RecordRun(r Run) error {
 	_, err := s.q.Exec(`INSERT OR REPLACE INTO plugin_run (name, hook, at, ok, message) VALUES (?, ?, ?, ?, ?)`,
-		r.Name, r.Hook, r.At, r.OK, r.Message)
+		r.Name, r.Event, r.At, r.OK, r.Message)
 	return err
 }
 
@@ -285,12 +286,27 @@ func (s *Store) Runs() (map[string]Run, error) {
 	out := map[string]Run{}
 	for rows.Next() {
 		var r Run
-		if err := rows.Scan(&r.Name, &r.Hook, &r.At, &r.OK, &r.Message); err != nil {
+		if err := rows.Scan(&r.Name, &r.Event, &r.At, &r.OK, &r.Message); err != nil {
 			return nil, err
 		}
 		out[r.Name] = r
 	}
 	return out, rows.Err()
+}
+
+// Meta is one remembered fact — the mirror's last write — or "" when none.
+func (s *Store) Meta(key string) (string, error) {
+	var v string
+	err := s.q.QueryRow("SELECT value FROM meta WHERE key = ?", key).Scan(&v)
+	if err == sql.ErrNoRows {
+		return "", nil
+	}
+	return v, err
+}
+
+func (s *Store) SetMeta(key, value string) error {
+	_, err := s.q.Exec("INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)", key, value)
+	return err
 }
 
 func scan(rows *sql.Rows) (core.Task, error) {

@@ -14,6 +14,7 @@ import (
 
 	"github.com/cheese-cracker/tray/internal/core"
 	"github.com/cheese-cracker/tray/internal/store"
+	"github.com/cheese-cracker/tray/internal/sync"
 )
 
 // mode is what the keyboard is talking to.
@@ -167,6 +168,14 @@ func (m *Model) reload() tea.Cmd {
 	if err != nil {
 		m.err = err
 		return nil
+	}
+	// Every action reloads, so this is where the write event fires: the mirror files
+	// show the store as the interface just left it — and if garage.md was edited on a
+	// phone, the status says so until `S` brings it in.
+	if sum, err := sync.Fire(m.s, sync.Write, m.today); err != nil {
+		m.status = err.Error()
+	} else if m.status == "" {
+		m.status = sum.String()
 	}
 	if m.layer().isTray() {
 		sortByUrgency(rows, m.today)
@@ -418,6 +427,16 @@ func (m Model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.resize()
 	case "v":
 		return m, m.toggleView()
+	// `S` is the sync event by hand: templates, waiting rows and garage.md land; a
+	// plugin's plan needs the CLI's review until this interface has a screen for it.
+	case "S":
+		sum, err := sync.Fire(m.s, sync.Manual, m.today)
+		if err != nil {
+			m.status = err.Error()
+		} else {
+			m.status = "synced · " + sum.String()
+		}
+		return m, m.reload()
 	// tab is the only way across, ⇧tab the only way back, and ⇧tab is not
 	// advertised. ←→ and h l are all deliberately dead: ↑↓ move within a layer,
 	// and nothing here moves sideways.
