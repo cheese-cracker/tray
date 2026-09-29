@@ -8,12 +8,13 @@ Two kinds:
 
 | | Driven by | Asserts on | Lives in |
 |---|---|---|---|
-| **F** | the real binary, from a shell | file contents | `scripts/check-tray.sh` |
-| **T** | the real bubbletea program, via `teatest` | final model **and** file contents | `internal/ui/flows_test.go` |
+| **F** | the real binary, from a shell | what `list --json` and `export` report | `scripts/check-tray.sh` |
+| **G** | the real app, via `fyne.io/fyne/v2/test` | final model **and** the store | `internal/gui/flows_test.go` |
 
-F flows survived a whole-language rewrite unchanged (decision 37), which is why they
-are still bash in a repo that is otherwise Go. T flows are the ones that are only true
-end to end: several keystrokes, a mode change in the middle, and a file on the far side.
+F flows survived a whole-language rewrite and then a whole-store rewrite: they read
+the binary's own output and nothing else, which is why they are still bash in a repo
+that is otherwise Go. G flows are the ones that are only true end to end: several
+actions, a mode change in the middle, and a row on the far side.
 
 Everything else — parsing, urgency, the store, single-key handling — is a unit test,
 and does not belong here.
@@ -26,71 +27,38 @@ suite rather than hanging it.
 
 | # | Must keep working | Held by |
 |---|---|---|
-| F1 | `dump` writes this month's file and the line survives verbatim | `F1 · capture` |
+| F1 | `dump` writes this month's garage and the words survive verbatim | `F1 · capture` |
 | F2 | A leading `to:` and `+tag` are the only things `dump` parses | `F2 · month + tag` |
 | F3 | Arbitrary text is a valid garage line — half-sentences, `??`, colons mid-prose | `F3 · jottpad tolerance` |
 | F4 | The tray reports in urgency order, not insertion order | `F4 · tray order is urgency, not insertion` |
-| F5 | `take` is a transformation: structure is added, the source keeps an arrow | `F5 · take is a transformation` |
-| F6 | `done` strikes through in place, dated, never moving the line | `F6 · done strikes in place` |
-| F7 | `unload` is idempotent — running it twice does not duplicate the tray | `F7 · unload is idempotent` |
-| F8 | `carryover` copies forward, leaves the tray alone, and drops a due date that already passed | `F8 · carryover copies forward` |
-| F9 | Headings, prose and `*` bullets survive every operation byte-for-byte | `F9 · one document, two hands` |
-| F10 | `export` is valid JSON in Taskwarrior's import shape | `F10 · export` |
-| F11 | `+tag` and `due:` filters select the right lines | `F11 · filters` |
-| F12 | `status` names any earlier month still holding live lines, and the command that clears it | `F12 · status names the month left behind` |
+| F5 | `take` moves a row onto the tray with the structure you gave it, remembers the month it left, keeps its id, and never takes it twice | `F5 · take is a transformation` |
+| F6 | `done` marks in place, dated, keeping what the row had; the default report hides it | `F6 · done strikes in place` |
+| F7 | `unload` is idempotent — running it twice changes nothing | `F7 · unload is idempotent` |
+| F8 | `carryover` moves a month's live rows to the next month, leaves the tray alone, and drops a due date that already passed | `F8 · carryover moves forward` |
+| F10 | `export` is valid JSON in Taskwarrior's import shape, plus the id | `F10 · export` |
+| F11 | `+tag` and `key:value` filters select the right rows | `F11 · filters` |
+| F12 | `status` names any earlier month still holding live rows, and the command that clears it | `F12 · status names the month left behind` |
 | F13 | The piped default view is plain bullets with ids, no attributes | `F13 · the default view is the print, with ids` |
-| F14 | Ids are positional per report, so a hand reorder cannot desync them | `F14 · ids survive a hand reorder` |
-| F15 | `find` reaches every layer and every month at once | `F15 · find is the rot signal` |
+| F15 | `find` reaches every layer and every month at once, finished rows only under `--all` | `F15 · find reaches every layer and month` |
 | F16 | Every report runs headless without ever prompting | `F16 · headless` |
-| F17 | `unload` puts a task back on the line it left — finished ones struck through, open ones keeping what the tray gave them | `F17 · unload brings the tray home whole` |
-| F18 | Nothing is inferred headlessly: `carryover` and `unload` refuse to guess a month, and an unknown flag is an error rather than a silence | `F18 · nothing is inferred headlessly` |
-| F20 | `restore` un-finishes a task, resolving ids against the same rows `list --all` prints | `F20 · restore says a task was not finished after all` |
+| F17 | `unload` brings a task home to the month it left — finished ones finished, open ones keeping what the tray gave them — and one task alone needs no `--to` | `F17 · unload brings the tray home whole` |
+| F18 | Nothing is inferred headlessly: `carryover`, `unload` and `import` refuse to guess, and an unknown flag is an error rather than a silence | `F18 · nothing is inferred headlessly` |
 | F19 | `head` prints the top few compactly, says nothing at all on an empty tray, and renders dates in the one format the rest of the tool uses | `F19 · head is the terminal header` |
-| F22 | A note is the indented lines under a task: `--note` on `dump` and `add`, `tray <id> note <text>` replaces it whole, it exports as one Taskwarrior annotation, and `erase` takes it with the line | `F22 · note is the indented lines under a task` |
-| F21 | `erase` removes a line outright — the one verb that does — leaves its neighbours alone, and resolves ids against `list --all` so a finished line is reachable | `F21 · erase removes the line` |
-| F23 | `plugin` lists what is installed — the garage a plugin keeps, the verbs under its `actions/` it adds to the menu — counts a file without the exec bit as half an install, and refuses to sync: the sweep is the only sync point. Installing one is opt-in: until you do, the help and every other verb are untouched | `F23 · plugin lists what is installed` |
+| F20 | `restore` un-finishes the task you named and leaves no trace | `F20 · restore says a task was not finished after all` |
+| F21 | `erase` removes a row outright — the one verb that does — leaves its neighbours alone, and reaches a finished row by the same id | `F21 · erase removes the line` |
+| F22 | A note is the lines under a task: `--note` on `dump` and `add`, `tray <id> note <text>` replaces it whole, it exports as one Taskwarrior annotation | `F22 · note is the indented lines under a task` |
+| F23 | `plugin` lists what is installed — the garage a plugin keeps, as rows, and the verbs under its `actions/` — counts a file without the exec bit as half an install, and refuses to sync | `F23 · plugin lists what is installed` |
+| F24 | Ids are permanent: erasing or finishing a neighbour renumbers nothing, and an erased id is never handed out again | `F24 · ids are permanent` |
+| F33 | `import --format md` brings a markdown home in whole — layers by filename, notes, struck lines finished, `→` lines skipped — and twice adds nothing | `F33 · import migrates the markdown home` |
 
-## T · the terminal interface
+## G · the app
 
-| # | Must keep working | Held by |
-|---|---|---|
-| T1 | `take` moves the line onto the tray **and then** opens the form, prefilled | `TestFlowTakeOpensTheFormAndSaves` |
-| T2 | With several marked, the form skips the title and still reaches every task | `TestFlowBatchRewriteSkipsTheTitle` |
-| T3 | An action applies to the row a filter left visible, not to the pre-filter cursor | `TestFlowFilterThenActOnAFilteredRow` |
-| T4 | **Marks survive a filter.** Filter, mark, filter again, act on all of them | `TestFlowMarksSurviveAFilter` |
-| T5 | Tabs cycle at both ends rather than stopping | `TestFlowTabsCycleBothWays` |
-| T6 | `>` copies forward and leaves an arrow on the source line | `TestFlowMoveToCopiesForwardWithAnArrow` |
-| T7 | Handing back **revives** the garage line it came from — no copy, no orphan, and it keeps what the tray added | `TestFlowHandBackRevivesTheGarageLine` |
-| T8 | Adding in a garage tab asks for the words and writes nothing else | `TestFlowGarageAddAsksOnlyForATitle` |
-| T9 | Adding on the tray takes the whole form: priority, due and tag all land | `TestFlowTrayAddTakesTheWholeForm` |
-| T10 | `esc` clears an applied filter **before** it quits the program | `TestFlowEscClearsTheFilterBeforeItQuits` |
-| T11 | `carryover` opens the months it is about — the named one, this one, a forward slot, someday — no tray tab, focused on this month, and `>` reaches every one of them | `TestFlowSweepOpensTheMonthsAsTabs` |
-| T12 | `?` opens and closes without disturbing the list underneath | `TestFlowHelpOverlayToggles` |
-| T14 | A finished task is hidden until `v`, and `R` says it wasn't finished after all | `TestFlowViewDoneThenRestore` |
-| T16 | A garage rewrite edits the words alone, and keeps whatever the line already carries | `TestFlowGarageRewriteIsTextOnly` |
-| T17 | A garage rewrite refuses a batch — there is nothing left for it to change | `TestFlowGarageRewriteRefusesABatch` |
-| T15 | `v` lists everything on the layer, live lines first, and offers restore and erase alone; `a` writes nothing there | `TestFlowReviewShowsEverythingAndOffersTheRareVerbs` |
-| T13 | A pasted title lands whole, and a pasted newline collapses rather than splitting the line | `TestFlowPasteIntoTheTitle` |
-| T19 | `n` opens the note alone on either layer, saves it as indented lines, and the row shows `≡` | `TestFlowNoteIsTheIndentedLinesUnderATask` |
-| T18 | `E` removes a line outright and names it in the status, and is reachable only in review mode | `TestFlowEraseRemovesTheLineAndSaysWhatWent` |
-
-## Screens
-
-`TestScreens` keeps one golden frame per distinct screen — tray, empty tray, marked
-rows, garage, action menu, destination picker, rewrite form, help overlay, active
-filter, a paged long list, and a narrow terminal that must truncate rather than wrap.
-
-They are not flows and hold no behaviour. They catch the class of thing a behaviour
-test cannot see: a frame that lost its border, a column that stopped aligning, a
-footer that overflowed into `…`. Regenerate with:
-
-```sh
-go test ./internal/ui -run TestScreens -update
-```
+The G suite arrives with the app. Until then this half of the table is empty, and
+`internal/flows` treats a missing `internal/gui/flows_test.go` as zero rows.
 
 ## Adding one
 
-1. Write the test. `TestFlow…` in `internal/ui/flows_test.go`, or a `head_ "F… · …"`
+1. Write the test. `TestFlow…` in `internal/gui/flows_test.go`, or a `head_ "F… · …"`
    block in `scripts/check-tray.sh`.
 2. Add the row here, with the test name in backticks in the last column.
 3. `make check`. Missing either half fails `internal/flows`.
