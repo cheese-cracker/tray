@@ -161,10 +161,14 @@ one list. The mirror, the plugins and the config stay local. The cost is honest:
 save crosses the network, and the TUI needs a connection. To move a local home there:
 
 ```sh
-turso db create tray --from-file ~/.local/share/tray/tray.db
+sqlite3 ~/.local/share/tray/tray.db .dump | grep -v -E '^(BEGIN|COMMIT)' > /tmp/tray.sql
+turso db create tray && turso db shell tray < /tmp/tray.sql
 turso db show tray --url        # → db.url
 turso db tokens create tray     # → db.auth_token
 ```
+
+A dump rather than `--from-file`: the local file is in WAL mode, and `--from-file` reads the main
+file alone, so rows still in the log never arrive.
 
 The two `.md` files are the **mirror**: the lightest view of your tasks there is, and the
 reason the folder can sit inside an Obsidian vault. Every write rewrites them. On the next
