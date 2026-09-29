@@ -29,48 +29,79 @@ flowchart LR
 ```
 
 ```sh
-go install github.com/cheese-cracker/tray/cmd/tray@latest
+go install github.com/cheese-cracker/tray/cmd/tray@latest   # needs a C compiler and GL headers, see CONTRIBUTING
 
 tray init                             # creates ~/.local/share/tray/
 tray dump the billing page is slow    # capture, zero ceremony
 tray                                  # open it
 ```
 
-## The interface
+## The app
 
-Bare `tray` on a terminal opens it.
+Bare `tray` on a desktop opens the window. Piped, it prints the report instead.
 
-![Terminal recording: switching to the garage, taking a line onto the tray, filling in
-the form, adding a task, and marking one done.](docs/demo.svg)
+![Screenshot: the garage tab with the cursor row showing take · tag · open, the capture
+bar underneath, and the details pane drawing one task's ladder.](docs/app.png)
 
-The tray orders itself by priority, due date, and age. The dim number at the left of
-every row is the task's id — permanent, and what `tray 12 done` means.
+Home is one header line — `garage · tray` as pills, and at the right the quiet doors
+`sync · plugins · ?` — a list, a pane, and a status bar under a hairline. A row shows
+its actions when you hover or land on it — `take · tag · open` in the garage, `done ·
+hand back · move · open` on the tray — and opening a row fills the pane with everything
+it has so far: words, tags, then on the tray priority and due, the note, `schedule ▸` for
+recur / wait / until, its source, and its id in grey. The empty rungs read as grey hints,
+not prompts. The garage tab has a capture bar at the bottom: type, Enter, done.
+
+`enter` on a row, or `:` anywhere, opens the **command palette**: every action that
+applies right now, typed at — the row's verbs with their letters beside them, the modes,
+every plugin's verbs, and, when your words name no command, *dump “…” into the garage*.
+`/` brings the filter bar down when you want it; when a filter is on and you leave the
+field, it folds to a pill beside the layers that says what it hid.
+
+Anything simple is one step from the row. Anything that asks a question opens a form.
+Anything that destroys, moves in bulk or brings data in has its own mode, with the way
+out named at the top:
+
+| Mode | In | Out | What it is for |
+|---|---|---|---|
+| **Review** | `v` | `v` · `esc` | everything on the layer — finished rows checked and grey, waiting rows with their day, templates named by their period. The only place `R` restore and `E` erase exist. The frame turns amber |
+| **Sweep** | *carryover* in the garage tab | close | the months as tabs — prev · this · next · someday — with `>` and `t` to decide where each leftover goes, and one button that carries the named month forward |
+| **Unload** | *hand the tray back* in the tray tab | pick · `esc` | a month picker, and the count it will move |
+| **Sync review** | `s`, or a plugin at launch | apply all · discard | per plugin: what it would add, what it would change (old → new), what it would push back, the evidence it brought |
+| **Plugins** | `p` | close | what is installed, how the last run went, the on-launch toggle, each plugin's settings form |
+
+### Shortcuts
+
+Letters are shortcuts for controls that are on screen — the TUI this grew out of taught
+them because it had nothing else to show. They work while the list has the keys; a
+field takes them as text.
 
 | | |
 |---|---|
-| `↑` `↓` | move — `j` `k` also work |
-| `tab` | switch layer, cycling at either end. `⇧tab` goes back |
+| `↑` `↓` · `j` `k` | move |
+| `tab` | switch layer, cycling at either end |
 | `space` | select. Actions apply to your selection, or to the row under the cursor |
-| `enter` | the action menu — take, rewrite, done, hand back, move |
-| `r` | rewrite. On the tray that's every field; **in the garage it's the words alone** |
-| `a` | add — a bare line in the garage, the full form on the tray |
+| `enter` · `:` · `ctrl+shift+p` | the command palette |
+| `l` | open the pane |
 | `t` | take a garage line onto the tray, and give it structure |
-| `#` | tag — the tag field alone, on either layer. The footer names it in the garage, where it is the only structure on offer |
-| `n` | note — a few lines of context under the task. `≡` in the row says one is there |
-| `v` | review — everything on the layer, live and finished, waiting lines with their day, templates `↻`. The frame changes colour, and it is the only place `R` restore and `E` erase exist. `v` or `esc` leaves |
-| `/` | filter · `?` help · `q` quit |
+| `x` | done |
+| `d` | hand back to the garage — it keeps what it learned |
+| `>` | move to a month |
+| `r` | rewrite. Every field, prefilled; with several selected, every field but the words |
+| `#` | tag — the tag field alone, on either layer |
+| `n` | note — a few lines of context under the task. A note sign at the row's end says one is there |
+| `a` | add — the capture bar in the garage, the full form on the tray |
+| `v` | review · `s` sync · `p` plugins · `c` copy context |
+| `/` | filter — hidden until you ask · `esc` clears it, then quits · `?` help · `q` quit |
 
-Setting a priority on a garage line means you want it on the tray — so the garage
-form doesn't offer one. `t` is how you say that, and it carries the line across.
-
-Press **`?`** for a full-screen explainer: what the two layers are, and every key.
+Press **`?`** for a page: what the two layers are, then the picture, then every key.
 
 ## Features
 
 - 🗂️ **Two layers.** The garage takes any line. The tray asks for a priority, a due
   date and tags, and only when you move a line onto it.
 - 🪜 **Structure in steps.** Words, then a tag, then the three questions, then a note,
-  then a schedule — each when you are ready, never before.
+  then a schedule — each when you are ready. The pane shows the rungs a task has not
+  climbed yet and asks for none of them.
 - 🗄️ **One private database.** SQLite, in `~/.local/share/tray/`. Nothing to hand-edit;
   markdown, todo.txt and Taskwarrior JSON are how tasks come in and go out.
 - 🗓️ **A garage per month, and dates that act.** Dump into November in August. A line
@@ -85,10 +116,11 @@ Press **`?`** for a full-screen explainer: what the two layers are, and every ke
 - ⚡ **One event.** Nothing runs on its own. `sync` materializes what is due and asks
   each plugin what it sees; what comes from outside lands only when you say so, whole.
 - 🔌 **Plugins on a one-file contract.** A folder with a `sync` executable is a garage
-  that fills itself. Verbs under `actions/` join the `enter` menu.
+  that fills itself. Verbs under `actions/` join the menu.
 - 🐚 **A header for your shell.** `tray head` prints your top tasks in a new terminal,
   and nothing at all when the tray is empty.
-- 📦 **One static binary.** Nothing to install at runtime.
+- 📦 **One binary.** Built with Fyne, so it links against your system's OpenGL and X11
+  and needs nothing else at runtime.
 
 <details>
 <summary><b>🐚 Wiring <code>tray head</code> into your shell</b></summary>
@@ -141,8 +173,8 @@ and are skipped — their live copy is already elsewhere. Running it twice adds 
 
 <br>
 
-Piped, `tray` never opens a UI and never prompts, so an agent can drive every part of
-it. Same tool, same database, in the half you never have to look at.
+Piped, `tray` never opens a window and never prompts, so an agent can drive every part
+of it. Same tool, same database, in the half you never have to look at.
 
 ### Capture and create
 
@@ -164,9 +196,9 @@ it. Same tool, same database, in the half you never have to look at.
 |---|---|
 | `tray 12 take [pri:H +infra]` | Garage → tray. Where a jotted pointer becomes a real task. The row remembers the month it left. |
 | `tray 12 rewrite pri:M +blocked -infra` | Restructure a task — every field, `recur:` `wait:` `until:` too. Exact and scriptable; what agents use. |
-| `tray unload --to 2026-09` | Hand the whole tray back to a month. **The month is never guessed** — bare `tray unload` picks it on a terminal and errors when piped. |
+| `tray unload --to 2026-09` | Hand the whole tray back to a month. **The month is never guessed** — piped, it is an error without `--to`; the app picks it. |
 | `tray 12 unload` | One task, back to the month it came from. |
-| `tray carryover --run --month 2026-08` | That month's live leftovers move to the next month. A due date that has already passed is dropped on the way. `--month` is required, and `tray status` prints the line to run. On a terminal, bare `tray carryover` opens the months as tabs instead. |
+| `tray carryover --run --month 2026-08` | That month's live leftovers move to the next month. A due date that has already passed is dropped on the way. `--month` is required, and `tray status` prints the line to run. |
 
 ### Finishing
 
@@ -184,10 +216,8 @@ it. Same tool, same database, in the half you never have to look at.
 | `tray 12 edit <new text>` | The words alone, everything else untouched. |
 | `tray 12 note <text>` · `tray 12 note` | Replace the note, or print it. |
 
-`rewrite` will set a priority on a garage line, where the interface's form won't offer
-one. That asymmetry is deliberate: the interface guides a habit, the CLI doesn't police
-it — the rows are yours either way, and an agent tidying them shouldn't have to argue
-with the tool.
+`rewrite` will set a priority on a garage line, where the app's form won't offer one.
+That asymmetry is deliberate: the interface guides a habit, the CLI doesn't police it.
 
 ### Reading
 
@@ -201,7 +231,7 @@ with the tool.
 | `tray print` | Plain `- [ ]` bullets grouped by tag, for a journal. |
 | `tray head [n]` | The top few, compactly. Silent on an empty tray. |
 | `tray status` | Where you stand: live, waiting, templates, any earlier month still holding live lines, the last sync and any plugin that failed. |
-| `tray context [ids]` | The report with ids and every note under its task — for pasting to an agent. |
+| `tray context [ids]` | The report with ids and every note under its task — for pasting to an agent. What the app's *copy context* copies. |
 
 ### In and out
 
@@ -239,8 +269,7 @@ with the tool.
 | indented lines | the task's note, on the markdown wire. One note, any length. One Taskwarrior annotation; nothing in todo.txt |
 
 Ids are permanent integers, printed first in every report and never reused. `tray 12`
-means the same task tomorrow, in a filter, in an export, and in the interface's first
-column.
+means the same task tomorrow, in a filter, in an export.
 
 </details>
 
@@ -249,10 +278,9 @@ column.
 A plugin is a folder under `plugins/`, and the folder is the manifest. A `sync`
 executable makes it a garage that fills itself: `sync plan` prints what it sees and what
 it would push back, tray shows you the diff, and `sync apply` runs only after you land
-it. Executables under `actions/` become rows in the `enter` menu and get the terminal
-while they run. `settings.example.json` names what it needs; an `on-launch` file means
-it also runs when the interface opens. The contract is
-[`plugins/README.md`](plugins/README.md).
+it. Executables under `actions/` become rows in the menu. `settings.example.json` names
+what it needs and the app asks for exactly that; an `on-launch` file means it also runs
+when the app opens. The contract is [`plugins/README.md`](plugins/README.md).
 
 No plugin ships on this branch yet. The order they will: a web garage (a URL and a
 ruleset, a browser does the rest), voice, the calendar verb, a board's API, and Claude
@@ -260,8 +288,9 @@ conversations compacted into a task's note.
 
 ## 🎯 What it's for
 
-- **🖥️ One tool, two interfaces.** A full-screen TUI for you; a plain-text CLI for your
-  agents. The CLI is also the API everything else calls.
+- **🖥️ A desktop app for you, a CLI for your agents.** Simple actions are one step from
+  the row; a question gets a form; anything with consequences gets a mode. The letters
+  are shortcuts, not the design. The CLI is also the API everything else calls.
 - **🪜 Iteratively clearer.** A task starts as a few words and gains structure in steps
   — a tag, then a priority and a date when you take it, then a note, then the context
   an agent needs. Each step when you are ready, never before. Outside data enters at
@@ -277,7 +306,7 @@ conversations compacted into a task's note.
 - **⏭️ Forward-looking, not an archive.** tray is for the tasks still ahead of you.
   Finished rows stay for review, out of the way of the list you actually work from.
 - **⚡ Event-driven.** Nothing runs on its own. `sync` is the one event — what is due
-  lands, waiting rows lift, plugins report — fired by you.
+  lands, waiting rows lift, plugins report — fired by you or by opening the app.
 - **🔍 Outside data lands through a reviewed diff.** Sync shows what would change; you
   apply all of it or none. Never silent, never partial. A failing plugin fails alone.
 
@@ -287,8 +316,6 @@ conversations compacted into a task's note.
 [DECISIONS.md](DECISIONS.md) is why things are the way they are.
 [ROADMAP.md](ROADMAP.md) is what's next.
 
-Built with [Bubble Tea, Bubbles, and Lip Gloss](https://charm.sh) from Charm and
-[modernc.org/sqlite](https://gitlab.com/cznic/sqlite), and recorded with
-[asciinema](https://asciinema.org). The task grammar takes its shape from
-[todo.txt](https://github.com/todotxt/todo.txt) and its field names from
-[Taskwarrior](https://taskwarrior.org).
+Built with [Fyne](https://fyne.io) and [modernc.org/sqlite](https://gitlab.com/cznic/sqlite).
+The task grammar takes its shape from [todo.txt](https://github.com/todotxt/todo.txt)
+and its field names from [Taskwarrior](https://taskwarrior.org).
