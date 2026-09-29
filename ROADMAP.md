@@ -12,10 +12,6 @@ decision, not a feature.
 
 ## Next
 
-- [ ] `[shape]` **A desktop app in place of the TUI** — Fyne, the letters kept as shortcuts,
-  modes for what has consequences, the ladder drawn in a details pane. Built and under
-  review as a second pull request stacked on this one; whether it replaces the TUI or
-  sits beside it is the open question.
 - [ ] `[plugin]` **A web garage** — `settings.example.json` asks for a URL and a ruleset
   ("only rows marked in progress"); `sync plan` drives the site with `web-agent` (login
   happens in the browser it opens), screenshots it as evidence, and reads rows off the page
@@ -23,8 +19,8 @@ decision, not a feature.
   an unchanged page produce an empty diff, and the review's rows match the screenshot on
   one real list.
 - [ ] `[plugin]` **Voice** — a trashtalk successor: `sync plan` records, one model call
-  splits the transcript into rows under a ruleset, no push. Manual only; the review is
-  the filtering.
+  splits the transcript into rows under a ruleset, no push. Manual only; the review screen
+  is the filtering.
 - [ ] `[plugin]` **Google Calendar** — `tray-gcal` is verb-only and already fits: copy the
   folder into the new home. Nothing to port.
 - [ ] `[plugin]` **A board's API** — Linear or Jira over `sync plan|apply`; the board's
@@ -32,16 +28,16 @@ decision, not a feature.
 - [ ] `[plugin]` **Claude conversations** — an `actions/attach` that compacts a transcript
   into the task's note, replaced whole (104). Needs one input, the session; how a verb asks
   for one is decided when this is built.
-- [ ] **A sync review in the TUI** — `tray sync` prints plans and `--apply` lands them; the
-  interface has no screen for the diff yet, so the event is CLI-only for now.
-- [ ] **Prebuilt binaries** — goreleaser. `go install` is the only path today, so a Go
-  toolchain is a hard requirement for anyone who wants this.
-- [ ] **CI** — `make check` is the whole suite and no workflow runs it.
-- [ ] **A second demo take** — the recording predates the id column, and never shows `/`
-  or review mode. Kit is in `~/tray-demo/`.
+- [ ] **Prebuilt binaries** — goreleaser. `go install` now also asks for a C compiler and GL
+  headers, so this matters more than it did.
+- [ ] **CI** — `make check` is the whole suite and no workflow runs it. The G suite runs
+  headless, so nothing stands in the way.
+- [ ] **Screenshots** — `docs/app.png` shows Home; each mode wants one once it has landed.
 
 ## Parked
 
+- [ ] `[ours]` **A phone build** — `fyne package -os android|ios`. The app is the same code;
+  the capture bar is the whole reason to want it there.
 - [ ] `[ours]` **A tray server** — one database, many clients, for more than one machine.
   The CLI is already the API; what is missing is a listener and a story for the phone.
 - [ ] **`u` undo, one level** — needs a snapshot in `store`. `E` erase is the only action that
@@ -61,3 +57,5 @@ decision, not a feature.
 - [ ] `[shape]` **`project` and other detail fields** — `project` was ruled out (9) and now
   arrives as a tag from every wire. Reopening a settled one is allowed.
 - [ ] `[shape]` **Nested task sets** — would this even match the ethos?
+- [ ] `[shape]` **Merging `traytable` back to `main`** — this branch is the experiment; the
+  question is whether the markdown tray survives beside it or under it.
