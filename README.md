@@ -133,6 +133,39 @@ for more rows.
 grammar you knew from the files is now the CLI's and the exports': `+tag` and
 `key:value` on the way in, markdown, todo.txt or Taskwarrior JSON on the way out.
 
+### The config file
+
+`~/.config/tray/config.yaml` (`$XDG_CONFIG_HOME/tray/config.yaml`, or `$TRAY_CONFIG`).
+`tray init` writes it with every key empty, and tray without it is tray as before —
+nothing here is needed to install or use it:
+
+```yaml
+db:
+  url: ""            # empty → $TRAY_HOME/tray.db. A path or file: URL → local SQLite. libsql://<db>.turso.io → Turso
+  auth_token: ""     # Turso token; or TRAY_DB_TOKEN
+openrouter:
+  api_key: ""        # or OPENROUTER_API_KEY. Not needed to install tray — plugins read it
+  model: ""
+dates:
+  format: ""         # reserved; parsed, unused for now
+```
+
+`tray config` prints the path and the effective values, secrets cut to their last four
+characters, and says which came from the environment (`TRAY_DB_URL`, `TRAY_DB_TOKEN`,
+`OPENROUTER_API_KEY`, `OPENROUTER_MODEL` override the file). Plugins see the keys as
+`TRAY_OPENROUTER_API_KEY` and `TRAY_OPENROUTER_MODEL`; they never read the file.
+
+**A remote store.** With `db.url: libsql://<db>.turso.io` and the token, tray keeps its
+rows on [Turso](https://turso.tech) and the same binary runs on every machine against
+one list. The mirror, the plugins and the config stay local. The cost is honest: every
+save crosses the network, and the TUI needs a connection. To move a local home there:
+
+```sh
+turso db create tray --from-file ~/.local/share/tray/tray.db
+turso db show tray --url        # → db.url
+turso db tokens create tray     # → db.auth_token
+```
+
 The two `.md` files are the **mirror**: the lightest view of your tasks there is, and the
 reason the folder can sit inside an Obsidian vault. Every write rewrites them. On the next
 `sync`, a bullet you added to `garage.md` with no id becomes a new line in the month it
