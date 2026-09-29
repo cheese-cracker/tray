@@ -8,6 +8,7 @@ import (
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/driver/desktop"
 	"fyne.io/fyne/v2/layout"
+	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/cheese-cracker/tray/internal/core"
@@ -20,20 +21,34 @@ import (
 // focus traversal, which is why it accepts the key itself.
 type taskList struct {
 	widget.List
-	u     *ui
-	layer string
-	all   []core.Task // the layer, live
-	rows  []core.Task // what the filter left
-	cur   int
-	focus bool
+	u      *ui
+	layer  string
+	month  string   // the garage month shown, where the layer is the garage
+	verbs  []string // the actions a row here offers, in reading order
+	review bool     // everything on the layer: finished and templates draw as such
+	all    []core.Task
+	rows   []core.Task // what the filter left
+	cur    int
+	focus  bool
 	// items is the row widget last shown for an index, for tests that read a row.
 	// ponytail: List recycles item widgets on scroll, so this is only true while every
 	// row fits on screen; a proper lookup if lists ever grow past a screen.
 	items map[widget.ListItemID]*row
 }
 
-func newTaskList(u *ui, layer string) *taskList {
-	l := &taskList{u: u, layer: layer, items: map[widget.ListItemID]*row{}}
+var (
+	garageVerbs = []string{"t", "#", "l"}
+	trayVerbs   = []string{"x", "d", ">", "l"}
+	reviewVerbs = []string{"R", "E", "l"}
+	sweepVerbs  = []string{"t", ">", "l"}
+	verbLabels  = map[string]string{
+		"t": "take", "#": "tag", "x": "done", "d": "hand back", ">": "move", "l": "open",
+		"R": "restore", "E": "erase",
+	}
+)
+
+func newTaskList(u *ui, layer string, verbs []string) *taskList {
+	l := &taskList{u: u, layer: layer, verbs: verbs, items: map[widget.ListItemID]*row{}}
 	l.Length = func() int { return len(l.rows) }
 	l.CreateItem = func() fyne.CanvasObject { return newRow(l) }
 	l.UpdateItem = func(id widget.ListItemID, o fyne.CanvasObject) {
@@ -125,12 +140,16 @@ func (l *taskList) TypedKey(ev *fyne.KeyEvent) {
 	case fyne.KeyReturn, fyne.KeyEnter:
 		l.u.do("l", l)
 	case fyne.KeyEscape:
-		// A filter is the thing most recently put in your way, so it goes first.
-		if l.u.filter != "" {
+		// A filter is the thing most recently put in your way, so it goes first; then
+		// the mode you are in (92f); only home quits.
+		switch {
+		case l.u.filter != "":
 			l.u.clearFilter()
-			return
+		case l.u.mode != modeHome:
+			l.u.leave()
+		default:
+			l.u.quit()
 		}
-		l.u.quit()
 	}
 }
 
@@ -178,12 +197,6 @@ type row struct {
 	box     *fyne.Container
 }
 
-var (
-	garageVerbs = []string{"t", "#", "l"}
-	trayVerbs   = []string{"x", "d", ">", "l"}
-	verbLabels  = map[string]string{"t": "take", "#": "tag", "x": "done", "d": "hand back", ">": "move", "l": "open"}
-)
-
 func newRow(l *taskList) *row {
 	r := &row{l: l, verbs: map[string]*widget.Button{}}
 	r.mark = widget.NewCheck("", func(on bool) { r.l.u.setMark(r.t.ID, on) })
@@ -195,7 +208,7 @@ func newRow(l *taskList) *row {
 	r.note = grey("≡")
 	r.actions = container.NewHBox()
 	// Creation order is reading order: the layer's own verbs first, open last on both.
-	for _, key := range []string{"x", "d", ">", "t", "#", "l"} {
+	for _, key := range []string{"x", "d", ">", "t", "#", "R", "E", "l"} {
 		key := key
 		b := widget.NewButton(verbLabels[key], func() {
 			r.l.pick(r.idx)
@@ -220,6 +233,7 @@ func (r *row) set(idx int, t core.Task) {
 func (r *row) Refresh() {
 	tray := r.l.layer == core.LayerTray
 	isDark := dark()
+	finished := r.t.Done != ""
 	r.mark.Checked = r.l.u.marks[r.t.ID]
 	r.mark.Refresh()
 
@@ -229,9 +243,22 @@ func (r *row) Refresh() {
 		r.pri.Text = r.t.Priority
 	}
 	r.pri.Color = style.RGBA(style.Priority(r.t.Priority), isDark)
+	if finished {
+		r.pri.Color = style.RGBA(style.Subtle, isDark)
+	}
 	setShown(r.pri, tray)
 
+	// A finished row keeps none of its colour (103b): the mark is what says done, and
+	// a template announces that it makes more of itself.
 	r.text.Text = r.t.Text
+	r.text.Color = theme.Color(theme.ColorNameForeground)
+	switch {
+	case finished:
+		r.text.Text = "✓ " + r.t.Text
+		r.text.Color = style.RGBA(style.Subtle, isDark)
+	case r.t.Recur != "":
+		r.text.Text = "↻ " + r.t.Text
+	}
 	r.text.Refresh()
 
 	var tags []string
@@ -244,24 +271,24 @@ func (r *row) Refresh() {
 	// A date is the one thing about a row that is about today: on you now, or later.
 	r.when.Text = ""
 	r.when.Color = style.RGBA(style.Later, isDark)
-	if tray && r.t.Due != "" {
+	switch {
+	case r.t.Recur != "":
+		r.when.Text = r.t.Recur
+	case tray && r.t.Due != "":
 		r.when.Text = core.Day(r.t.Due)
-		if d, ok := core.Date(r.t.Due); ok && !d.After(store.Today()) {
+		if d, ok := core.Date(r.t.Due); ok && !d.After(store.Today()) && !finished {
 			r.when.Color = style.RGBA(style.Now, isDark)
 		}
-	}
-	if !tray && r.t.Wait != "" {
+	case !tray && r.t.Wait != "":
 		r.when.Text = "waits " + core.Day(r.t.Wait)
 	}
 	setShown(r.when, r.when.Text != "")
 	setShown(r.note, r.t.Note != "")
 
-	verbs := garageVerbs
-	if tray {
-		verbs = trayVerbs
-	}
+	// Restore is for a finished row and nothing else (80): the only sane thing to say
+	// about a record is that it isn't one.
 	for key, b := range r.verbs {
-		setShown(b, contains(verbs, key))
+		setShown(b, contains(r.l.verbs, key) && (key != "R" || finished))
 	}
 	setShown(r.actions, r.hovered || (r.l.focus && r.l.cur == r.idx))
 	r.BaseWidget.Refresh()

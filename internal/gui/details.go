@@ -148,13 +148,11 @@ func (d *details) focus() {
 	}
 }
 
-// copyContext is what an agent would be handed: the row as the CLI prints it, with
-// its note, so there is one shape and not a second one for the screen.
+// copyContext is what an agent would be handed: this row as `tray context` prints it.
 func (d *details) copyContext() {
-	if !d.has {
-		return
+	if d.has {
+		d.u.copyContext([]core.Task{d.t})
 	}
-	d.u.win.Clipboard().SetContent(strings.Join(core.Lines(d.t, d.t.Layer == core.LayerTray), "\n"))
 }
 
 func labelled(name string, o fyne.CanvasObject) fyne.CanvasObject {

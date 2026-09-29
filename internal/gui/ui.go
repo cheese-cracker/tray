@@ -8,23 +8,36 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
+	"github.com/cheese-cracker/tray/internal/cli"
 	"github.com/cheese-cracker/tray/internal/core"
 	"github.com/cheese-cracker/tray/internal/store"
 	"github.com/cheese-cracker/tray/internal/style"
+	"github.com/cheese-cracker/tray/internal/sync"
 )
 
-// mode is which screen owns the window. Home is the only one so far; review, sweep,
-// sync review and plugins each add a case and a root of their own.
+// mode is which screen owns the window. Each one past home is a root of its own, with
+// its own verbs and an exit named in its banner (T11).
 type mode int
 
-const modeHome mode = iota
+const (
+	modeHome mode = iota
+	modeReview
+	modeSweep
+	modeSyncReview
+	modePlugins
+)
+
+// syncTimeout bounds one plugin run from the app; the CLI's --timeout defaults the same.
+const syncTimeout = 10 * time.Minute
 
 type ui struct {
 	s    *store.Store
@@ -33,11 +46,15 @@ type ui struct {
 
 	garage, tray *taskList
 	tabs         *container.AppTabs
+	home         *screen
+	rv, sw       *screen // review and the sweep, built on entering
 	search       *escEntry
 	hidden       *canvas.Text
 	top          *fyne.Container
 	capture      *escEntry
 	status       *widget.Label
+	notice       *widget.Button
+	bottom       *fyne.Container
 	details      *details
 	root         fyne.CanvasObject
 
@@ -46,13 +63,22 @@ type ui struct {
 	pop    *widget.PopUp
 	form   *form // the open form, so a test can fill it in
 	closed bool
+	flash  string // one line about the last action, shown until the next
+
+	pending  []sync.Result // what plugins reported at launch, waiting for a review
+	syncedAt string
+	syncing  bool
+	view     *syncView    // the open sync review
+	pane     *pluginsPane // the open plugins pane
+	page     *page        // holds the keys in a mode that has no list
 }
 
 func newUI(s *store.Store, w fyne.Window) *ui {
 	u := &ui{s: s, win: w, marks: map[int64]bool{}}
 	u.details = newDetails(u)
-	u.garage = newTaskList(u, core.LayerGarage)
-	u.tray = newTaskList(u, core.LayerTray)
+	u.garage = newTaskList(u, core.LayerGarage, garageVerbs)
+	u.garage.month = store.ThisMonth()
+	u.tray = newTaskList(u, core.LayerTray, trayVerbs)
 
 	// Capture costs nothing: words, Enter, done. The bar reads to: and +tag off the
 	// front exactly as `tray dump` does, and the rest is literal.
@@ -63,17 +89,18 @@ func newUI(s *store.Store, w fyne.Window) *ui {
 		u.capture.SetText("")
 	}
 
-	add := widget.NewButton("add", func() { u.do("a", u.tray) })
-	add.Importance = widget.LowImportance
+	add := lowButton("add", func() { u.do("a", u.tray) })
+	sweep := lowButton("carry forward…", u.openSweep)
+	unload := lowButton("hand the tray back…", u.openUnload)
 
 	u.tabs = container.NewAppTabs(
-		container.NewTabItem("garage · "+store.ThisMonth(), container.NewBorder(nil, u.capture, nil, nil, u.garage)),
-		container.NewTabItem("tray", container.NewBorder(nil, container.NewHBox(add), nil, nil, u.tray)),
+		container.NewTabItem("garage · "+store.ThisMonth(),
+			container.NewBorder(nil, container.NewBorder(nil, nil, nil, sweep, u.capture), nil, nil, u.garage)),
+		container.NewTabItem("tray",
+			container.NewBorder(nil, container.NewHBox(add, layout.NewSpacer(), unload), nil, nil, u.tray)),
 	)
-	u.tabs.OnSelected = func(*container.TabItem) {
-		u.focusList()
-		u.details.show(u.current().cursorTask())
-	}
+	u.tabs.OnSelected = u.tabChanged
+	u.home = &screen{tabs: u.tabs, lists: []*taskList{u.garage, u.tray}, load: loadHome}
 
 	u.search = newEscEntry(func() {
 		u.clearFilter()
@@ -86,56 +113,102 @@ func newUI(s *store.Store, w fyne.Window) *ui {
 	}
 	u.hidden = grey("")
 	u.status = widget.NewLabel("")
+	u.notice = lowButton("", u.openPending)
+	u.notice.Hide()
+	u.bottom = container.NewHBox(u.status, u.notice)
 
-	split := container.NewHSplit(u.tabs, container.NewVScroll(u.details.box))
-	split.Offset = 0.6
 	u.top = container.NewBorder(nil, nil, nil, u.hidden, u.search)
-	u.root = container.NewBorder(u.top, u.status, nil, nil, split)
+	u.root = container.NewBorder(u.top, u.bottom, nil, nil, u.split(u.tabs))
 	u.reload()
 	return u
 }
 
-func (u *ui) current() *taskList {
-	if u.tabs.SelectedIndex() == 1 {
-		return u.tray
-	}
-	return u.garage
+// split is the list beside the pane; every screen with a list gets the same pair.
+func (u *ui) split(lists fyne.CanvasObject) fyne.CanvasObject {
+	sp := container.NewHSplit(lists, container.NewVScroll(u.details.box))
+	sp.Offset = 0.6
+	return sp
 }
 
-// switchLayer cycles: with two tabs, forward and back are the same move (28a).
-func (u *ui) switchLayer() { u.tabs.SelectIndex((u.tabs.SelectedIndex() + 1) % 2) }
+func (u *ui) tabChanged(*container.TabItem) {
+	u.focusList()
+	u.details.show(u.current().cursorTask())
+}
 
-func (u *ui) focusList() { u.win.Canvas().Focus(u.current()) }
+// screen is whichever set of lists the mode shows; a mode with no list stands on home.
+func (u *ui) screen() *screen {
+	switch u.mode {
+	case modeReview:
+		return u.rv
+	case modeSweep:
+		return u.sw
+	}
+	return u.home
+}
 
-// reload reads both layers again. The tray sorts by urgency, live rows first is
-// already true of a live-only list; the garage reads oldest first.
+func (u *ui) current() *taskList {
+	sc := u.screen()
+	return sc.lists[sc.tabs.SelectedIndex()]
+}
+
+// switchLayer cycles at either end (28a): with two tabs forward and back are one move.
+func (u *ui) switchLayer() {
+	sc := u.screen()
+	sc.tabs.SelectIndex((sc.tabs.SelectedIndex() + 1) % len(sc.lists))
+}
+
+func (u *ui) focusList() {
+	if u.page != nil && (u.mode == modeSyncReview || u.mode == modePlugins) {
+		u.win.Canvas().Focus(u.page)
+		return
+	}
+	u.win.Canvas().Focus(u.current())
+}
+
+// reload reads the shown lists again, and home's when another screen is up, so the
+// counts in the status line never lag what a mode changed.
 func (u *ui) reload() {
+	if err := u.screen().load(u); err != nil {
+		u.fail(err)
+		return
+	}
+	if u.mode != modeHome {
+		if err := u.home.load(u); err != nil {
+			u.fail(err)
+			return
+		}
+	}
+	u.refilter()
+	u.status.SetText(u.statusText())
+	u.flash = ""
+	u.details.show(u.current().cursorTask())
+}
+
+// loadHome is the daily screen: this month's garage oldest first, the tray by urgency.
+func loadHome(u *ui) error {
 	today := store.Today()
 	garage, err := u.s.Tasks(store.Filter{Layer: core.LayerGarage, Month: store.ThisMonth()})
 	if err != nil {
-		u.fail(err)
-		return
+		return err
 	}
 	tray, err := u.s.Tasks(store.Filter{Layer: core.LayerTray})
 	if err != nil {
-		u.fail(err)
-		return
+		return err
 	}
 	sort.SliceStable(tray, func(i, j int) bool {
 		return core.Urgency(tray[i], today) > core.Urgency(tray[j], today)
 	})
 	u.garage.load(garage)
 	u.tray.load(tray)
-	u.refilter()
-	u.status.SetText(u.statusText())
-	u.details.show(u.current().cursorTask())
+	return nil
 }
 
-// refilter narrows both lists and says what the filter hid, so a list quietly
+// refilter narrows every shown list and says what the filter hid, so a list quietly
 // showing 3 of 17 rows is never misread (57a).
 func (u *ui) refilter() {
-	u.garage.apply(u.filter)
-	u.tray.apply(u.filter)
+	for _, l := range u.screen().lists {
+		l.apply(u.filter)
+	}
 	hid := len(u.current().all) - len(u.current().rows)
 	if u.filter == "" || hid == 0 {
 		u.hidden.Text = ""
@@ -171,10 +244,26 @@ func (u *ui) statusText() string {
 			live++
 		}
 	}
-	return fmt.Sprintf("tray %d · waiting %d · templates %d · garage %s", live, waiting, templates, store.ThisMonth())
+	text := fmt.Sprintf("tray %d · waiting %d · templates %d · garage %s", live, waiting, templates, store.ThisMonth())
+	switch {
+	case u.syncing:
+		text += " · syncing…"
+	case u.syncedAt != "":
+		text += " · synced " + u.syncedAt
+	}
+	if u.flash != "" {
+		text += " · " + u.flash
+	}
+	return text
 }
 
-func (u *ui) fail(err error) { u.status.SetText("error: " + err.Error()) }
+func (u *ui) fail(err error) { u.say("error: " + err.Error()) }
+
+// say puts one line about what just happened in the status, until the next reload.
+func (u *ui) say(msg string) {
+	u.flash = msg
+	u.status.SetText(u.statusText())
+}
 
 // targets is what an action applies to: the marks, or the row under the cursor.
 // Marks are kept by id across the whole layer, so a filter hides a row without
@@ -202,9 +291,28 @@ func (u *ui) setMark(id int64, on bool) {
 	}
 }
 
+// offers is the mode's keymap (T11): review keeps the two rare verbs, the sweep the two
+// that move a line, home everything but those two. A letter a mode does not offer is
+// dead there, so a key pressed in the wrong room does nothing rather than something.
+func (u *ui) offers(verb string) bool {
+	const always = " l/?qc"
+	switch u.mode {
+	case modeHome:
+		return !strings.Contains("RE", verb)
+	case modeReview:
+		return strings.Contains(always+"REv", verb)
+	case modeSweep:
+		return strings.Contains(always+"t>", verb)
+	}
+	return false
+}
+
 // do is the one dispatcher, so a letter, a row button and a menu can never disagree
 // about what a verb does (24).
 func (u *ui) do(verb string, l *taskList) {
+	if !u.offers(verb) {
+		return
+	}
 	picked := u.targets(l)
 	switch verb {
 	case " ":
@@ -257,6 +365,31 @@ func (u *ui) do(verb string, l *taskList) {
 		} else {
 			u.openForm(nil, false)
 		}
+	case "R":
+		var out []core.Task
+		for _, t := range picked {
+			if t.Done != "" {
+				core.Restore(&t)
+				out = append(out, t)
+			}
+		}
+		if len(out) > 0 {
+			u.save(out)
+		}
+	case "E":
+		u.erase(picked)
+	case "v":
+		if u.mode == modeReview {
+			u.leave()
+		} else {
+			u.openReview()
+		}
+	case "s":
+		u.syncNow()
+	case "p":
+		u.openPlugins()
+	case "c":
+		u.copyContext(picked)
 	case "l":
 		u.details.focus()
 	case "/":
@@ -285,6 +418,41 @@ func (u *ui) save(tasks []core.Task) {
 	}
 	u.marks = map[int64]bool{}
 	u.reload()
+}
+
+// erase removes rows outright, the one verb that does (91), with no prompt (91c): the
+// status names what went, which is all the recovery a prompt ever bought.
+func (u *ui) erase(tasks []core.Task) {
+	if len(tasks) == 0 {
+		return
+	}
+	var names []string
+	err := u.s.Update(func(tx *store.Store) error {
+		for _, t := range tasks {
+			if err := tx.Delete(t.ID); err != nil {
+				return err
+			}
+			names = append(names, t.Text)
+		}
+		return nil
+	})
+	if err != nil {
+		u.fail(err)
+		return
+	}
+	u.marks = map[int64]bool{}
+	u.flash = "erased: " + strings.Join(names, " · ")
+	u.reload()
+}
+
+// copyContext hands an agent what `tray context` prints: one shape, never a second one
+// for the screen.
+func (u *ui) copyContext(tasks []core.Task) {
+	if len(tasks) == 0 {
+		return
+	}
+	u.win.Clipboard().SetContent(cli.ContextText(tasks, store.Today()))
+	u.say(fmt.Sprintf("copied %d", len(tasks)))
 }
 
 // dump is the capture bar's verb, with the CLI's reading of the front of the line.
@@ -335,8 +503,8 @@ func (u *ui) tagHint() string {
 	return "in use: " + strings.Join(tags, " ")
 }
 
-// show puts content over the home screen and hands it the keyboard. One popup at a
-// time: a form over a form is a question you cannot see.
+// show puts content over the screen and hands it the keyboard. One popup at a time: a
+// form over a form is a question you cannot see.
 func (u *ui) show(content fyne.CanvasObject, focus fyne.Focusable) {
 	u.hide()
 	u.pop = widget.NewModalPopUp(container.NewPadded(content), u.win.Canvas())
@@ -359,6 +527,12 @@ func (u *ui) quit() {
 	u.win.Close()
 }
 
+func lowButton(label string, tap func()) *widget.Button {
+	b := widget.NewButton(label, tap)
+	b.Importance = widget.LowImportance
+	return b
+}
+
 // grey is a line that informs without asking to be read first.
 func grey(text string) *canvas.Text {
 	t := canvas.NewText(text, style.RGBA(style.Subtle, dark()))
@@ -368,6 +542,13 @@ func grey(text string) *canvas.Text {
 
 func plain(text string) *canvas.Text {
 	t := canvas.NewText(text, theme.Color(theme.ColorNameForeground))
+	t.TextSize = theme.TextSize()
+	return t
+}
+
+// warn is the one line allowed to shout: a plugin that failed or stopped to ask.
+func warn(text string) *canvas.Text {
+	t := canvas.NewText(text, style.RGBA(style.High, dark()))
 	t.TextSize = theme.TextSize()
 	return t
 }

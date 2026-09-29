@@ -9,7 +9,6 @@ import (
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/cheese-cracker/tray/internal/core"
-	"github.com/cheese-cracker/tray/internal/store"
 )
 
 // escEntry is an Entry that knows how to be left. Fyne's does nothing on Escape, and
@@ -259,11 +258,10 @@ func (u *ui) openNote(tasks []core.Task) {
 	u.show(f, e)
 }
 
-// openMove offers the months on screen and nothing further (73e): this month's
-// garage, the next, and someday.
+// openMove offers the months on screen and nothing further (73d, 73e): every tab of
+// the sweep, or the daily screen's this month, next month and someday.
 func (u *ui) openMove(tasks []core.Task) {
-	this := store.ThisMonth()
-	dests := []string{this, store.NextMonth(this), store.Someday}
+	dests := u.destinations()
 	move := func(month string) {
 		for i := range tasks {
 			core.Move(&tasks[i], core.LayerGarage, month)

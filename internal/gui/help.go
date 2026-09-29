@@ -65,7 +65,8 @@ func (u *ui) openHelp() {
 		{"↑ ↓  j k", "move"}, {"tab", "switch layer"}, {"space", "select"}, {"enter  l", "open the pane"},
 		{"t", "take"}, {"x", "done"}, {"d", "hand back"}, {">", "move to a month"},
 		{"r", "rewrite"}, {"#", "tag"}, {"n", "note"}, {"a", "add"},
-		{"/", "filter"}, {"esc", "clear the filter, then quit"}, {"?", "this page"}, {"q", "quit"},
+		{"v", "review — R restore and E erase live there"}, {"s", "sync"}, {"p", "plugins"}, {"c", "copy context"},
+		{"/", "filter"}, {"esc", "clear the filter, leave the mode, then quit"}, {"?", "this page"}, {"q", "quit"},
 	} {
 		keys.Add(widget.NewLabelWithStyle(k[0], fyne.TextAlignLeading, fyne.TextStyle{Monospace: true}))
 		keys.Add(widget.NewLabel(k[1]))
