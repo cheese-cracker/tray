@@ -32,8 +32,11 @@ decision, not a feature.
 - [ ] `[plugin]` **Claude conversations** — an `actions/attach` that compacts a transcript
   into the task's note, replaced whole (104). Needs one input, the session; how a verb asks
   for one is decided when this is built.
-- [ ] **A sync review in the TUI** — `tray sync` prints plans and `--apply` lands them; the
-  interface has no screen for the diff yet, so the event is CLI-only for now.
+- [ ] **A sync review in the TUI** — `S` runs the built-in hooks; a plugin's plan still needs
+  `tray sync --apply`, because the interface has no screen for the diff yet.
+- [ ] **The mirror in a vault** — `tray.md` and `garage.md` are written beside the database;
+  pointing them elsewhere (an Obsidian folder) wants the one setting there is no file for
+  yet. A symlink does it today.
 - [ ] **Prebuilt binaries** — goreleaser. `go install` is the only path today, so a Go
   toolchain is a hard requirement for anyone who wants this.
 - [ ] **CI** — `make check` is the whole suite and no workflow runs it.

@@ -14,6 +14,7 @@ import (
 	"github.com/cheese-cracker/tray/internal/core"
 	"github.com/cheese-cracker/tray/internal/plugin"
 	"github.com/cheese-cracker/tray/internal/store"
+	"github.com/cheese-cracker/tray/internal/sync"
 	"github.com/cheese-cracker/tray/internal/ui"
 )
 
@@ -67,10 +68,11 @@ const usage = `tray — two layers, one database. Dump to the garage, take onto 
   tray context [ids]                 the report with ids and every note, for pasting to an agent
   tray add <desc> recur:weekly due:2026-10-03    a template; sync keeps one live child of it
   tray sync [--plugin <name>] [--apply] [--json]  the one event: recurrence and waiting rows land,
-                                     plugin plans print — and land whole only under --apply
+                                     garage.md is read back, plugin plans print — and land only under --apply
 
 Ids are permanent, four characters. Filters: ids (k79l, k79l,79ya), +tag, key:value, and
-` + "`garage`" + ` to switch layer.`
+` + "`garage`" + ` to switch layer. tray.md and garage.md beside the database mirror the open
+tasks; add a bullet to garage.md and the next sync brings it in.`
 
 type options struct {
 	json, all, run, apply, help, version     bool
@@ -243,6 +245,12 @@ func Run(args []string) int {
 	}
 	if out != "" {
 		fmt.Println(out)
+	}
+	// Whatever the verb did, the mirror shows it (the write event, see sync.Hooks). A
+	// read fires it too, which costs a compare and writes nothing.
+	if _, err := sync.Fire(s, sync.Write, store.Today()); err != nil {
+		fmt.Fprintln(os.Stderr, "tray: "+err.Error())
+		return 2
 	}
 	return 0
 }

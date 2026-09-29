@@ -18,16 +18,6 @@ import (
 	"github.com/cheese-cracker/tray/internal/store"
 )
 
-// A Hook is why sync is running. Every plugin with a garage runs on a manual sync; at
-// launch only the ones that left the marker, so a slow or broken one cannot make the
-// app wait for it.
-type Hook string
-
-const (
-	Manual Hook = "manual"
-	Launch Hook = "launch"
-)
-
 // A Row is one item as a plugin sees it. A nil Done, nil Tags or empty field is one the
 // plugin did not report, so a site that cannot see priority never clears one; "" for
 // Done says open, a date says finished.
@@ -86,61 +76,19 @@ func (r Result) NeedsYou() bool {
 	return errors.As(r.Err, &exit) && exit.NeedsYou()
 }
 
-type Summary struct{ Materialized, Lifted int }
-
-// Tick is the half of sync that is tray's own data: templates get their next child,
-// and a garage row whose day has come moves onto the tray with what it carries. One
-// transaction, no review — nothing here came from outside.
-func Tick(s *store.Store, today time.Time) (Summary, error) {
-	var sum Summary
-	err := s.Update(func(tx *store.Store) error {
-		all, err := tx.Tasks(store.Filter{All: true})
-		if err != nil {
-			return err
-		}
-		var templates, children []core.Task
-		for _, t := range all {
-			switch {
-			case t.Recur != "":
-				templates = append(templates, t)
-			case strings.HasPrefix(t.Source, "recur:"):
-				children = append(children, t)
-			}
-		}
-		for _, c := range core.Materialize(templates, children, today) {
-			if err := tx.Put(&c); err != nil {
-				return err
-			}
-			sum.Materialized++
-		}
-		for _, t := range all {
-			if t.Layer != core.LayerGarage || t.Wait == "" || t.Waiting(today) || !t.Live() {
-				continue
-			}
-			core.Move(&t, core.LayerTray, "")
-			t.Wait = "" // its day came; handed back later, it waits for nothing
-			if err := tx.Put(&t); err != nil {
-				return err
-			}
-			sum.Lifted++
-		}
-		return nil
-	})
-	return sum, err
-}
-
-// Plans runs every plugin the hook admits — or the one named — each in its own
+// Plans runs every plugin the event admits — or the one named — each in its own
 // process with its own deadline, and diffs what it reports against the rows it owns.
 // The store is read before anything runs and written after everything has, so the
-// plugins never contend for it.
-func Plans(s *store.Store, hook Hook, only string, timeout time.Duration) ([]Result, error) {
+// plugins never contend for it. A plugin is a hook on the sync events (see Hooks); it
+// runs after the built-in ones because its plan is reviewed before it lands.
+func Plans(s *store.Store, ev Event, only string, timeout time.Duration) ([]Result, error) {
 	type job struct {
 		p    plugin.Plugin
 		rows []core.Task
 	}
 	var jobs []job
 	for _, p := range plugin.List() {
-		if p.Sync == "" || (only != "" && p.Name != only) || (hook == Launch && !p.OnLaunch) {
+		if p.Sync == "" || (only != "" && p.Name != only) || (ev == Launch && !p.OnLaunch) {
 			continue
 		}
 		rows, err := s.Tasks(store.Filter{All: true, SourcePrefix: p.Name + ":"})
@@ -165,20 +113,20 @@ func Plans(s *store.Store, hook Hook, only string, timeout time.Duration) ([]Res
 
 	at := time.Now().Format("2006-01-02 15:04")
 	for _, r := range out {
-		if err := s.RecordRun(store.Run{Name: r.Plugin, Hook: string(hook), At: at, OK: r.Err == nil, Message: r.Message}); err != nil {
+		if err := s.RecordRun(store.Run{Name: r.Plugin, Event: string(ev), At: at, OK: r.Err == nil, Message: r.Message}); err != nil {
 			return out, err
 		}
 	}
 	return out, nil
 }
 
-// Sync is Tick then Plans: the whole event, as the app's refresh and `tray sync` run it.
-func Sync(s *store.Store, hook Hook, only string, timeout time.Duration) (Summary, []Result, error) {
-	sum, err := Tick(s, store.Today())
+// Sync is the whole event as `tray sync` runs it: the built-in hooks, then the plugins.
+func Sync(s *store.Store, ev Event, only string, timeout time.Duration) (Summary, []Result, error) {
+	sum, err := Fire(s, ev, store.Today())
 	if err != nil {
 		return sum, nil, err
 	}
-	results, err := Plans(s, hook, only, timeout)
+	results, err := Plans(s, ev, only, timeout)
 	return sum, results, err
 }
 
@@ -366,7 +314,7 @@ func Apply(s *store.Store, r Result, push []Push, timeout time.Duration) (Applie
 		defer cancel()
 		out, err := plugin.Run(ctx, plugin.Exec{Dir: p.Dir, Path: p.Sync, Args: []string{"apply"}, Stdin: in})
 		if err != nil {
-			_ = s.RecordRun(store.Run{Name: r.Plugin, Hook: "apply", At: now(), OK: false, Message: message + " · push failed: " + err.Error()})
+			_ = s.RecordRun(store.Run{Name: r.Plugin, Event: "apply", At: now(), OK: false, Message: message + " · push failed: " + err.Error()})
 			return a, fmt.Errorf("push: %w", err)
 		}
 		if err := json.Unmarshal(out, &a); err != nil {
@@ -374,7 +322,7 @@ func Apply(s *store.Store, r Result, push []Push, timeout time.Duration) (Applie
 		}
 		message += fmt.Sprintf(" · pushed %d (%d failed)", len(a.PushOK), len(a.PushFailed))
 	}
-	return a, s.RecordRun(store.Run{Name: r.Plugin, Hook: "apply", At: now(), OK: true, Message: message})
+	return a, s.RecordRun(store.Run{Name: r.Plugin, Event: "apply", At: now(), OK: true, Message: message})
 }
 
 func now() string { return time.Now().Format("2006-01-02 15:04") }

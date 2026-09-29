@@ -44,6 +44,16 @@ func rows(t *testing.T, s *store.Store, f store.Filter) []core.Task {
 	return out
 }
 
+// did is one hook's number out of a summary, or -1 when the hook did not run.
+func did(sum Summary, hook, key string) int {
+	for _, r := range sum {
+		if r.Hook == hook {
+			return r.Counts[key]
+		}
+	}
+	return -1
+}
+
 func TestTickMaterializesAndLiftsWithoutReview(t *testing.T) {
 	s := sandbox(t)
 	tpl := core.Task{Layer: core.LayerTray, Text: "Weekly review", Recur: "weekly", Due: "2026-08-08", Priority: "M"}
@@ -55,9 +65,9 @@ func TestTickMaterializesAndLiftsWithoutReview(t *testing.T) {
 		}
 	}
 
-	sum, err := Tick(s, store.Today())
-	if err != nil || sum.Materialized != 1 || sum.Lifted != 1 {
-		t.Fatalf("Tick = %+v, %v", sum, err)
+	sum, err := Fire(s, Manual, store.Today())
+	if err != nil || did(sum, "recur", "materialized") != 1 || did(sum, "lift", "lifted") != 1 {
+		t.Fatalf("Fire = %+v, %v", sum, err)
 	}
 	tray := rows(t, s, store.Filter{Layer: core.LayerTray})
 	if len(tray) != 2 {
@@ -71,7 +81,7 @@ func TestTickMaterializesAndLiftsWithoutReview(t *testing.T) {
 			t.Errorf("child = %+v", task)
 		}
 	}
-	if sum, _ = Tick(s, store.Today()); sum.Materialized != 0 || sum.Lifted != 0 {
+	if sum, _ = Fire(s, Manual, store.Today()); did(sum, "recur", "materialized") != 0 || did(sum, "lift", "lifted") != 0 {
 		t.Errorf("a second tick did something: %+v", sum)
 	}
 	if got := rows(t, s, store.Filter{Layer: core.LayerGarage, Month: "2026-08"}); len(got) != 1 || got[0].Text != "Not yet" {
@@ -95,7 +105,7 @@ func TestPlansThenApply(t *testing.T) {
 		t.Fatalf("a plan landed rows: %v", got)
 	}
 	runs, _ := s.Runs()
-	if run := runs["echo"]; !run.OK || run.Hook != "manual" {
+	if run := runs["echo"]; !run.OK || run.Event != "manual" {
 		t.Errorf("run = %+v", run)
 	}
 

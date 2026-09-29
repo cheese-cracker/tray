@@ -82,7 +82,7 @@ func (m Model) keys() keyMap {
 	if !m.layer().isTray() {
 		short = append(short, bind("t", "take"), bind("#", "tag"), bind("n", "note"))
 	}
-	short = append(short, bind("v", "review"), bind("/", "filter"),
+	short = append(short, bind("v", "review"), bind("S", "sync"), bind("/", "filter"),
 		bind("?", "help"), bind("q", "quit"))
 
 	acts := m.actionKeys()

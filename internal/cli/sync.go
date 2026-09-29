@@ -53,7 +53,7 @@ func cmdSync(s *store.Store, req request) (string, error) {
 	if req.opts.json {
 		return syncJSON(sum, results, applied)
 	}
-	lines := []string{fmt.Sprintf("materialized %d · lifted %d", sum.Materialized, sum.Lifted)}
+	lines := []string{sum.String()}
 	lines = append(lines, renderPlans(results, applied)...)
 	if pending := pendingRows(results); pending > 0 && !req.opts.apply {
 		lines = append(lines, fmt.Sprintf("run `tray sync --apply` to land %d %s", pending, plural(pending, "change")))
@@ -216,9 +216,13 @@ func syncJSON(sum sync.Summary, results []sync.Result, applied map[string]sync.A
 		}
 		plans = append(plans, p)
 	}
-	blob, err := json.MarshalIndent(map[string]any{
-		"materialized": sum.Materialized, "lifted": sum.Lifted, "plugins": plans,
-	}, "", "  ")
+	hooks := map[string]map[string]int{}
+	for _, r := range sum {
+		if r.Counts != nil {
+			hooks[r.Hook] = r.Counts
+		}
+	}
+	blob, err := json.MarshalIndent(map[string]any{"hooks": hooks, "plugins": plans}, "", "  ")
 	return string(blob), err
 }
 
@@ -322,9 +326,9 @@ func describe(s *store.Store, p plugin.Plugin, last store.Run) (string, error) {
 		case last.Name == "":
 			parts = append(parts, "never run")
 		case last.OK:
-			parts = append(parts, fmt.Sprintf("last %s %s ok — %s", last.Hook, last.At, last.Message))
+			parts = append(parts, fmt.Sprintf("last %s %s ok — %s", last.Event, last.At, last.Message))
 		default:
-			parts = append(parts, fmt.Sprintf("last %s %s failed — %s", last.Hook, last.At, last.Message))
+			parts = append(parts, fmt.Sprintf("last %s %s failed — %s", last.Event, last.At, last.Message))
 		}
 	}
 	return strings.Join(parts, " · "), nil

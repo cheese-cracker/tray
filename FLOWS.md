@@ -60,6 +60,8 @@ suite rather than hanging it.
 | F32 | `context` is the grouped report with ids and every note under its task, narrowed by ids or a filter | `F32 · context is the report with its notes` |
 | F33 | `import --format md` brings a markdown home in whole — layers by filename, notes, struck lines finished, `→` lines skipped — and twice adds nothing | `F33 · import migrates the markdown home` |
 | F34 | One `sync` runs every installed plugin — the good plan prints, a failure is named, a slow one is cut off — and one `--apply --plugin` lands exactly that plan, whole, and hands its push back | `F34 · one sync runs every plugin and lands one plan whole` |
+| F35 | `tray.md` and `garage.md` beside the database hold one `- (id) words` bullet per open task, under month headings, rewritten after every write and left alone by a read | `F35 · the mirror is rewritten after every write` |
+| F36 | `sync` reads `garage.md` back: a bullet with no id is a new line in the month it sits under, changed words rename the task, an unknown id and a missing bullet change nothing, and `tray.md` is never read | `F36 · sync reads garage.md back: new lines and renames, nothing else` |
 
 ## T · the terminal interface
 
@@ -84,8 +86,9 @@ suite rather than hanging it.
 | T17 | A garage rewrite refuses a batch — there is nothing left for it to change | `TestFlowGarageRewriteRefusesABatch` |
 | T18 | `E` removes a row outright and names it in the status, and is reachable only in review mode | `TestFlowEraseRemovesTheLineAndSaysWhatWent` |
 | T19 | `n` opens the note alone on either layer, saves it on the row, and the row shows `≡` | `TestFlowNoteIsTheIndentedLinesUnderATask` |
-| T20 | The id column reads the permanent id: erase the row above and the one below keeps its id | `TestFlowTheIdColumnReadsThePermanentId` |
+| T20 | The id column reads the permanent id: erase the row above and the one below keeps its number | `TestFlowTheIdColumnReadsThePermanentId` |
 | T21 | The CLI and the interface share one store: what `dump` writes the interface shows, and what the interface takes, finishes and hands back `list --json` reads by the same ids | `TestFlowTheCLIAndTheTUIShareOneStore` |
+| T22 | `S` is the sync event by hand: a bullet added to `garage.md` lands in the garage, a renamed one is renamed, a removed one survives, `tray.md` edits are ignored, and both files are rewritten | `TestFlowSyncReadsTheGarageFileBack` |
 
 ## Adding one
 

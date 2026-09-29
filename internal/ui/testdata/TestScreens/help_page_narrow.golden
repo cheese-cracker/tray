@@ -13,5 +13,5 @@
   enter   act           #       tag                       
   /       filter        n       note                      
   v       review        x       done                      
-                        d       hand back                 
+  S       sync          d       hand back                 
                         >       move to                   
