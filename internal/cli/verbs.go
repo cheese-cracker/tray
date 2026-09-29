@@ -10,7 +10,6 @@ import (
 
 	"github.com/cheese-cracker/tray/internal/core"
 	"github.com/cheese-cracker/tray/internal/store"
-	"github.com/cheese-cracker/tray/internal/ui"
 	"github.com/cheese-cracker/tray/internal/wire"
 )
 
@@ -378,17 +377,6 @@ func cmdUnload(s *store.Store, req request) (string, error) {
 	if req.ids != "" {
 		picked, err = pick(s, req)
 	} else {
-		// A picker on a terminal, an error when piped: 20 and 34 at once.
-		if to == "" && interactive() {
-			chosen, err := ui.PickMonth()
-			if err != nil {
-				return "", err
-			}
-			if chosen == "" {
-				return "cancelled", nil
-			}
-			to = chosen
-		}
 		if to == "" {
 			return "", fmt.Errorf("unload needs a month — tray unload --to %s", store.ThisMonth())
 		}
@@ -431,12 +419,7 @@ func cmdUnload(s *store.Store, req request) (string, error) {
 // current month, and on the 10th, when it is the previous one.
 func cmdCarryover(s *store.Store, req request) (string, error) {
 	if !req.opts.run {
-		// The sweep is the one ritual that is about months, so on a terminal it opens
-		// them as tabs; piped, the month must be named (69, 70).
-		if interactive() {
-			return "", ui.RunSweep(s, req.opts.month)
-		}
-		return "", fmt.Errorf("not a terminal — tray carryover --run --month %s",
+		return "", fmt.Errorf("carryover is headless — tray carryover --run --month %s",
 			store.PrevMonth(store.ThisMonth()))
 	}
 	source := req.opts.month
