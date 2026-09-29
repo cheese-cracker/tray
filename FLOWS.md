@@ -48,6 +48,7 @@ suite rather than hanging it.
 | F19 | `head` prints the top few compactly, says nothing at all on an empty tray, and renders dates in the one format the rest of the tool uses | `F19 · head is the terminal header` |
 | F22 | A note is the indented lines under a task: `--note` on `dump` and `add`, `tray <id> note <text>` replaces it whole, it exports as one Taskwarrior annotation, and `erase` takes it with the line | `F22 · note is the indented lines under a task` |
 | F21 | `erase` removes a line outright — the one verb that does — leaves its neighbours alone, and resolves ids against `list --all` so a finished line is reachable | `F21 · erase removes the line` |
+| F23 | `plugin` lists what is installed, counts a folder without an executable `run` as half an install, and refuses to sync — the sweep is the only sync point. Installing one is opt-in: until you do, the help and every other verb are untouched | `F23 · plugin lists what is installed` |
 
 ## T · the terminal interface
 
