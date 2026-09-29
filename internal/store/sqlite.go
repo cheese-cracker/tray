@@ -95,13 +95,14 @@ func (s *Store) Update(fn func(*Store) error) error {
 
 // Filter narrows Tasks. The zero Filter is every live row in the working set.
 type Filter struct {
-	Layer string
-	Month string
-	All   bool // finished rows and templates too
-	IDs   []int64
-	Tags  []string          // every one must be present
-	Attrs map[string]string // key:value on a wire name, case-insensitive
-	Text  string            // case-insensitive substring of the words or a tag
+	Layer        string
+	Month        string
+	All          bool // finished rows and templates too
+	IDs          []int64
+	Tags         []string          // every one must be present
+	Attrs        map[string]string // key:value on a wire name, case-insensitive
+	Text         string            // case-insensitive substring of the words or a tag
+	SourcePrefix string            // rows a plugin owns: `<name>:`
 }
 
 // Tasks is every row the filter admits, oldest first. Layer, month, state and ids are
@@ -125,6 +126,10 @@ func (s *Store) Tasks(f Filter) ([]core.Task, error) {
 			marks[i], args = "?", append(args, id)
 		}
 		where = append(where, "id IN ("+strings.Join(marks, ",")+")")
+	}
+	if f.SourcePrefix != "" {
+		escaped := strings.NewReplacer(`\`, `\\`, "%", `\%`, "_", `\_`).Replace(f.SourcePrefix)
+		where, args = append(where, `source LIKE ? ESCAPE '\'`), append(args, escaped+"%")
 	}
 	rows, err := s.q.Query("SELECT "+columns+" FROM task WHERE "+strings.Join(where, " AND ")+" ORDER BY id", args...)
 	if err != nil {
@@ -235,6 +240,38 @@ func (s *Store) Months() ([]string, error) {
 		}
 	}
 	sort.Strings(out)
+	return out, rows.Err()
+}
+
+// A Run is the last thing a plugin did: one row per plugin, because the plugins pane
+// and `status` ask "how did it go last time", never for a history.
+type Run struct {
+	Name, Hook, At string
+	OK             bool
+	Message        string
+}
+
+func (s *Store) RecordRun(r Run) error {
+	_, err := s.q.Exec(`INSERT OR REPLACE INTO plugin_run (name, hook, at, ok, message) VALUES (?, ?, ?, ?, ?)`,
+		r.Name, r.Hook, r.At, r.OK, r.Message)
+	return err
+}
+
+// Runs is every plugin's last run, by name.
+func (s *Store) Runs() (map[string]Run, error) {
+	rows, err := s.q.Query("SELECT name, hook, at, ok, message FROM plugin_run")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]Run{}
+	for rows.Next() {
+		var r Run
+		if err := rows.Scan(&r.Name, &r.Hook, &r.At, &r.OK, &r.Message); err != nil {
+			return nil, err
+		}
+		out[r.Name] = r
+	}
 	return out, rows.Err()
 }
 

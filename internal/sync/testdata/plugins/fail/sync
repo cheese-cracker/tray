@@ -1,0 +1,4 @@
+#!/bin/sh
+echo boom >&2
+echo "and more detail" >&2
+exit 1

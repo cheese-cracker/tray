@@ -1,0 +1,3 @@
+#!/bin/sh
+echo "login needed — sign in and run again" >&2
+exit 2

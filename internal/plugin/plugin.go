@@ -1,39 +1,52 @@
-// Package plugin finds the third-party plugins installed under the tray home. It
-// knows where they are, whether they look runnable, and which verbs they offer; it
-// never runs one itself, and it never reads a garage — a plugin garage is ordinary
-// rows in the store, so that stays store's job and this package stays free of the
-// grammar (16).
+// Package plugin finds the third-party plugins installed under the tray home and runs
+// them as processes. It knows where they are, whether they look runnable, which verbs
+// they offer and which hooks they opted into; it never reads a garage — a plugin garage
+// is ordinary rows in the store — and never reads the settings a plugin keeps, so it
+// stays free of both the grammar (16) and anyone else's meaning.
 package plugin
 
 import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"sort"
+	"strings"
+	"time"
 
 	"github.com/cheese-cracker/tray/internal/store"
 )
 
-// Runner is the syncer's filename. There is no manifest: a plugin called notion owns
-// notion.md and is run by plugins/notion/run, so both facts are the folder name and
-// there is nothing to declare and nothing to parse. That is 18's argument — the
-// vocabulary is whatever is already in use — one level down.
-const Runner = "run"
-
-// ActionsDir holds a plugin's menu verbs, one executable each, named after the verb:
-// plugins/gcal/actions/schedule is the row "schedule" in the enter menu. The same
-// rule as Runner, one level further down (105).
-const ActionsDir = "actions"
+// The folder is the manifest. Each name here is a fact a plugin states by having the
+// file: `sync` says it keeps a garage, a file under actions/ is a menu verb, the
+// example settings are the form it wants filled, and the on-launch marker is its
+// consent to run when the app opens. Nothing is declared and nothing is parsed (18).
+const (
+	SyncFile        = "sync"
+	ActionsDir      = "actions"
+	SettingsExample = "settings.example.json"
+	SettingsFile    = "settings.json"
+	OnLaunchMarker  = "on-launch"
+	LogFile         = "log"
+	EvidenceDir     = "evidence"
+)
 
 // A Plugin is a directory. Name is the folder, which is also the garage it owns.
-// A folder counts once it has a runnable Runner or at least one verb.
+// A folder counts once it has a runnable sync or at least one verb.
 type Plugin struct {
-	Name  string
-	Dir   string
-	Run   string   // "" when the plugin keeps no garage
-	Verbs []string // the executables under ActionsDir, in name order
+	Name     string
+	Dir      string
+	Sync     string   // "" when the plugin keeps no garage
+	Verbs    []string // the executables under ActionsDir, in name order
+	OnLaunch bool     // run at launch too, not only on a manual sync
 }
 
 // An Action is one verb the interface can offer. tray hands the executable the picked
-// lines as arguments and the layer they sit on in TRAY_LAYER, and otherwise knows
+// ids as arguments and the layer they sit on in TRAY_LAYER, and otherwise knows
 // nothing about what it does.
 type Action struct {
 	Plugin string
@@ -46,12 +59,55 @@ type Action struct {
 // precedent for a month that is not a month.
 func (p Plugin) Garage() string { return p.Name }
 
-// Dir is where plugins live: beside the garage files they keep, not under a dot
-// directory, for the reason 53 gives about the data itself.
+// SettingsKeys are the fields the plugin wants filled, read off its example file. No
+// file, no keys: the plugin has nothing to ask.
+func (p Plugin) SettingsKeys() []string {
+	raw, err := os.ReadFile(filepath.Join(p.Dir, SettingsExample))
+	if err != nil {
+		return nil
+	}
+	var example map[string]any
+	if json.Unmarshal(raw, &example) != nil {
+		return nil
+	}
+	keys := make([]string, 0, len(example))
+	for k := range example {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+// SetSettings merges values into the plugin's settings file. tray never interprets
+// what is there; it only refuses a key the example does not name, so a typo cannot
+// become a setting nothing reads.
+func (p Plugin) SetSettings(values map[string]string) error {
+	if keys := p.SettingsKeys(); keys != nil {
+		for k := range values {
+			if !contains(keys, k) {
+				return fmt.Errorf("%s has no setting %q — it asks for %s", p.Name, k, strings.Join(keys, ", "))
+			}
+		}
+	}
+	settings := map[string]any{}
+	if raw, err := os.ReadFile(filepath.Join(p.Dir, SettingsFile)); err == nil {
+		_ = json.Unmarshal(raw, &settings)
+	}
+	for k, v := range values {
+		settings[k] = v
+	}
+	blob, err := json.MarshalIndent(settings, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(filepath.Join(p.Dir, SettingsFile), append(blob, '\n'), 0o600)
+}
+
+// Dir is where plugins live, beside the database.
 func Dir() string { return filepath.Join(store.Home(), "plugins") }
 
 // List is every installed plugin, in name order. A folder with neither a runnable
-// `run` nor a verb is not a plugin but half an install, and counting it would promise
+// sync nor a verb is not a plugin but half an install, and counting it would promise
 // something that cannot happen. No plugins at all is the usual case and is not an
 // error.
 func List() []Plugin {
@@ -66,12 +122,14 @@ func List() []Plugin {
 		}
 		dir := filepath.Join(Dir(), e.Name())
 		p := Plugin{Name: e.Name(), Dir: dir, Verbs: verbs(dir)}
-		if run := filepath.Join(dir, Runner); runnable(run) {
-			p.Run = run
+		if sync := filepath.Join(dir, SyncFile); runnable(sync) {
+			p.Sync = sync
 		}
-		if p.Run == "" && len(p.Verbs) == 0 {
+		if p.Sync == "" && len(p.Verbs) == 0 {
 			continue
 		}
+		_, err := os.Stat(filepath.Join(dir, OnLaunchMarker))
+		p.OnLaunch = err == nil
 		found = append(found, p)
 	}
 	return found
@@ -98,7 +156,7 @@ func Actions() []Action {
 }
 
 // verbs are the runnable files under actions/. The exec bit is the same consent it is
-// for run: a verb you have not marked is not yet one tray may put in front of you.
+// for sync: a verb you have not marked is not yet one tray may put in front of you.
 func verbs(dir string) []string {
 	entries, err := os.ReadDir(filepath.Join(dir, ActionsDir))
 	if err != nil {
@@ -122,4 +180,76 @@ func runnable(path string) bool {
 		return false
 	}
 	return info.Mode().Perm()&0o111 != 0
+}
+
+// An Exec is one run of a plugin's executable: which file, with what arguments, what
+// arrives on stdin, and anything beyond TRAY_HOME and TRAY_PLUGIN_DIR in its environment.
+type Exec struct {
+	Dir   string
+	Path  string
+	Args  []string
+	Stdin []byte
+	Env   []string
+}
+
+// An ExitError is the plugin saying no. Code 2 means it needs you — a login, a setting
+// — and Message is the first line it wrote to stderr, which is all a status line has
+// room for. The whole of stderr is in the plugin's log.
+type ExitError struct {
+	Code    int
+	Message string
+}
+
+func (e *ExitError) Error() string {
+	if e.Message == "" {
+		return fmt.Sprintf("exit %d", e.Code)
+	}
+	return e.Message
+}
+
+// NeedsYou is exit 2: not a failure, a question tray cannot answer.
+func (e *ExitError) NeedsYou() bool { return e.Code == 2 }
+
+// Run executes one plugin file and returns its stdout. stderr goes to the plugin's log
+// whatever happens, so a failure can be read after the fact. The context bounds the
+// run: a plugin that outlives it is killed and reported as timed out, and WaitDelay
+// keeps a child it left behind from holding the pipes open.
+func Run(ctx context.Context, e Exec) ([]byte, error) {
+	cmd := exec.CommandContext(ctx, e.Path, e.Args...)
+	cmd.Dir = e.Dir
+	cmd.Env = append(os.Environ(), "TRAY_HOME="+store.Home(), "TRAY_PLUGIN_DIR="+e.Dir)
+	cmd.Env = append(cmd.Env, e.Env...)
+	cmd.Stdin = bytes.NewReader(e.Stdin)
+	var out, errs bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &out, &errs
+	cmd.WaitDelay = time.Second
+
+	err := cmd.Run()
+	_ = os.WriteFile(filepath.Join(e.Dir, LogFile), errs.Bytes(), 0o600)
+
+	switch {
+	case err == nil:
+		return out.Bytes(), nil
+	case errors.Is(ctx.Err(), context.DeadlineExceeded):
+		return nil, &ExitError{Code: -1, Message: "timed out"}
+	}
+	var exit *exec.ExitError
+	if errors.As(err, &exit) {
+		return nil, &ExitError{Code: exit.ExitCode(), Message: firstLine(errs.String())}
+	}
+	return nil, err
+}
+
+func firstLine(s string) string {
+	line, _, _ := strings.Cut(strings.TrimSpace(s), "\n")
+	return line
+}
+
+func contains(haystack []string, needle string) bool {
+	for _, s := range haystack {
+		if s == needle {
+			return true
+		}
+	}
+	return false
 }
