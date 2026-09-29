@@ -25,8 +25,9 @@ build · `[personal]` may not belong in a general tool · `[shape]` a decision, 
 
 ## Parked
 
-- [ ] `[plugin]` **Google Calendar** — the one actually wanted, the one least settled. Pull
-  *and* push, which is what a garage is, but a calendar is a grid of times, not a dump of lines.
+- [x] `[plugin]` **Google Calendar** — built as its own repo, `tray-gcal`: a menu verb (105),
+  `enter → schedule`, that books a time for the line under the cursor and tags it `+scheduled`.
+  One-way; a calendar is a grid of times, not a garage, so it pulls nothing back.
 - [ ] `[plugin]` **`task export | tray import`** — the missing leg; field names were kept
   aligned for it (4).
 - [ ] `[plugin]` **todo.txt export** — one more shape of the grammar tray already writes.

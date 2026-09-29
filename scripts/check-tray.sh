@@ -466,6 +466,20 @@ has notion.md "ship the billing migration" && pass "the line itself stays on the
 out=$(tray plugin sync 2>&1)
 case $out in *carryover*) pass "sync is refused, and says where syncing happens" ;;
   *) bad "got: $out" ;; esac
+
+# A menu verb is an executable under actions/, named after itself (105). A plugin may
+# be nothing but verbs — then it keeps no garage, and the listing says what it adds
+# rather than a garage it never wrote.
+mkdir -p "$TRAY_HOME/plugins/gcal/actions"
+printf '#!/bin/sh\n' > "$TRAY_HOME/plugins/gcal/actions/schedule"; chmod +x "$TRAY_HOME/plugins/gcal/actions/schedule"
+printf '#!/bin/sh\n' > "$TRAY_HOME/plugins/gcal/actions/half"   # deliberately not executable
+out=$(tray plugin)
+case $out in *"gcal"*"schedule"*) pass "a verb-only plugin is listed with its verb" ;;
+  *) bad "got: $out" ;; esac
+case $out in *half*) bad "a non-executable verb was offered: $out" ;;
+  *) pass "a verb without the exec bit is half an install" ;; esac
+case $out in *"gcal.md"*) bad "a garage it never wrote: $out" ;;
+  *) pass "no garage is claimed for a plugin that keeps none" ;; esac
 teardown
 
 printf '\n'

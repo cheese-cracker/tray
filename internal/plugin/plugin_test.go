@@ -97,3 +97,46 @@ func TestFindMissesWhatIsNotInstalled(t *testing.T) {
 		t.Error("Find(jira) = true, want false")
 	}
 }
+
+// installVerb writes one menu verb the way a plugin's installer would.
+func installVerb(t *testing.T, name, verb string, mode os.FileMode) {
+	t.Helper()
+	dir := filepath.Join(Dir(), name, ActionsDir)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, verb), []byte("#!/bin/sh\n"), mode); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// A verb is a file under actions/, and its name is the whole declaration. The exec
+// bit is the same consent it is for run, so an unmarked one is not offered.
+func TestActionsAreTheExecutablesUnderActions(t *testing.T) {
+	sandbox(t)
+	installVerb(t, "gcal", "schedule", 0o755)
+	installVerb(t, "gcal", "half", 0o644)
+
+	got := Actions()
+	if len(got) != 1 || got[0].Plugin != "gcal" || got[0].Verb != "schedule" {
+		t.Fatalf("Actions() = %v, want gcal/schedule alone", got)
+	}
+	if want := filepath.Join(Dir(), "gcal", ActionsDir, "schedule"); got[0].Path != want {
+		t.Errorf("Path = %s, want %s", got[0].Path, want)
+	}
+}
+
+// A plugin that only adds verbs keeps no garage and has no run — and is a plugin
+// all the same. Listing it says what it adds rather than a garage it never wrote.
+func TestAPluginMayHaveVerbsAndNoRunner(t *testing.T) {
+	sandbox(t)
+	installVerb(t, "gcal", "schedule", 0o755)
+
+	p, ok := Find("gcal")
+	if !ok {
+		t.Fatal("Find(gcal) = false, want the verb-only plugin")
+	}
+	if p.Run != "" || len(p.Verbs) != 1 || p.Verbs[0] != "schedule" {
+		t.Errorf("got Run=%q Verbs=%v, want no runner and [schedule]", p.Run, p.Verbs)
+	}
+}

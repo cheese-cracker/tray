@@ -25,7 +25,9 @@ func bind(keys, help string) key.Binding {
 func (m Model) actionKeys() []key.Binding {
 	var out []key.Binding
 	for _, a := range m.offered() {
-		out = append(out, bind(a.key, a.label))
+		if a.key != "" { // a plugin verb has no letter to teach; it is in the menu alone
+			out = append(out, bind(a.key, a.label))
+		}
 	}
 	return out
 }

@@ -172,7 +172,7 @@ func pluginUsage() string {
 	if len(plugin.List()) == 0 {
 		return ""
 	}
-	return "\n\n  tray plugin                       what is installed, and when it last pulled"
+	return "\n\n  tray plugin                       what is installed: the verbs it adds, the garage it keeps"
 }
 
 // Run dispatches one invocation and returns an exit code.

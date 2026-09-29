@@ -245,7 +245,7 @@ can't desync anything.
   `key:value` fields, in the spirit of todo.txt, and field names from Taskwarrior. The
   database is a markdown file.
 - **🔌 Plays with what you already use.** Calendars, trackers, other task tools, via
-  plugins. *Not built yet.*
+  plugins: a folder in `~/tray/plugins/`, whose `actions/` become rows in the `enter` menu.
 - **⚖️ Few things well.** Inspired by the Eisenhower matrix. The tray is meant to be
   the small list of deliberate tasks.
 - **⏭️ Forward-looking, not an archive.** tray is for the tasks still ahead of you. It

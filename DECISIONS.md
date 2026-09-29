@@ -320,3 +320,13 @@ Reported from use: two tasks went done when one was meant to.
 | 92b | Review keeps **the same columns** as the working list | `urg` on a finished task is noise, so a finished-on date was the obvious swap. Rejected: one table shape everywhere is worth more than one mode reading slightly better, and the date is already in the file | live |
 | 92c | `enter` still opens a menu there, of the two verbs | Both are in the footer, so the menu adds nothing — but it costs no code, and `enter` doing nothing in one place is its own small surprise | live |
 | 94 | It is called **review**, not "show done" | `v show done` sat in a footer next to `x done` and read as a second way to mark something finished. Naming the mode removes the collision, and "review" says what you go there to do | live |
+
+## Plugins
+
+| # | Decision | Why | Status |
+|---|---|---|---|
+| 105 | A plugin's **menu verbs are the executables under `plugins/<name>/actions/`** | The folder is the manifest, one level further down than `run`: the filename is the label, the exec bit is the consent, and nothing is declared or parsed (18). tray hands the verb the picked lines as arguments and the layer in `TRAY_LAYER`, and re-reads the files when it is back | live |
+| 105a | A plugin verb has **no letter**; it is reached by `enter`, then a choice | The letters are tray's, and a verb that arrived by being installed cannot be allowed to shadow one — `s` today, `a` tomorrow. The menu is where you look for something you use less than daily, and `?` teaches only letters | live |
+| 105b | The verb gets **the terminal**, not a pipe | It is an interface of its own — a picker, a prompt, a browser consent — and tray has nothing to say while it runs. `tea.ExecProcess` releases the screen and takes it back; what the verb did to the files is what the reload shows, and tray adds nothing but a failure | live |
+| 105c | Offered on **both layers**, never in review | A reminder is as much for a tray task as for a jotted one. Review offers its own two verbs and nothing else (92c) | live |
+| 105d | A plugin may be **verbs alone**, with no `run` and no garage | Google Calendar is one: it books a time for a line and owns no list of its own. `tray plugin` then says what it adds, and claims no garage it never wrote | live |

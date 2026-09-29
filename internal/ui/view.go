@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"cmp"
 	"fmt"
 	"strings"
 
@@ -270,7 +271,7 @@ func (m Model) emptyMessage() string {
 func (m Model) renderMenu() string {
 	rows := []string{faintStyle.Render(fmt.Sprintf("%d selected", len(m.picked())))}
 	for i, a := range m.offered() {
-		row := fmt.Sprintf("  %s  %s", keyStyle.Render(a.key), a.label)
+		row := fmt.Sprintf("  %s  %s", keyStyle.Render(cmp.Or(a.key, " ")), a.label)
 		if i == m.menuAt {
 			row = cursorStyle.Render("▸") + row[1:]
 		}

@@ -508,10 +508,24 @@ func cmdPlugin(req request) (string, error) {
 	}
 	var rows []string
 	for _, p := range found {
-		rows = append(rows, fmt.Sprintf("%-12s %-14s %s",
-			p.Name, filepath.Base(p.Path()), pulled(p.Path())))
+		rows = append(rows, fmt.Sprintf("%-12s %s", p.Name, describe(p)))
 	}
 	return strings.Join(rows, "\n"), nil
+}
+
+// describe says what a plugin is doing here: the verbs it puts in the menu, and the
+// garage it keeps. A plugin with verbs and no garage file is not "never pulled" — it
+// has nothing to pull — so the garage column appears once the file does.
+func describe(p plugin.Plugin) string {
+	garage := fmt.Sprintf("%-14s %s", filepath.Base(p.Path()), pulled(p.Path()))
+	if len(p.Verbs) == 0 {
+		return garage
+	}
+	verbs := "enter → " + strings.Join(p.Verbs, ", ")
+	if _, err := os.Stat(p.Path()); err != nil {
+		return verbs
+	}
+	return garage + " · " + verbs
 }
 
 // pulled reads the garage file's mtime, because that is when the plugin last wrote

@@ -62,6 +62,9 @@ type Model struct {
 	destAt int
 	form   *form
 
+	plugins []action // the verbs installed plugins add to the menu, read once
+	exec    tea.Cmd  // a plugin verb waiting for the terminal; run hands it over
+
 	status  string
 	today   time.Time
 	err     error
@@ -123,6 +126,7 @@ func start(m Model) Model {
 	m.help.Styles.ShortSeparator = faintStyle
 	m.help.Styles.FullSeparator = faintStyle
 
+	m.plugins = pluginActions()
 	m.reload() // no filter can be set yet, so there is no command to run
 	if m.sweep {
 		m.active = sweepStart(m.layers)
@@ -274,7 +278,7 @@ func (m Model) offered() []action {
 			out = append(out, a)
 		}
 	}
-	return out
+	return append(out, m.plugins...)
 }
 
 func (m *Model) restore(picked []core.Task) string {
@@ -319,6 +323,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		default:
 			return m.updateList(msg)
 		}
+	case pluginDone:
+		if msg.err != nil {
+			m.status = msg.action.Verb + ": " + msg.err.Error()
+		}
+		return m, m.reload()
 	}
 	// Filter matches arrive as a message of their own, so everything else goes
 	// to the list rather than being dropped on the floor.
@@ -519,6 +528,12 @@ func (m *Model) run(a action) tea.Cmd {
 	}
 	m.mode = browsing
 	clear(m.marked)
+	if m.exec != nil {
+		cmd := m.exec
+		m.exec = nil
+		m.resize()
+		return cmd // the terminal is the plugin's until it exits; pluginDone reloads
+	}
 	return m.reload()
 }
 
