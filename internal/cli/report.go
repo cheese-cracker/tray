@@ -1,21 +1,20 @@
 package cli
 
 import (
-	"os"
-	"strconv"
-
-	"encoding/json"
 	"fmt"
-	"github.com/charmbracelet/lipgloss"
-	"github.com/charmbracelet/x/term"
-
-	"github.com/cheese-cracker/tray/internal/style"
+	"os"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/term"
+
 	"github.com/cheese-cracker/tray/internal/core"
 	"github.com/cheese-cracker/tray/internal/store"
+	"github.com/cheese-cracker/tray/internal/style"
+	"github.com/cheese-cracker/tray/internal/wire"
 )
 
 const untagged = "untagged"
@@ -50,51 +49,83 @@ func table(rows [][]string, headers []string) string {
 	return strings.Join(out, "\n")
 }
 
-// mark rides on the id, so a finished line is never mistaken for work still to do —
-// which matters most on the garage, where --all is the only way to see one at all.
+// mark rides on the id, so a finished row or a template is never mistaken for work
+// still to do — which matters most under --all, the only place they show.
 func mark(t core.Task) string {
 	switch {
-	case t.Done:
+	case t.Terminal():
 		return "✓"
-	case !t.Parsed():
-		return "?"
+	case t.Recur != "":
+		return "↻"
 	default:
 		return ""
 	}
 }
+
+func id(t core.Task) string { return t.ID + mark(t) }
 
 func trayTable(items []core.Task, today time.Time) string {
 	if len(items) == 0 {
 		return "tray empty"
 	}
 	var rows [][]string
-	for n, t := range items {
-		urgency := "—"
-		if t.Parsed() {
-			urgency = fmt.Sprintf("%.1f", core.Urgency(t, today))
-		}
+	for _, t := range items {
 		rows = append(rows, []string{
-			fmt.Sprintf("%d%s", n+1, mark(t)), urgency,
-			dash(t.Priority()), dash(core.Day(t.Attrs["due"])), text(t),
+			id(t), fmt.Sprintf("%.1f", core.Urgency(t, today)),
+			dash(t.Priority), dash(core.Day(t.Due)), t.Text,
 		})
 	}
 	return table(rows, []string{"ID", "URG", "PRI", "DUE", "DESCRIPTION"})
 }
 
+// The garage table grows a WAIT column only once a row has a day to surface on; the
+// table is unchanged for anyone who never writes one (104e's rule).
 func garageTable(items []core.Task, month string) string {
 	if len(items) == 0 {
 		return month + " empty"
 	}
+	waits := false
+	for _, t := range items {
+		waits = waits || t.Wait != ""
+	}
+	headers := []string{"ID", "DESCRIPTION", "TAGS"}
+	if waits {
+		headers = append(headers, "WAIT")
+	}
 	var rows [][]string
-	for n, t := range items {
+	for _, t := range items {
 		var tags []string
 		for _, g := range t.Tags {
 			tags = append(tags, core.TagMark+g)
 		}
-		rows = append(rows, []string{
-			fmt.Sprintf("%d%s", n+1, mark(t)), text(t), strings.Join(tags, " ")})
+		row := []string{id(t), t.Text, strings.Join(tags, " ")}
+		if waits {
+			row = append(row, core.Day(t.Wait))
+		}
+		rows = append(rows, row)
 	}
-	return table(rows, []string{"ID", "DESCRIPTION", "TAGS"})
+	return table(rows, headers)
+}
+
+// byTag buckets rows under their first tag, each bucket in urgency order, names sorted.
+func byTag(items []core.Task, today time.Time) ([]string, map[string][]core.Task) {
+	groups := map[string][]core.Task{}
+	for _, t := range items {
+		key := untagged
+		if len(t.Tags) > 0 {
+			key = t.Tags[0]
+		}
+		groups[key] = append(groups[key], t)
+	}
+	names := make([]string, 0, len(groups))
+	for name, rows := range groups {
+		names = append(names, name)
+		sort.SliceStable(rows, func(i, j int) bool {
+			return core.Urgency(rows[i], today) > core.Urgency(rows[j], today)
+		})
+	}
+	sort.Strings(names)
+	return names, groups
 }
 
 // grouped is the default view and the journal print: bullets by tag, no attributes.
@@ -103,42 +134,21 @@ func grouped(items []core.Task, today time.Time, numbered bool) string {
 	if len(items) == 0 {
 		return "tray empty"
 	}
-	type row struct {
-		id   int
-		task core.Task
-	}
-	groups := map[string][]row{}
-	for n, t := range items {
-		key := untagged
-		if len(t.Tags) > 0 {
-			key = t.Tags[0]
-		}
-		groups[key] = append(groups[key], row{n + 1, t})
-	}
-
-	names := make([]string, 0, len(groups))
-	for name := range groups {
-		names = append(names, name)
-	}
-	sort.Strings(names)
-
+	names, groups := byTag(items, today)
 	var out []string
 	for _, name := range names {
 		out = append(out, "**"+name+"**")
-		rows := groups[name]
-		sort.SliceStable(rows, func(i, j int) bool {
-			return core.Urgency(rows[i].task, today) > core.Urgency(rows[j].task, today)
-		})
-		for _, r := range rows {
-			if numbered {
-				out = append(out, fmt.Sprintf("  %d  %s", r.id, r.task.Text))
-			} else {
-				out = append(out, "- [ ] "+r.task.Text)
-				for _, l := range strings.Split(r.task.Note, "\n") {
-					if l != "" {
-						out = append(out, "  "+l)
-					}
-				}
+		for _, t := range groups[name] {
+			switch {
+			case numbered:
+				out = append(out, fmt.Sprintf("  %s  %s", t.ID, t.Text))
+			case t.Terminal():
+				out = append(out, "- [x] ~~"+t.Text+"~~")
+			default:
+				out = append(out, "- [ ] "+t.Text)
+			}
+			if !numbered {
+				out = append(out, indented(t.Note, "  ")...)
 			}
 		}
 		out = append(out, "")
@@ -146,67 +156,30 @@ func grouped(items []core.Task, today time.Time, numbered bool) string {
 	return strings.TrimRight(strings.Join(out, "\n"), "\n")
 }
 
-func findReport(hits []store.Hit) string {
-	if len(hits) == 0 {
-		return "no match"
+// contextReport is what you hand an agent: the grouped report with ids, and under each
+// task the note it carries — the whole of what tray knows about it, in plain text.
+func contextReport(items []core.Task, today time.Time) string {
+	names, groups := byTag(items, today)
+	var out []string
+	for _, name := range names {
+		out = append(out, "**"+name+"**")
+		for _, t := range groups[name] {
+			out = append(out, fmt.Sprintf("  %s  %s", t.ID, t.Text))
+			out = append(out, indented(t.Note, "      ")...)
+		}
+		out = append(out, "")
 	}
-	var rows [][]string
-	for _, h := range hits {
-		line := strings.TrimPrefix(h.Line, "- ")
-		line = strings.TrimPrefix(line, "[ ] ")
-		line = strings.TrimPrefix(line, "[x] ")
-		rows = append(rows, []string{h.Where, line})
-	}
-	out := table(rows, []string{"WHERE", "LINE"})
-	if months := store.MonthsWith(hits); months > 2 {
-		out += fmt.Sprintf("\n\n%d months — rot signal", months)
+	return strings.TrimRight(strings.Join(out, "\n"), "\n")
+}
+
+func indented(note, prefix string) []string {
+	var out []string
+	for _, l := range strings.Split(note, "\n") {
+		if l != "" {
+			out = append(out, prefix+l)
+		}
 	}
 	return out
-}
-
-// asJSON is Taskwarrior's import shape, so `tray export | task import` works.
-func asJSON(items []core.Task, today time.Time) (string, error) {
-	out := make([]map[string]any, 0, len(items))
-	for _, t := range items {
-		row := map[string]any{"description": t.Text, "status": status(t)}
-		if p := t.Priority(); p != "" {
-			row["priority"] = p
-		}
-		for field, key := range map[string]string{"due": "due", "entry": "entry", "end": "done"} {
-			if stamp := twStamp(t.Attrs[key]); stamp != "" {
-				row[field] = stamp
-			}
-		}
-		if len(t.Tags) > 0 {
-			row["tags"] = t.Tags
-		}
-		// Taskwarrior's name for a note. One entry: the note is one thing, not a log.
-		if t.Note != "" {
-			row["annotations"] = []map[string]string{{
-				"entry": twStamp(t.Attrs["entry"]), "description": t.Note,
-			}}
-		}
-		row["urgency"] = core.Urgency(t, today)
-		row["quadrant"] = core.Quadrant(t, today)
-		out = append(out, row)
-	}
-	blob, err := json.MarshalIndent(out, "", "  ")
-	return string(blob), err
-}
-
-func status(t core.Task) string {
-	if t.Done {
-		return "completed"
-	}
-	return "pending"
-}
-
-func twStamp(value string) string {
-	d, ok := core.Date(value)
-	if !ok {
-		return ""
-	}
-	return d.Format("20060102T000000Z")
 }
 
 func dash(s string) string {
@@ -216,24 +189,15 @@ func dash(s string) string {
 	return s
 }
 
-func text(t core.Task) string {
-	if t.Text != "" {
-		return t.Text
-	}
-	return strings.TrimSpace(t.Raw)
-}
-
-// --all is the one switch for "show me what I finished too", on either layer. It
-// used to be aliased to `dense`, so the tray table quietly included finished work
-// while the garage could never show it at all.
-func cmdReport(req request, dense bool) (string, error) {
-	_, items, err := view(req, req.opts.all)
+// --all is the one switch for "show me what I finished too", on either layer.
+func cmdReport(s *store.Store, req request, dense bool) (string, error) {
+	items, err := view(s, req, req.opts.all)
 	if err != nil {
 		return "", err
 	}
 	today := store.Today()
 	if req.opts.json {
-		return asJSON(items, today)
+		return wire.ExportTaskwarrior(items, today)
 	}
 	if req.scope == "garage" {
 		month := req.opts.month
@@ -248,20 +212,12 @@ func cmdReport(req request, dense bool) (string, error) {
 	return grouped(items, today, true), nil
 }
 
-func cmdPrint(req request) (string, error) {
-	_, items, err := view(req, false)
+func cmdPrint(s *store.Store, req request) (string, error) {
+	items, err := view(s, req, false)
 	if err != nil {
 		return "", err
 	}
 	return grouped(items, store.Today(), false), nil
-}
-
-func cmdFind(req request) (string, error) {
-	needle := strings.Join(req.tail, " ")
-	if needle == "" {
-		return "nothing to find", nil
-	}
-	return findReport(store.Grep(needle)), nil
 }
 
 // head is the terminal-header report: the top of the tray, and nothing at all when
@@ -270,8 +226,8 @@ func cmdFind(req request) (string, error) {
 // It exists because a shell profile runs it on every new terminal. That changes what
 // good output is — ids you didn't ask for are clutter, an urgency figure is noise at a
 // glance, and a "nothing to do" line is one you stop reading in a week.
-func cmdHead(req request) (string, error) {
-	_, items, err := view(request{scope: "tray", filters: req.filters}, false)
+func cmdHead(s *store.Store, req request) (string, error) {
+	items, err := view(s, request{scope: "tray", filters: req.filters}, false)
 	if err != nil {
 		return "", err
 	}
@@ -294,8 +250,8 @@ func cmdHead(req request) (string, error) {
 	whens := make([]string, len(shown))
 	textW, whenW := 0, 0
 	for i, t := range shown {
-		whens[i] = core.Day(t.Attrs["due"])
-		textW = max(textW, lipgloss.Width(text(t)))
+		whens[i] = core.Day(t.Due)
+		textW = max(textW, lipgloss.Width(t.Text))
 		whenW = max(whenW, lipgloss.Width(whens[i]))
 	}
 	// 1 letter + 2 + text + 2 + when, inside a border and a space either side.
@@ -305,10 +261,10 @@ func cmdHead(req request) (string, error) {
 
 	rows := make([]string, len(shown))
 	for i, t := range shown {
-		tint := lipgloss.NewStyle().Foreground(style.Priority(t.Priority()))
+		tint := lipgloss.NewStyle().Foreground(style.Priority(t.Priority))
 		rows[i] = tint.Bold(true).Render(letter(t)) + "  " +
-			tint.Render(fill(clip(text(t), textW), textW)) + "  " +
-			whenStyle(shown[i].Attrs["due"], today).Render(rightFill(whens[i], whenW))
+			tint.Render(fill(clip(t.Text, textW), textW)) + "  " +
+			whenStyle(shown[i].Due, today).Render(rightFill(whens[i], whenW))
 	}
 	return box("tray", rows, 1+2+textW+2+whenW), nil
 }
@@ -336,23 +292,19 @@ func box(title string, rows []string, inner int) string {
 // An unset priority reads as medium (decision 32), but writing "M" would claim you
 // chose it. The dot says the column is empty without breaking the alignment.
 func letter(t core.Task) string {
-	if p := t.Priority(); p != "" {
-		return p
+	if t.Priority != "" {
+		return t.Priority
 	}
 	return "·"
 }
 
-// when is honest about the past. A task due last Monday rendered as "Mon" reads as
-// upcoming, which is the one thing a header must never get wrong.
 func daysUntil(d, today time.Time) int {
 	return int(d.Sub(today).Hours() / 24)
 }
 
-// Overdue is the only thing here allowed to shout.
-//
-// This takes the date rather than the rendered string. Sniffing the string is what it
-// used to do, and it only worked because the string carried the words `over` and
-// `today` — change the format and every row silently renders quiet.
+// Overdue is the only thing here allowed to shout. This takes the date rather than the
+// rendered string: sniffing the string only worked because it carried the words `over`
+// and `today` — change the format and every row silently renders quiet.
 func whenStyle(due string, today time.Time) lipgloss.Style {
 	d, ok := core.Date(due)
 	if !ok {

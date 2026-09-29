@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 	"slices"
+	"sort"
 	"strings"
 	"time"
 	"unicode"
@@ -155,6 +156,7 @@ func (f *form) focus() {
 }
 
 type form struct {
+	s        *store.Store
 	tasks    []core.Task
 	month    string // which layer these came from; "" is the tray
 	creating bool   // a new line rather than an edit
@@ -169,13 +171,34 @@ type form struct {
 	today    time.Time
 }
 
-func newForm(tasks []core.Task, month string, today time.Time) form {
+// vocab is every tag in use, for the hint under the tag field. It comes from what is
+// already written, never from a registry (18).
+func vocab(s *store.Store) []string {
+	rows, err := s.Tasks(store.Filter{All: true})
+	if err != nil {
+		return nil
+	}
+	seen := map[string]bool{}
+	var out []string
+	for _, t := range rows {
+		for _, g := range t.Tags {
+			if !seen[g] {
+				seen[g] = true
+				out = append(out, g)
+			}
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
+func newForm(s *store.Store, tasks []core.Task, month string, today time.Time) form {
 	f := form{
-		tasks: tasks, month: month, touched: map[field]bool{}, vocab: store.Tags(),
+		s: s, tasks: tasks, month: month, touched: map[field]bool{}, vocab: vocab(s),
 		batch: len(tasks) > 1, today: today,
 	}
 	first := tasks[0]
-	f.prio = first.Priority()
+	f.prio = first.Priority
 	if f.prio == "" {
 		f.prio = defaultPriority
 	}
@@ -184,7 +207,7 @@ func newForm(tasks []core.Task, month string, today time.Time) form {
 	// the form was.
 	f.inputs = map[field]textinput.Model{
 		fTitle: newInput(first.Text),
-		fDue:   newInput(first.Attrs["due"]),
+		fDue:   newInput(first.Due),
 		fTag:   newInput(strings.Join(first.Tags, " ")),
 	}
 	f.note = newNote(first.Note)
@@ -198,10 +221,10 @@ func newForm(tasks []core.Task, month string, today time.Time) form {
 
 // The garage asks for nothing but the words — that is the whole point of it. The
 // tray is where structure is expected, so a new task there gets the full form.
-func newEntry(month string, today time.Time) form {
+func newEntry(s *store.Store, month string, today time.Time) form {
 	f := form{
-		month: month, creating: true, touched: map[field]bool{},
-		vocab: store.Tags(), today: today, at: fTitle, prio: defaultPriority,
+		s: s, month: month, creating: true, touched: map[field]bool{},
+		vocab: vocab(s), today: today, at: fTitle, prio: defaultPriority,
 		inputs: map[field]textinput.Model{
 			fTitle: newInput(""), fDue: newInput(""), fTag: newInput(""),
 		},
@@ -211,10 +234,10 @@ func newEntry(month string, today time.Time) form {
 	return f
 }
 
-// tagging opens the same form showing nothing but the tag field. `+` is meant to be a
-// keystroke, not a form, so it does not ask about anything it was not asked about.
-func newTagger(tasks []core.Task, month string, today time.Time) form {
-	f := newForm(tasks, month, today)
+// newTagger opens the same form showing nothing but the tag field. `#` is meant to be
+// a keystroke, not a form, so it does not ask about anything it was not asked about.
+func newTagger(s *store.Store, tasks []core.Task, month string, today time.Time) form {
+	f := newForm(s, tasks, month, today)
 	f.only, f.at = []field{fTag}, fTag
 	f.focus()
 	return f
@@ -222,8 +245,8 @@ func newTagger(tasks []core.Task, month string, today time.Time) form {
 
 // newNoter is `n`: the note and nothing else, on either layer. The garage form
 // otherwise asks for the words alone (88), and a note is more words, not structure.
-func newNoter(tasks []core.Task, month string, today time.Time) form {
-	f := newForm(tasks, month, today)
+func newNoter(s *store.Store, tasks []core.Task, month string, today time.Time) form {
+	f := newForm(s, tasks, month, today)
 	f.only, f.at = []field{fNote}, fNote
 	f.focus()
 	return f
@@ -246,7 +269,7 @@ func (f form) fields() []field {
 	return []field{fTitle, fPriority, fDue, fTag, fNote}
 }
 
-// shows is whether a field is on screen at all: the garage form and the `+`/`n`
+// shows is whether a field is on screen at all: the garage form and the `#`/`n`
 // forms leave priority out, and a field you were never shown is not a choice you made.
 func (f form) shows(name field) bool { return slices.Contains(f.fields(), name) }
 
@@ -304,8 +327,8 @@ func clamp(options []string, current string, by int) string {
 // edit hands the keystroke to whichever input has the caret. textinput owns insertion,
 // deletion, and the arrow keys inside a line; the form owns only which field is live.
 //
-// A paste can carry newlines, and a task is one line of a markdown file — so the value
-// is flattened afterwards rather than trusting what arrived.
+// A paste can carry newlines, and a task's words are one line — so the value is
+// flattened afterwards rather than trusting what arrived.
 func (f *form) edit(msg tea.KeyMsg) {
 	f.focus() // `at` is the truth; focus follows it rather than the other way round
 	if f.at == fNote {
@@ -350,37 +373,39 @@ func oneLine(runes []rune) string {
 	return b.String()
 }
 
-// apply writes only the fields that were touched, across every task in the form.
+// apply writes only the fields that were touched, across every task in the form, in
+// one transaction.
 func (f form) apply() (string, error) {
-	doc, err := layer{month: f.month}.open()
-	if err != nil {
-		return "", err
-	}
 	if f.creating {
-		return f.create(doc)
+		return f.create()
 	}
-	for _, t := range f.tasks {
-		if f.touched[fTitle] && !f.batch && strings.TrimSpace(f.text(fTitle)) != "" {
-			t.Text = strings.TrimSpace(f.text(fTitle))
+	err := f.s.Update(func(tx *store.Store) error {
+		for _, t := range f.tasks {
+			if f.touched[fTitle] && !f.batch && strings.TrimSpace(f.text(fTitle)) != "" {
+				t.Text = strings.TrimSpace(f.text(fTitle))
+			}
+			// The form shows M for a task that has none, so leaving it alone means M.
+			// Only writing it when touched made the screen disagree with the store, and
+			// `take` is exactly the case where you never touch it — you accept the default.
+			if f.touched[fPriority] || (f.shows(fPriority) && t.Priority == "") {
+				t.Priority = f.prio
+			}
+			if f.touched[fDue] {
+				t.Due = strings.TrimSpace(f.text(fDue))
+			}
+			if f.touched[fTag] {
+				t.Tags = strings.Fields(f.text(fTag)) // nil when empty, which clears them
+			}
+			if f.touched[fNote] {
+				t.Note = f.text(fNote)
+			}
+			if err := tx.Put(&t); err != nil {
+				return err
+			}
 		}
-		// The form shows M for a task that has none, so leaving it alone means M.
-		// Only writing it when touched made the screen disagree with the file, and
-		// `take` is exactly the case where you never touch it — you accept the default.
-		if f.touched[fPriority] || (f.shows(fPriority) && t.Priority() == "") {
-			set(&t, "priority", f.prio)
-		}
-		if f.touched[fDue] {
-			set(&t, "due", strings.TrimSpace(f.text(fDue)))
-		}
-		if f.touched[fTag] {
-			t.Tags = strings.Fields(f.text(fTag)) // nil when empty, which clears them
-		}
-		if f.touched[fNote] {
-			t.Note = f.text(fNote)
-		}
-		doc.Set(t)
-	}
-	if err := doc.Save(); err != nil {
+		return nil
+	})
+	if err != nil {
 		return "", err
 	}
 	if len(f.touched) == 0 {
@@ -389,36 +414,28 @@ func (f form) apply() (string, error) {
 	return fmt.Sprintf("rewrote %d", len(f.tasks)), nil
 }
 
-func (f form) create(doc *store.Doc) (string, error) {
+func (f form) create() (string, error) {
 	title := strings.TrimSpace(f.text(fTitle))
 	if title == "" {
 		return "", nil // nothing typed: the same as cancelling
 	}
-	task := core.New(title, nil)
-	if f.month == "" {
-		task.Attrs["entry"] = f.today.Format(core.DateLayout)
-		priority := f.prio
-		if priority == "" {
-			priority = defaultPriority
-		}
-		set(&task, "priority", priority)
-		set(&task, "due", strings.TrimSpace(f.text(fDue)))
-	}
-	task.Tags = strings.Fields(f.text(fTag))
+	task := core.New(title, strings.Fields(f.text(fTag)))
 	task.Note = f.text(fNote)
-	doc.Add(task)
-	if err := doc.Save(); err != nil {
+	task.Entry = f.today.Format(core.DateLayout)
+	if f.month == "" {
+		task.Layer = core.LayerTray
+		task.Priority = f.prio
+		if task.Priority == "" {
+			task.Priority = defaultPriority
+		}
+		task.Due = strings.TrimSpace(f.text(fDue))
+	} else {
+		task.Month = f.month
+	}
+	if err := f.s.Put(&task); err != nil {
 		return "", err
 	}
 	return "added: " + title, nil
-}
-
-func set(t *core.Task, key, value string) {
-	if value == "" {
-		delete(t.Attrs, key)
-		return
-	}
-	t.Attrs[key] = value
 }
 
 func (f form) update(key tea.KeyMsg) (form, bool, bool) {

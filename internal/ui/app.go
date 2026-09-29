@@ -1,5 +1,5 @@
 // Package ui is the terminal interface. It is a client of core and store, and
-// never parses a line or writes a file itself.
+// never parses a line or speaks SQL itself.
 package ui
 
 import (
@@ -37,8 +37,7 @@ type action struct {
 
 var actions = []action{
 	{key: "t", label: "take", rest: true, apply: (*Model).take},
-	{key: "x", label: "done", tray: true, rest: true,
-		apply: func(m *Model, p []core.Task) string { return m.finish(p, "done") }},
+	{key: "x", label: "done", tray: true, rest: true, apply: (*Model).finish},
 	{key: "d", label: "hand back", tray: true, apply: (*Model).handBack},
 	{key: ">", label: "move to", tray: true, rest: true, apply: (*Model).chooseDestination},
 	{key: "r", label: "rewrite", tray: true, rest: true, apply: (*Model).openForm},
@@ -49,18 +48,22 @@ var actions = []action{
 }
 
 type Model struct {
+	s      *store.Store
 	layers []layer
 	active int
 	list   list.Model
 	deleg  *rowDelegate
 	help   help.Model
-	marked map[string]bool // by text, so it survives a reload and a filter
+	marked map[string]bool // by id, so it survives a reload and a filter
 
 	mode   mode
 	menuAt int
 	dests  []layer
 	destAt int
 	form   *form
+
+	plugins []action // the verbs installed plugins add to the menu, read once
+	exec    tea.Cmd  // a plugin verb waiting for the terminal; run hands it over
 
 	status  string
 	today   time.Time
@@ -72,14 +75,14 @@ type Model struct {
 	height  int
 }
 
-func New() Model {
-	return start(Model{marked: map[string]bool{}, today: store.Today()})
+func New(s *store.Store) Model {
+	return start(Model{s: s, marked: map[string]bool{}, today: store.Today()})
 }
 
 // NewSweep is `tray carryover`: the closing month, this one, and someday.
-func NewSweep(closing string) Model {
+func NewSweep(s *store.Store, closing string) Model {
 	return start(Model{
-		marked: map[string]bool{}, today: store.Today(), sweep: true, closing: closing,
+		s: s, marked: map[string]bool{}, today: store.Today(), sweep: true, closing: closing,
 	})
 }
 
@@ -123,6 +126,7 @@ func start(m Model) Model {
 	m.help.Styles.ShortSeparator = faintStyle
 	m.help.Styles.FullSeparator = faintStyle
 
+	m.plugins = pluginActions()
 	m.reload() // no filter can be set yet, so there is no command to run
 	if m.sweep {
 		m.active = sweepStart(m.layers)
@@ -152,29 +156,25 @@ func (m Model) layer() layer {
 	return layer{title: "tray"}
 }
 
-// reload re-reads the layer from disk. It returns a command because a filter that
-// is still applied has to be re-run against the new rows, and that is async.
+// reload re-reads the layer from the store. It returns a command because a filter
+// that is still applied has to be re-run against the new rows, and that is async.
 func (m *Model) reload() tea.Cmd {
 	m.layers = layers(m.sweep, m.closing)
 	if m.active >= len(m.layers) {
 		m.active = 0
 	}
-	doc, err := m.layer().open()
+	rows, err := m.s.Tasks(m.layer().filter(m.viewing))
 	if err != nil {
 		m.err = err
 		return nil
 	}
-	var live []core.Task
-	for _, t := range doc.Tasks() {
-		if t.Parsed() && (m.viewing || t.Live()) {
-			live = append(live, t)
-		}
-	}
 	if m.layer().isTray() {
-		sortByUrgency(live, m.today)
+		sortByUrgency(rows, m.today)
+	} else if m.viewing {
+		sortLiveFirst(rows)
 	}
-	items := make([]list.Item, len(live))
-	for i, t := range live {
+	items := make([]list.Item, len(rows))
+	for i, t := range rows {
 		items[i] = row{t}
 	}
 	at := m.list.Index()
@@ -202,19 +202,39 @@ func (m *Model) resize() {
 	m.deleg.measure(m.list.VisibleItems(), width)
 }
 
+// rank is where a row sits in review: the work you have left, then what you finished,
+// then the templates — furniture, not work. Outside review only the first kind is
+// listed, so this is the plain urgency sort it always was.
+func rank(t core.Task) int {
+	switch {
+	case t.Recur != "":
+		return 2
+	case t.Terminal():
+		return 1
+	}
+	return 0
+}
+
 // A finished line still carries a priority and a due date, so it still computes an
-// urgency — which in review mode would float a done H task above live work. Terminal
-// lines sink, and rank among themselves by the same measure. Outside review mode
-// nothing terminal is listed, so this is the plain urgency sort it always was.
+// urgency — which in review mode would float a done H task above live work.
 func sortByUrgency(items []core.Task, today time.Time) {
 	before := func(a, b core.Task) bool {
-		if a.Terminal() != b.Terminal() {
-			return b.Terminal()
+		if rank(a) != rank(b) {
+			return rank(a) < rank(b)
 		}
 		return core.Urgency(a, today) > core.Urgency(b, today)
 	}
 	for i := 1; i < len(items); i++ {
 		for j := i; j > 0 && before(items[j], items[j-1]); j-- {
+			items[j], items[j-1] = items[j-1], items[j]
+		}
+	}
+}
+
+// sortLiveFirst keeps a garage in the order it was written, live lines above the rest.
+func sortLiveFirst(items []core.Task) {
+	for i := 1; i < len(items); i++ {
+		for j := i; j > 0 && rank(items[j]) < rank(items[j-1]); j-- {
 			items[j], items[j-1] = items[j-1], items[j]
 		}
 	}
@@ -227,7 +247,7 @@ func (m *Model) picked() []core.Task {
 	var out []core.Task
 	for _, item := range m.list.Items() {
 		r, ok := item.(row)
-		if ok && m.marked[r.Text] {
+		if ok && m.marked[r.ID] {
 			out = append(out, r.Task)
 		}
 	}
@@ -274,24 +294,37 @@ func (m Model) offered() []action {
 			out = append(out, a)
 		}
 	}
-	return out
+	return append(out, m.plugins...)
+}
+
+// write lands one change per picked row in a single transaction, so a batch verb
+// applies whole or not at all.
+func (m *Model) write(picked []core.Task, change func(*core.Task) bool) (int, error) {
+	n := 0
+	err := m.s.Update(func(tx *store.Store) error {
+		for _, t := range picked {
+			if !change(&t) {
+				continue
+			}
+			if err := tx.Put(&t); err != nil {
+				return err
+			}
+			n++
+		}
+		return nil
+	})
+	return n, err
 }
 
 func (m *Model) restore(picked []core.Task) string {
-	doc, err := m.layer().open()
-	if err != nil {
-		return err.Error()
-	}
-	n := 0
-	for _, t := range picked {
+	n, err := m.write(picked, func(t *core.Task) bool {
 		if !t.Terminal() {
-			continue
+			return false
 		}
-		core.Restore(&t)
-		doc.Set(t)
-		n++
-	}
-	if err := doc.Save(); err != nil {
+		core.Restore(t)
+		return true
+	})
+	if err != nil {
 		return err.Error()
 	}
 	if n == 0 {
@@ -319,6 +352,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		default:
 			return m.updateList(msg)
 		}
+	case pluginDone:
+		if msg.err != nil {
+			m.status = msg.action.Verb + ": " + msg.err.Error()
+		}
+		return m, m.reload()
 	}
 	// Filter matches arrive as a message of their own, so everything else goes
 	// to the list rather than being dropped on the floor.
@@ -391,10 +429,10 @@ func (m Model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.toList(msg)
 	case " ":
 		if r, ok := m.list.SelectedItem().(row); ok {
-			if m.marked[r.Text] {
-				delete(m.marked, r.Text)
+			if m.marked[r.ID] {
+				delete(m.marked, r.ID)
 			} else {
-				m.marked[r.Text] = true
+				m.marked[r.ID] = true
 			}
 		}
 	case "a":
@@ -402,7 +440,7 @@ func (m Model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.status = "review reads and prunes — v goes back to add"
 			return m, nil
 		}
-		f := newEntry(m.layer().month, m.today)
+		f := newEntry(m.s, m.layer().month, m.today)
 		m.form, m.mode = &f, editing
 		m.resize()
 	case "enter":
@@ -506,7 +544,7 @@ func (m Model) lookup(key string) (action, bool) {
 	return action{}, false
 }
 
-// run applies an action, then re-reads from disk so ids and urgency stay honest.
+// run applies an action, then re-reads the store so order and urgency stay honest.
 func (m *Model) run(a action) tea.Cmd {
 	picked := m.picked()
 	if len(picked) == 0 {
@@ -519,25 +557,32 @@ func (m *Model) run(a action) tea.Cmd {
 	}
 	m.mode = browsing
 	clear(m.marked)
+	if m.exec != nil {
+		cmd := m.exec
+		m.exec = nil
+		m.resize()
+		return cmd // the terminal is the plugin's until it exits; pluginDone reloads
+	}
 	return m.reload()
 }
 
-// erase is the only thing here that removes a line rather than marking it, and it
+// erase is the only thing here that removes a row rather than marking it, and it
 // asked `y`/`n` for a while. The prompt came out: it was the one modal in the whole
 // interface, guarding a verb you can only reach by entering review mode first. Saying
 // what went replaces it — enough to retype a line erased in error, which was all the
 // recovery the prompt bought either way.
 func (m *Model) erase(picked []core.Task) string {
-	doc, err := m.layer().open()
-	if err != nil {
-		return err.Error()
-	}
 	names := make([]string, 0, len(picked))
-	for _, t := range picked {
-		doc.Remove(t)
-		names = append(names, `"`+t.Text+`"`)
-	}
-	if err := doc.Save(); err != nil {
+	err := m.s.Update(func(tx *store.Store) error {
+		for _, t := range picked {
+			if err := tx.Delete(t.ID); err != nil {
+				return err
+			}
+			names = append(names, `"`+t.Text+`"`)
+		}
+		return nil
+	})
+	if err != nil {
 		return err.Error()
 	}
 	return "erased " + strings.Join(names, " · ")
@@ -557,23 +602,25 @@ func (m *Model) openForm(picked []core.Task) string {
 	if !m.layer().isTray() && len(picked) > 1 {
 		return "rewrite takes one line at a time"
 	}
-	f := newForm(picked, m.layer().month, m.today)
+	f := newForm(m.s, picked, m.layer().month, m.today)
 	m.form, m.mode = &f, editing
 	return ""
 }
 
-// openTagger is `+`: the tag field and nothing else, on either layer. Tags are the one
+// openNoter is `n`: the note and nothing else, on either layer. The garage form
+// otherwise asks for the words alone (88), and a note is more words, not structure.
+func (m *Model) openNoter(picked []core.Task) string {
+	f := newNoter(m.s, picked, m.layer().month, m.today)
+	m.form, m.mode = &f, editing
+	return ""
+}
+
+// openTagger is `#`: the tag field and nothing else, on either layer. Tags are the one
 // piece of structure the garage already carries — `tray dump +infra` writes one and F2
 // promises it — so this is the interface catching up with the grammar rather than 88
 // being loosened. Priority and due stay off the garage form.
-func (m *Model) openNoter(picked []core.Task) string {
-	f := newNoter(picked, m.layer().month, m.today)
-	m.form, m.mode = &f, editing
-	return ""
-}
-
 func (m *Model) openTagger(picked []core.Task) string {
-	f := newTagger(picked, m.layer().month, m.today)
+	f := newTagger(m.s, picked, m.layer().month, m.today)
 	m.form, m.mode = &f, editing
 	return ""
 }
@@ -581,48 +628,58 @@ func (m *Model) openTagger(picked []core.Task) string {
 // take is a move onto the tray followed by the form — structure paid for once, at
 // the moment something graduates.
 func (m *Model) take(picked []core.Task) string {
-	tray := layer{title: "tray"}
-	status := m.move(picked, tray)
+	status := m.move(picked, layer{title: "tray"})
 
-	doc, err := tray.open()
-	if err != nil {
-		return status
-	}
-	var landed []core.Task
-	wanted := map[string]bool{}
+	ids := make([]string, 0, len(picked))
 	for _, t := range picked {
-		wanted[t.Text] = true
+		ids = append(ids, t.ID)
 	}
-	for _, t := range doc.Tasks() {
-		if wanted[t.Text] && t.Live() {
-			landed = append(landed, t)
-		}
-	}
-	if len(landed) == 0 {
+	landed, err := m.s.Tasks(store.Filter{IDs: ids, Layer: core.LayerTray, All: true})
+	if err != nil || len(landed) == 0 {
 		return status
 	}
-	f := newForm(landed, "", m.today)
+	f := newForm(m.s, landed, "", m.today)
 	m.form, m.mode = &f, editing
 	return status
 }
 
-func (m *Model) finish(picked []core.Task, as string) string {
-	doc, err := m.layer().open()
+func (m *Model) finish(picked []core.Task) string {
+	n, err := m.write(picked, func(t *core.Task) bool {
+		core.Finish(t, m.today)
+		return true
+	})
 	if err != nil {
 		return err.Error()
 	}
-	for _, t := range picked {
-		core.Finish(&t, as, m.today)
-		doc.Set(t)
-	}
-	if err := doc.Save(); err != nil {
-		return err.Error()
-	}
-	return plural(len(picked), as)
+	return plural(n, "done")
 }
 
+// handBack returns a tray task to the garage month it came from, or this month when
+// it never came from one. It keeps what the tray gave it (88a).
 func (m *Model) handBack(picked []core.Task) string {
-	return m.move(picked, layer{title: monthTitle(store.ThisMonth()), month: store.ThisMonth()})
+	this := store.ThisMonth()
+	moved := 0
+	err := m.s.Update(func(tx *store.Store) error {
+		for _, t := range picked {
+			if t.Layer != core.LayerTray {
+				continue
+			}
+			month := t.FromMonth
+			if month == "" {
+				month = this
+			}
+			core.Move(&t, core.LayerGarage, month)
+			if err := tx.Put(&t); err != nil {
+				return err
+			}
+			moved++
+		}
+		return nil
+	})
+	if err != nil {
+		return err.Error()
+	}
+	return plural(moved, "→ garage")
 }
 
 func plural(n int, what string) string {
@@ -630,10 +687,10 @@ func plural(n int, what string) string {
 }
 
 // Run takes over the terminal until the user quits.
-func Run() error { return run(New()) }
+func Run(s *store.Store) error { return run(New(s)) }
 
 // RunSweep opens the same interface with the month tabs the ritual needs.
-func RunSweep(closing string) error { return run(NewSweep(closing)) }
+func RunSweep(s *store.Store, closing string) error { return run(NewSweep(s, closing)) }
 
 func run(m Model) error {
 	_, err := tea.NewProgram(m, tea.WithAltScreen()).Run()

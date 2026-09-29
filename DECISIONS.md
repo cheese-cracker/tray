@@ -14,13 +14,13 @@ and the two are meant to agree.
 | # | Decision | Why | Status |
 |---|---|---|---|
 | 1 | Two layers: **garage** (dump) and **tray** (worklist) | Classifying at capture costs you the thought you were having | live |
-| 2 | Markdown files are the truth | You must be able to edit them with no tool in the loop | live |
+| 2 | Markdown files are the truth | You must be able to edit them with no tool in the loop | superseded by T1 |
 | 4 | Keep TW's field names and urgency coefficients | `tray export \| task import` stays a one-way hatch | live |
 | 5 | **Nothing is ever deleted.** `done`/`drop` strike through in place | The file is the record; that's what makes `find` a rot detector | superseded by 5a |
-| 5a | **A line only leaves the file from review mode.** Finishing still strikes through in place; `E` erase is the one verb that removes one | 5 covered every case but one: a line that should not have been written. Narrowing it keeps what it was protecting — a record you can trust `find` against — and gives up only the part that was protecting typos | live |
-| 6 | Copy-forward with an arrow: the source line stays, annotated `→ 2026-09` | Month files stay a record, and nothing can move twice | live |
+| 5a | **A line only leaves the file from review mode.** Finishing still strikes through in place; `E` erase is the one verb that removes one | 5 covered every case but one: a line that should not have been written. Narrowing it keeps what it was protecting — a record you can trust `find` against — and gives up only the part that was protecting typos | superseded by T2 |
+| 6 | Copy-forward with an arrow: the source line stays, annotated `→ 2026-09` | Month files stay a record, and nothing can move twice | superseded by T2 |
 | 7 | take · hand back · carry forward are **one operation** | Three rituals were three code paths for the same move | live — but see 71: sharing the *move* is not sharing the *command* |
-| 8 | Ids are positional and ephemeral, never stored | A hand-edit can then never desync them | live |
+| 8 | Ids are positional and ephemeral, never stored | A hand-edit can then never desync them | superseded by T3 |
 | 9 | `project` dropped; **tags are the only axis** | One dimension, nothing to decide twice | live |
 | 10 | Someday and old months have no tab | Reachable via `>`; they don't earn standing room | live |
 
@@ -31,7 +31,7 @@ and the two are meant to agree.
 | 14 | Full Go rewrite is safe because `check-tray.sh` is **black-box** | It drives the binary and reads markdown, so it ported unchanged | live |
 | 15 | **One Go binary**, zero runtime dependencies | No interpreter, no fzf, no gum; `go` builds it under `--tui` | live |
 | 16 | `ui` and `cmd` are clients of `core`; neither parses a line or writes a file | If the UI needs the grammar, the boundary is wrong | live |
-| 17 | Attributes are read off the **end** of a line, known keys only | A colon mid-sentence must survive, or the garage can't hold prose | live |
+| 17 | Attributes are read off the **end** of a line, known keys only | A colon mid-sentence must survive, or the garage can't hold prose | live for the wire — the CLI's mods, import and export; on disk superseded by T1 |
 | 18 | The tag vocabulary comes from what's already in use | No config, no registry | live |
 
 ## Interface
@@ -59,7 +59,7 @@ and the two are meant to agree.
 
 | # | Decision | Why | Status |
 |---|---|---|---|
-| 37 | Shell suite asserts **file contents**, not internals | It survived a whole-language rewrite unchanged | live |
+| 37 | Shell suite asserts **file contents**, not internals | It survived a whole-language rewrite unchanged | narrowed by T1: it asserts `export` and `list --json`, which is still the binary and not its internals |
 | 38 | stdin closed throughout the shell suite | A prompt an agent could hit fails the suite instead of hanging it | live |
 | 39 | Subprocess assertions run from `/` with a stripped environment | Two blank-screen bugs passed CI by inheriting my `PATH`, `PYTHONPATH` and cwd | live |
 | 40 | UI: assert **model state and files**; frames only for structure | Golden frames break on every restyle and prove nothing about what was written | live, narrowed by 64 |
@@ -75,7 +75,7 @@ lived in was orphaned, so none of the history came with it — the import is one
 |---|---|---|---|
 | 51 | `tray` is **its own repo**, module `github.com/cheese-cracker/tray` | It was `--tui` in a coreutils installer; nothing about it is a shell alias | live |
 | 52 | The `bin/tray` bash wrapper is **dropped** | It existed to rebuild-on-stale from a symlink in `~/.local/bin`; `go install` is the same thing without the shell | live |
-| 53 | The default home is **visible, in `~`** | 2 says you must be able to edit these with no tool in the loop, and XDG buries them where nobody looks. The convention splits on ownership, not platform: Taskwarrior hides `~/.task/` because you are not meant to open a sqlite file; org-mode, Obsidian and todo.txt stay visible because you are | live |
+| 53 | The default home is **visible, in `~`** | 2 says you must be able to edit these with no tool in the loop, and XDG buries them where nobody looks. The convention splits on ownership, not platform: Taskwarrior hides `~/.task/` because you are not meant to open a sqlite file; org-mode, Obsidian and todo.txt stay visible because you are | superseded by T17 |
 | 53a | It is **`~/tray`**, not `~/task-garage` | The directory holds `tray.md` as well as the months, so the old name announced one of the two layers and not the pair. `~/tray` matches the binary and is a word shorter | live |
 | 54 | `scripts/check-tray.sh` **stays bash**, and builds the binary itself | Decision 37: it survived a whole-language rewrite unchanged. That property is worth one non-Go file | live |
 | 55 | No `internal/feature` until something needs it | A flag package with zero consumers is speculative code you can't test. `tray install` was the only thing that would have, and 97 dropped it — so nothing does | live |
@@ -126,7 +126,7 @@ what is *guessed*.
 | 73b | The `garage ·` prefix is dropped in the sweep | It earns its place next to "tray" and nowhere else. Four prefixed labels also overflow an eighty-column terminal | live |
 | 74 | **Quitting the sweep carries nothing**, and the docs now say so | The docs claimed otherwise for as long as the sweep has existed. Triage and carry are separate acts; the sweep is the first | live |
 | 75 | A **due date that has already passed is not carried forward** | Carrying a line forward is admitting the date did not hold. Keeping it means every re-take starts overdue and urgency is junk. The source line keeps it | live |
-| 76 | **`--nag` deleted** | Nothing ever ran it. It was built to live in a shell profile, super-utils' installer is gone, and `tray install` is not written — so it was a nag you had to remember to trigger. `tray status` carries the warning until something can install it | live |
+| 76 | **`--nag` deleted** | Nothing ever ran it. It was built to live in a shell profile, super-utils' installer is gone, and `tray install` is not written — so it was a nag you had to remember to trigger. `tray status` carries the warning until something can install it | superseded by T4 |
 | 77 | **`--all` means one thing everywhere**: show the finished too | It was aliased to `dense`, so the tray table quietly included finished work while the garage could never show it at all. `carryover` uses `--run` now | live |
 | 77a | An unknown `--flag` is an **error** | `garage list --all` was silently swallowed, which is how 77 went unnoticed. Unknown flags fell into the filter list and vanished | live |
 
@@ -320,3 +320,50 @@ Reported from use: two tasks went done when one was meant to.
 | 92b | Review keeps **the same columns** as the working list | `urg` on a finished task is noise, so a finished-on date was the obvious swap. Rejected: one table shape everywhere is worth more than one mode reading slightly better, and the date is already in the file | live |
 | 92c | `enter` still opens a menu there, of the two verbs | Both are in the footer, so the menu adds nothing — but it costs no code, and `enter` doing nothing in one place is its own small surprise | live |
 | 94 | It is called **review**, not "show done" | `v show done` sat in a footer next to `x done` and read as a second way to mark something finished. Naming the mode removes the collision, and "review" says what you go there to do | live |
+
+## Plugins
+
+| # | Decision | Why | Status |
+|---|---|---|---|
+| 105 | A plugin's **menu verbs are the executables under `plugins/<name>/actions/`** | The folder is the manifest, one level further down than `run`: the filename is the label, the exec bit is the consent, and nothing is declared or parsed (18). tray hands the verb the picked lines as arguments and the layer in `TRAY_LAYER`, and re-reads the files when it is back | live |
+| 105a | A plugin verb has **no letter**; it is reached by `enter`, then a choice | The letters are tray's, and a verb that arrived by being installed cannot be allowed to shadow one — `s` today, `a` tomorrow. The menu is where you look for something you use less than daily, and `?` teaches only letters | live |
+| 105b | The verb gets **the terminal**, not a pipe | It is an interface of its own — a picker, a prompt, a browser consent — and tray has nothing to say while it runs. `tea.ExecProcess` releases the screen and takes it back; what the verb did to the files is what the reload shows, and tray adds nothing but a failure | live |
+| 105c | Offered on **both layers**, never in review | A reminder is as much for a tray task as for a jotted one. Review offers its own two verbs and nothing else (92c) | live |
+| 105d | A plugin may be **verbs alone**, with no `run` and no garage | Google Calendar is one: it books a time for a line and owns no list of its own. `tray plugin` then says what it adds, and claims no garage it never wrote | live |
+
+## traytable
+
+An experiment, cut 2026-09-28: the README's "What it's for" kept, the machinery under it
+replaced. Planned in `vault/tasks/poc-traytable/plan.md` in the imarobot vault and
+reviewed in two Plannotator rounds. Rows are numbered `T-n` so they never collide with the
+ones above; a row above that this branch retires says so in its Status. The interface
+half of the experiment — a desktop app in place of the TUI — is a second pull request
+stacked on this one, and its rows (T10–T12, T26–T28) arrive with it.
+
+| # | Decision | Why | Status |
+|---|---|---|---|
+| T1 | **SQLite is the truth**; markdown, todo.txt and Taskwarrior JSON are wire formats | Stable ids, recurrence and sync-back all need a store you do not hand-edit; the grammar keeps its job on the way in and out (supersedes 2, the disk half of 17, 53) | live |
+| T2 | **No history.** Done is a date on the row; erase deletes it | Few things well. The record that arrows and month files kept was the price of files, and a database does not need to pay it (supersedes 5, 5a, 6) | live |
+| T3 | **Ids are four random base36 characters with a digit**, printed first by the CLI and dim in the interface's first column | Agents address a task across runs; people address it by looking, and now by typing it into a bullet on a phone. Four characters fit a parenthesis; the digit keeps a four-letter word from ever being one. The store rolls again on a collision, and an erased id is not handed out again while any row could remember it (supersedes 8, 82, 93b; the integers of the first cut of this branch) | live |
+| T4 | **Event-driven**: nothing runs on its own. `sync` is the one event, fired by hand | One binary, one process; a plugin that fails cannot take the tool with it (supersedes 76) | live |
+| T5 | **Outside data lands through a reviewed diff**, all or none, per plugin | "Glitches not allowed" as a rule — and the review is also the merge: when both sides changed, you see old → new and the pull wins only if you apply it | live |
+| T6 | **A plugin is one `sync` executable with `plan` and `apply` phases**, plus `actions/` | Both directions get reviewed before anything happens; one file, no manifest. `run` is gone (extends 105) | live |
+| T7 | **`settings.example.json` is the onboarding form**; tray writes `settings.json` and never reads it | The folder stays the manifest and the plugin owns what its settings mean (18, 105) | live |
+| T8 | **`on-launch` is a marker file**; absent means manual only | The exec-bit idiom for one more fact. A web garage takes minutes, so it should not run every time an interface opens | live |
+| T9 | **Plugin rows land in the garage**, in the month named after the plugin, and climb like any line | Iteratively clearer applies to outside data too. A row you already took is updated where it is | live |
+| T13 | **A waiting task lies in the garage; `sync` lifts it** onto the tray on its day | The garage is where a line waits for you to look; a date only decides when. One event (T4) moves it, like everything else that changes a layer | live |
+| T14 | **Recurrence keeps one live child** and skips missed periods — the next is due on or after today | A backlog of skipped weeklies is noise; the tray is the small deliberate list. A deliberate departure from Taskwarrior, whose names we keep (4) | live |
+| T15 | **Tags stay a text column** | Filters parse fifty thousand rows in Go faster than a join is worth; marked `ponytail:` in the schema as the ceiling | live |
+| T16 | **`find` is search**, not a rot detector | Rot detection lived on the arrows (6); without them, a repeat is simply a repeat | live |
+| T17 | **Home moves to `~/.local/share/tray/`** | 53's own rule: hide what you are not meant to open | live |
+| T18 | **`store` is a type, not an interface** | One implementation. "Store as an interface" on the old roadmap was the price of keeping two | live |
+| T19 | `core.Task` keeps a **`Moved` field, parse-only, never stored** | The markdown importer has to skip `→` lines, and dropping the field meant a second copy of `core.Tasks` in `wire` | live |
+| T20 | **`Parse` takes today** | A hand-struck line with no `done:` has to arrive finished on some date | live |
+| T21 | **`project` becomes a tag on every wire** — the line grammar and Taskwarrior JSON alike | 9 keeps tags the only axis; a board's project is a tag, so an import should say so rather than drop it or keep it as words | live |
+| T22 | A pulled row's **`done` is tri-state**: `null` not reported, `""` open, a date finished | A plugin that cannot see a field must be able to say nothing about it, or every sync would clear what the site never knew | live |
+| T23 | **A plan with a keyless or textless row is refused whole** | Never guess. Half a plan landing is the glitch T5 exists to prevent | live |
+| T24 | **`Materialize` reads every child**, not only the live ones | The next due must also follow the last child's due, or a child finished early gets its period served twice | live |
+| T25 | **`plugin_run` keeps the last run only** | `status` wants one line per plugin; a history is T2's argument again | live |
+| T29 | **The TUI moves rows, it never copies them.** `>`, hand back and take are one `core.Move`; the tabs and `>` still read from the store's months | 7 kept as a store operation. The arrow the source line used to keep was the record 6 wanted, and T2 gave that up on purpose | live |
+| T30 | **Marks are by id**, not by words | A mark used to survive a reload by its text; the id is what survives everything, including a rewrite | live |
+| T31 | **The TUI's seed and read-back are the markdown wire** | Tests still read like the file they used to write — `has(trayFile, "priority:H")` — while asserting on the store (63). One grammar, three jobs | live |

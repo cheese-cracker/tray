@@ -1,0 +1,6 @@
+{"pull": [
+  {"key": "n1", "text": "Ship the notes", "tags": ["work"]},
+  {"key": "n2", "text": "Renew the cert", "done": "2026-08-01", "priority": "H"}
+ ],
+ "push": [{"key": "n0", "set": {"done": "2026-08-07"}}],
+ "evidence": "evidence/shot.png"}

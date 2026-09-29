@@ -3,6 +3,8 @@ package ui
 import (
 	"strings"
 	"testing"
+
+	"github.com/cheese-cracker/tray/internal/store"
 )
 
 // The flows that are only true end to end: several keystrokes, a mode change in the
@@ -33,7 +35,7 @@ func TestFlowTakeOpensTheFormAndSaves(t *testing.T) {
 	sandbox(t)
 	garage(t, "2026-08", "- add retries to the sync job")
 
-	u := drive(t, New()).waitFor("tray")
+	u := drive(t, New(ts)).waitFor("tray")
 	u.press("tab").waitFor("add retries") // to the garage tab
 	u.press("t").waitFor("rewrite")       // take, which opens the form
 	u.press("down", "left")               // priority field, step it up toward H
@@ -47,7 +49,8 @@ func TestFlowTakeOpensTheFormAndSaves(t *testing.T) {
 	}
 	has(t, trayFile(t), "add retries to the sync job")
 	has(t, trayFile(t), "priority:H")
-	has(t, monthFile(t, "2026-08"), "→ tray")
+	has(t, trayFile(t), "from:2026-08")               // the row remembers where it came from
+	hasNot(t, monthFile(t, "2026-08"), "add retries") // it moved; nothing was copied
 }
 
 // T2 · with several marked the form skips the title: one name for many is never the
@@ -55,7 +58,7 @@ func TestFlowTakeOpensTheFormAndSaves(t *testing.T) {
 func TestFlowBatchRewriteSkipsTheTitle(t *testing.T) {
 	sandbox(t, "- [ ] one priority:L", "- [ ] two priority:L")
 
-	u := drive(t, New()).waitFor("one")
+	u := drive(t, New(ts)).waitFor("one")
 	u.press(" ", "j", " ") // mark both
 	u.press("r").waitFor("rewrite 2 tasks")
 	u.press("left", "enter") // priority L -> M, save
@@ -81,7 +84,7 @@ func TestFlowFilterThenActOnAFilteredRow(t *testing.T) {
 		"- [ ] renew the tls certificate priority:M",
 	)
 
-	u := drive(t, New()).waitFor("rotate")
+	u := drive(t, New(ts)).waitFor("rotate")
 	u.press("/").typeIn("certificate")
 	u.press("enter").waitFor("1 of 3") // filter applied, one row left
 	u.press("x")                       // done, straight from the list
@@ -105,7 +108,7 @@ func TestFlowMarksSurviveAFilter(t *testing.T) {
 		"- [ ] gamma task priority:M",
 	)
 
-	u := drive(t, New()).waitFor("alpha")
+	u := drive(t, New(ts)).waitFor("alpha")
 	u.press("/").typeIn("alpha")
 	u.press("enter").waitFor("1 of 3")
 	u.press(" ")   // mark alpha while beta and gamma are hidden
@@ -133,7 +136,7 @@ func TestFlowTabsCycleBothWays(t *testing.T) {
 	sandbox(t, "- [ ] on the tray priority:M")
 	garage(t, "2026-08", "- in the garage")
 
-	u := drive(t, New()).waitFor("on the tray")
+	u := drive(t, New(ts)).waitFor("on the tray")
 	u.press("tab").waitFor("in the garage")
 	u.press("tab").waitFor("on the tray") // wrapped forward off the last tab
 	u.press("shift+tab").waitFor("in the garage")
@@ -144,13 +147,13 @@ func TestFlowTabsCycleBothWays(t *testing.T) {
 	}
 }
 
-// T6 · `>` is the month sweep. The source line stays as a record with an arrow, and
-// the live copy lands where you sent it — decision 6, and the reason `find` works.
-func TestFlowMoveToCopiesForwardWithAnArrow(t *testing.T) {
+// T6 · `>` is the month sweep. The row moves to the month you sent it to and nothing
+// is left behind: a store keeps one row per task, so there is no copy to annotate.
+func TestFlowMoveToMovesTheRow(t *testing.T) {
 	sandbox(t)
 	garage(t, "2026-08", "- not this month after all")
 
-	u := drive(t, New()).waitFor("tray")
+	u := drive(t, New(ts)).waitFor("tray")
 	u.press("tab").waitFor("not this month")
 	u.press(">").waitFor("move 1 to")
 	u.press("j").press("enter") // past the tray, to a month
@@ -159,16 +162,20 @@ func TestFlowMoveToCopiesForwardWithAnArrow(t *testing.T) {
 	if m.mode != browsing {
 		t.Errorf("the picker should have closed, mode = %v", m.mode)
 	}
-	has(t, monthFile(t, "2026-08"), "→ ")
+	hasNot(t, monthFile(t, "2026-08"), "not this month")
+	has(t, monthFile(t, "2026-09"), "not this month after all")
+	if rows, _ := ts.Tasks(store.Filter{Text: "not this month", All: true}); len(rows) != 1 {
+		t.Errorf("a move keeps one row, found %d", len(rows))
+	}
 }
 
-// T7 · the bug 34b was written for: handing back used to leave the task on neither
-// layer, because dedupe counted the departed line as still being there.
-func TestFlowHandBackRevivesTheGarageLine(t *testing.T) {
+// T7 · handing back moves the row home to the month it came from — one row, no copy,
+// no orphan — and it keeps what the tray added (88a).
+func TestFlowHandBackMovesTheRowHome(t *testing.T) {
 	sandbox(t)
 	garage(t, "2026-08", "- fix the sync job")
 
-	u := drive(t, New()).waitFor("tray")
+	u := drive(t, New(ts)).waitFor("tray")
 	u.press("tab").waitFor("fix the sync job")
 	u.press("t").waitFor("rewrite") // take it, and give it a priority on the way
 	u.press("down", "left")
@@ -180,13 +187,57 @@ func TestFlowHandBackRevivesTheGarageLine(t *testing.T) {
 	month := monthFile(t, "2026-08")
 	hasNot(t, trayFile(t), "fix the sync job")
 	has(t, month, "fix the sync job")
-	hasNot(t, month, "→ tray") // the arrow is gone: the line came home, not a copy
 	if n := strings.Count(month, "fix the sync job"); n != 1 {
-		t.Errorf("handing back should revive one line, not add a copy:\n%s", month)
+		t.Errorf("handing back should move one row home, not add a copy:\n%s", month)
 	}
 	// Coming home must not undo what the tray added, or taking it again costs the
-	// same structuring twice.
+	// same structuring twice. And home forgets it left (Move clears from).
 	has(t, month, "fix the sync job priority:H")
+	hasNot(t, month, "from:")
+}
+
+// T20 · the id column is the permanent id, not the row's place in the list: erase the
+// row above and the one below keeps its id, which is what makes `tray k79l done` mean
+// the same task tomorrow.
+func TestFlowTheIdColumnReadsThePermanentId(t *testing.T) {
+	sandbox(t, "- [ ] first priority:M", "- [ ] second priority:M")
+	all, _ := ts.Tasks(store.Filter{All: true})
+	first, second := all[0].ID, all[1].ID
+
+	u := drive(t, New(ts)).waitFor("second")
+	m := u.press("q").final()
+	rows := strings.Split(m.View(), "\n")
+	has(t, m.View(), "id")
+	if !rowStartsWith(rows, first, "first") || !rowStartsWith(rows, second, "second") {
+		t.Fatalf("rows should read their ids %s and %s:\n%s", first, second, m.View())
+	}
+
+	u = drive(t, New(ts)).waitFor("second")
+	u.press("v").waitFor("review mode")
+	u.press("E").waitFor(`erased "first"`)
+	m = u.press("v").waitFor("second").final()
+	rows = strings.Split(m.View(), "\n")
+	if !rowStartsWith(rows, second, "second") {
+		t.Errorf("the surviving row must keep id %s:\n%s", second, m.View())
+	}
+	left, _ := ts.Tasks(store.Filter{All: true})
+	if len(left) != 1 || left[0].ID != second {
+		t.Errorf("the store should hold %s alone, got %+v", second, left)
+	}
+}
+
+// rowStartsWith is whether some line reads `… <id>  <text>`: the id in its own column,
+// directly before the words.
+func rowStartsWith(lines []string, id, text string) bool {
+	for _, l := range lines {
+		if idx := strings.Index(l, text); idx > 0 {
+			before := strings.Fields(l[:idx])
+			if len(before) > 0 && before[len(before)-1] == id {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // T8 · the garage asks for the words and nothing else — that is the whole point of
@@ -195,7 +246,7 @@ func TestFlowGarageAddAsksOnlyForATitle(t *testing.T) {
 	sandbox(t)
 	garage(t, "2026-08")
 
-	u := drive(t, New()).waitFor("tray")
+	u := drive(t, New(ts)).waitFor("tray")
 	u.press("tab").waitFor("nothing here")
 	u.press("a").waitFor("nothing else needed")
 	u.typeIn("the billing page is slow")
@@ -212,7 +263,7 @@ func TestFlowGarageAddAsksOnlyForATitle(t *testing.T) {
 func TestFlowTrayAddTakesTheWholeForm(t *testing.T) {
 	sandbox(t)
 
-	u := drive(t, New()).waitFor("nothing on the tray")
+	u := drive(t, New(ts)).waitFor("nothing on the tray")
 	u.press("a").waitFor("add to the tray")
 	u.typeIn("rotate the api keys")
 	u.press("down", "left")           // priority M -> H, leftward: the radio reads H · M · L
@@ -233,7 +284,7 @@ func TestFlowTrayAddTakesTheWholeForm(t *testing.T) {
 func TestFlowEscClearsTheFilterBeforeItQuits(t *testing.T) {
 	sandbox(t, "- [ ] alpha task priority:M", "- [ ] beta task priority:M")
 
-	u := drive(t, New()).waitFor("alpha")
+	u := drive(t, New(ts)).waitFor("alpha")
 	u.press("/").typeIn("alpha")
 	u.press("enter").waitFor("1 of 2")
 	u.press("esc").waitFor("beta") // still running, filter gone
@@ -256,7 +307,7 @@ func TestFlowSweepOpensTheMonthsAsTabs(t *testing.T) {
 	garage(t, "2026-07", "- left over from july")
 	garage(t, "2026-08", "- dumped this month")
 
-	u := drive(t, NewSweep("2026-07")).waitFor("dumped this month")
+	u := drive(t, NewSweep(ts, "2026-07")).waitFor("dumped this month")
 	m := u.press("q").final()
 
 	if m.layer().month != "2026-08" {
@@ -288,7 +339,7 @@ func TestFlowSweepOpensTheMonthsAsTabs(t *testing.T) {
 func TestFlowHelpOverlayToggles(t *testing.T) {
 	sandbox(t, "- [ ] one priority:H")
 
-	u := drive(t, New()).waitFor("one")
+	u := drive(t, New(ts)).waitFor("one")
 	u.press("?").waitFor("hand back")
 	m := u.press("?").press("q").final()
 
@@ -307,7 +358,7 @@ func TestFlowHelpOverlayToggles(t *testing.T) {
 func TestFlowPasteIntoTheTitle(t *testing.T) {
 	sandbox(t)
 
-	u := drive(t, New()).waitFor("nothing on the tray")
+	u := drive(t, New(ts)).waitFor("nothing on the tray")
 	u.press("a").waitFor("add to the tray")
 	u.paste("rotate the api keys\nand the certs")
 	u.typeIn("!")
@@ -336,12 +387,12 @@ func TestFlowViewDoneThenRestore(t *testing.T) {
 		"- [x] ~~done by mistake~~ priority:M entry:2026-08-02 done:2026-08-06",
 	)
 
-	u := drive(t, New()).waitFor("still open")
+	u := drive(t, New(ts)).waitFor("still open")
 	if got := len(u.press("q").final().items()); got != 1 {
 		t.Fatalf("a finished task should be hidden by default, saw %d rows", got)
 	}
 
-	u = drive(t, New()).waitFor("still open")
+	u = drive(t, New(ts)).waitFor("still open")
 	u.press("v").waitFor("done by mistake")
 	u.press("j").press("enter").waitFor("restore")
 	u.press("R").waitFor("1 restored")
@@ -366,7 +417,7 @@ func TestFlowReviewShowsEverythingAndOffersTheRareVerbs(t *testing.T) {
 		"- [x] ~~already done~~ priority:M entry:2026-08-02 done:2026-08-06",
 	)
 
-	u := drive(t, New()).waitFor("still open")
+	u := drive(t, New(ts)).waitFor("still open")
 	u.press("v").waitFor("already done")
 	m := u.press("q").final()
 
@@ -406,7 +457,7 @@ func TestFlowEraseRemovesTheLineAndSaysWhatWent(t *testing.T) {
 		"- [x] ~~typed it twice~~ priority:M entry:2026-08-02 done:2026-08-06",
 	)
 
-	u := drive(t, New()).waitFor("still open")
+	u := drive(t, New(ts)).waitFor("still open")
 	u.press("v").waitFor("typed it twice")
 	u.press("j").press("E").waitFor(`erased "typed it twice"`)
 	u.press("q").final()
@@ -423,7 +474,7 @@ func TestFlowGarageRewriteIsTextOnly(t *testing.T) {
 	sandbox(t)
 	garage(t, "2026-08", "- fix the sync job priority:H due:2026-08-20 +work")
 
-	u := drive(t, New()).waitFor("tray")
+	u := drive(t, New(ts)).waitFor("tray")
 	u.press("tab").waitFor("fix the sync job")
 	u.press("r").waitFor("rewrite")
 	m := u.press("q").final()
@@ -433,7 +484,7 @@ func TestFlowGarageRewriteIsTextOnly(t *testing.T) {
 	}
 
 	// Rewriting the words must not strip what the line already carries.
-	u = drive(t, New()).waitFor("tray")
+	u = drive(t, New(ts)).waitFor("tray")
 	u.press("tab").waitFor("fix the sync job")
 	u.press("r").waitFor("rewrite")
 	u.typeIn(" now")
@@ -454,7 +505,7 @@ func TestFlowGarageRewriteRefusesABatch(t *testing.T) {
 	sandbox(t)
 	garage(t, "2026-08", "- first line", "- second line")
 
-	u := drive(t, New()).waitFor("tray")
+	u := drive(t, New(ts)).waitFor("tray")
 	u.press("tab").waitFor("first line")
 	u.press(" ", "j", " ") // mark both
 	u.press("r")
@@ -467,7 +518,7 @@ func TestFlowGarageRewriteRefusesABatch(t *testing.T) {
 		t.Errorf("mode = %v, want browsing", m.mode)
 	}
 	// The tray still takes a batch: there, the attributes are the point.
-	if got := len(keys(New(), " ", "j", " ", "r").(Model).offered()); got == 0 {
+	if got := len(keys(New(ts), " ", "j", " ", "r").(Model).offered()); got == 0 {
 		t.Error("the tray should still offer a batch rewrite")
 	}
 }
@@ -479,7 +530,7 @@ func TestFlowNoteIsTheIndentedLinesUnderATask(t *testing.T) {
 	sandbox(t, "- [ ] Rotate the api keys priority:H entry:2026-08-01")
 	garage(t, "2026-08", "- a jotting")
 
-	u := drive(t, New()).waitFor("Rotate the api keys")
+	u := drive(t, New(ts)).waitFor("Rotate the api keys")
 	u.press("n").waitFor("note")
 	for _, r := range "old keys" {
 		u.press(string(r))
@@ -494,7 +545,7 @@ func TestFlowNoteIsTheIndentedLinesUnderATask(t *testing.T) {
 
 	// The garage form otherwise asks for the words alone (88); a note is more words,
 	// not structure, so `n` reaches it there too.
-	g := keys(New(), "tab", "n").(Model)
+	g := keys(New(ts), "tab", "n").(Model)
 	if got := g.form.fields(); len(got) != 1 || got[0] != fNote {
 		t.Errorf("the garage noter offered %v, want the note alone", got)
 	}

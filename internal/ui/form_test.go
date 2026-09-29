@@ -7,13 +7,11 @@ import (
 	"regexp"
 	"strings"
 	"testing"
-
-	"github.com/cheese-cracker/tray/internal/store"
 )
 
 func openRewrite(t *testing.T, presses ...string) Model {
 	t.Helper()
-	m := keys(New(), append([]string{"r"}, presses...)...).(Model)
+	m := keys(New(ts), append([]string{"r"}, presses...)...).(Model)
 	if m.form == nil {
 		t.Fatal("r should open the form")
 	}
@@ -87,7 +85,7 @@ func TestPriorityHasNoNoneAndDefaultsToMedium(t *testing.T) {
 
 func TestNewTrayTaskIsMediumByDefault(t *testing.T) {
 	sandbox(t)
-	keys(New(), "a", "d", "o", " ", "i", "t", "enter")
+	keys(New(ts), "a", "d", "o", " ", "i", "t", "enter")
 	if got := trayFile(t); !strings.Contains(got, "priority:M") {
 		t.Errorf("a new tray task should land at medium:\n%s", got)
 	}
@@ -196,7 +194,7 @@ func TestPriorityClampsAtTheTop(t *testing.T) {
 
 func TestBatchSkipsTheTitle(t *testing.T) {
 	sandbox(t, "- [ ] one priority:M", "- [ ] two priority:M")
-	m := keys(New(), " ", "j", " ", "r").(Model) // mark both, rewrite
+	m := keys(New(ts), " ", "j", " ", "r").(Model) // mark both, rewrite
 	if m.form == nil || !m.form.batch {
 		t.Fatal("two marks should open a batch form")
 	}
@@ -230,7 +228,7 @@ func TestFormViewShowsFieldsAndHint(t *testing.T) {
 // The three ways in. The garage asks for nothing; the tray expects structure.
 func TestAddToGarageAsksOnlyForTheWords(t *testing.T) {
 	sandbox(t)
-	m := keys(New(), "tab", "a").(Model) // garage tab
+	m := keys(New(ts), "tab", "a").(Model) // garage tab
 	if m.form == nil || !m.form.creating {
 		t.Fatal("a should open a new entry")
 	}
@@ -247,7 +245,7 @@ func TestAddToGarageAsksOnlyForTheWords(t *testing.T) {
 
 func TestAddToTrayOffersTheWholeForm(t *testing.T) {
 	sandbox(t)
-	m := keys(New(), "a").(Model) // tray tab
+	m := keys(New(ts), "a").(Model) // tray tab
 	if got := m.form.fields(); len(got) != 5 {
 		t.Errorf("the tray should expect structure and a note, got %v", got)
 	}
@@ -268,13 +266,12 @@ func TestAddToTrayOffersTheWholeForm(t *testing.T) {
 
 func TestAddCreatesNothingWhenAbandoned(t *testing.T) {
 	sandbox(t)
-	keys(New(), "a", "x", "esc")
+	keys(New(ts), "a", "x", "esc")
 	if got := trayFile(t); strings.Contains(got, "x") && strings.Count(got, "- ") > 0 {
 		t.Errorf("esc must create nothing:\n%s", got)
 	}
-	keys(New(), "a", "enter") // saved with an empty title
-	lines, _ := store.Read(store.TrayPath())
-	for _, line := range lines {
+	keys(New(ts), "a", "enter") // saved with an empty title
+	for _, line := range strings.Split(trayFile(t), "\n") {
 		if strings.HasPrefix(line, "- ") {
 			t.Errorf("an empty title must not create a task: %q", line)
 		}
@@ -412,7 +409,7 @@ func TestTheLiveRowIsOneColourEitherSideOfTheCaret(t *testing.T) {
 // used to start a row below, which read as the caret being on the wrong field.
 func TestTheNoteEditorStartsOnItsLabelsRow(t *testing.T) {
 	sandbox(t, "- [ ] a thing priority:M")
-	out, _ := New().Update(tea.WindowSizeMsg{Width: 60, Height: 18})
+	out, _ := New(ts).Update(tea.WindowSizeMsg{Width: 60, Height: 18})
 	m := keys(out, "n", "h", "i").(Model)
 
 	plain := regexp.MustCompile(`\x1b\[[0-9;]*m`).ReplaceAllString(m.View(), "")
@@ -434,7 +431,7 @@ func TestTakeWritesTheDefaultPriority(t *testing.T) {
 	sandbox(t)
 	garage(t, "2026-08", "- add retries to the sync job")
 
-	keys(New(), "tab", "t", "enter")
+	keys(New(ts), "tab", "t", "enter")
 
 	if got := trayFile(t); !strings.Contains(got, "priority:M") {
 		t.Errorf("take left the tray task with no priority:\n%s", got)

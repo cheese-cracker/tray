@@ -4,9 +4,9 @@
 │        └┴───────────────────┴─────────────────────────────────────────────────────
 │                                                                                  │
 │  review mode  ·  v/esc to leave                                                  │
-│         task                       pri  due  tags                                │
-│     [ ] Rotate the api keys        H                                             │
-│  ▸  [x] Renew the TLS certificate  H                                             │
+│         id    task                       pri  due  tags                          │
+│     [ ] id01  Rotate the api keys        H                                       │
+│  ▸  [x] id02  Renew the TLS certificate  H                                       │
 │                                                                                  │
 │                                                                                  │
 │                                                                                  │

@@ -3,17 +3,17 @@
 │  tray  ││  garage · August  │                                                     
 │        └┴───────────────────┴─────────────────────────────────────────────────────
 │                                                                                  │
-│         task    pri  due  tags                                                   │
-│  ▸  [ ] task a  M                                                                │
-│     [ ] task b  M                                                                │
-│     [ ] task c  M                                                                │
-│     [ ] task d  M                                                                │
-│     [ ] task e  M                                                                │
-│     [ ] task f  M                                                                │
-│     [ ] task g  M                                                                │
-│     [ ] task h  M                                                                │
-│     [ ] task i  M                                                                │
-│     [ ] task j  M                                                                │
+│         id    task    pri  due  tags                                             │
+│  ▸  [ ] id01  task a  M                                                          │
+│     [ ] id02  task b  M                                                          │
+│     [ ] id03  task c  M                                                          │
+│     [ ] id04  task d  M                                                          │
+│     [ ] id05  task e  M                                                          │
+│     [ ] id06  task f  M                                                          │
+│     [ ] id07  task g  M                                                          │
+│     [ ] id08  task h  M                                                          │
+│     [ ] id09  task i  M                                                          │
+│     [ ] id10  task j  M                                                          │
 │                                                                                  │
 └──────────────────────────────────────────────────────────────────────────────────┘
  ↑↓ move · space select · tab switch · enter act · a add · v review · / filter

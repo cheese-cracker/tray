@@ -24,7 +24,7 @@ func TestTheDueColumnHasTwoStates(t *testing.T) {
 		"- [ ] not yet priority:H due:2026-09-20",
 		"- [ ] no date at all priority:H",
 	)
-	out, _ := New().Update(tea.WindowSizeMsg{Width: 84, Height: 20})
+	out, _ := New(ts).Update(tea.WindowSizeMsg{Width: 84, Height: 20})
 	view := out.(Model).View()
 
 	paint := func(c lipgloss.TerminalColor) string {
@@ -69,7 +69,7 @@ func TestAFinishedRowKeepsNoDueColour(t *testing.T) {
 	defer lipgloss.SetColorProfile(was)
 
 	sandbox(t, "- [x] ~~long done~~ priority:H due:2026-08-01 done:2026-08-02")
-	out, _ := New().Update(tea.WindowSizeMsg{Width: 84, Height: 20})
+	out, _ := New(ts).Update(tea.WindowSizeMsg{Width: 84, Height: 20})
 	view := keys(out, "v").(Model).View()
 
 	now := regexp.MustCompile(`\[38;2;[0-9;]+`).

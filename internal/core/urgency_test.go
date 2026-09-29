@@ -12,6 +12,15 @@ func day(s string) time.Time {
 	return d
 }
 
+func parse(t *testing.T, line string) Task {
+	t.Helper()
+	task, ok := Parse(line, day("2026-08-07"))
+	if !ok {
+		t.Fatalf("did not parse: %q", line)
+	}
+	return task
+}
+
 func TestDueRamp(t *testing.T) {
 	today := day("2026-08-07")
 	cases := []struct {
@@ -36,9 +45,9 @@ func TestDueRamp(t *testing.T) {
 
 func TestUrgencyOrdering(t *testing.T) {
 	today := day("2026-08-07")
-	urgent, _ := Parse("- [ ] Urgent thing priority:H due:2026-08-08 entry:2026-08-07", 0)
-	middle, _ := Parse("- [ ] Middle thing priority:M entry:2026-08-07", 0)
-	low, _ := Parse("- [ ] Low thing priority:L entry:2026-08-07", 0)
+	urgent := parse(t, "- [ ] Urgent thing priority:H due:2026-08-08 entry:2026-08-07")
+	middle := parse(t, "- [ ] Middle thing priority:M entry:2026-08-07")
+	low := parse(t, "- [ ] Low thing priority:L entry:2026-08-07")
 
 	if !(Urgency(urgent, today) > Urgency(middle, today)) {
 		t.Errorf("H+due must outrank M: %v vs %v", Urgency(urgent, today), Urgency(middle, today))
@@ -51,9 +60,8 @@ func TestUrgencyOrdering(t *testing.T) {
 func TestUrgencyTerms(t *testing.T) {
 	today := day("2026-08-07")
 
-	// Priority alone: 6.0 * 1.0, no tags, no due, no project, no age.
-	bare, _ := Parse("- [ ] Thing priority:H", 0)
-	if got := Urgency(bare, today); math.Abs(got-6.0) > 0.001 {
+	// Priority alone: 6.0 * 1.0, no tags, no due, no age.
+	if got := Urgency(parse(t, "- [ ] Thing priority:H"), today); math.Abs(got-6.0) > 0.001 {
 		t.Errorf("priority H alone = %v, want 6.0", got)
 	}
 
@@ -66,19 +74,16 @@ func TestUrgencyTerms(t *testing.T) {
 		{"- [ ] Thing +a +b", 0.9},
 		{"- [ ] Thing +a +b +c", 1.0},
 	} {
-		task, _ := Parse(c.line, 0)
-		if got := Urgency(task, today); math.Abs(got-c.want) > 0.001 {
+		if got := Urgency(parse(t, c.line), today); math.Abs(got-c.want) > 0.001 {
 			t.Errorf("%q = %v, want %v", c.line, got, c.want)
 		}
 	}
 
 	// Age subtracts, capped at a year.
-	old, _ := Parse("- [ ] Thing entry:2025-08-07", 0)
-	if got := Urgency(old, today); math.Abs(got-(-2.0)) > 0.01 {
+	if got := Urgency(parse(t, "- [ ] Thing entry:2025-08-07"), today); math.Abs(got-(-2.0)) > 0.01 {
 		t.Errorf("a year old = %v, want -2.0", got)
 	}
-	ancient, _ := Parse("- [ ] Thing entry:2020-01-01", 0)
-	if got := Urgency(ancient, today); math.Abs(got-(-2.0)) > 0.01 {
+	if got := Urgency(parse(t, "- [ ] Thing entry:2020-01-01"), today); math.Abs(got-(-2.0)) > 0.01 {
 		t.Errorf("age is capped at a year: %v", got)
 	}
 }
@@ -99,8 +104,7 @@ func TestQuadrant(t *testing.T) {
 		{"- [ ] a due:2026-12-01", "Q4"}, // a far due date is not urgent
 	}
 	for _, c := range cases {
-		task, _ := Parse(c.line, 0)
-		if got := Quadrant(task, today); got != c.want {
+		if got := Quadrant(parse(t, c.line), today); got != c.want {
 			t.Errorf("%q = %s, want %s", c.line, got, c.want)
 		}
 	}

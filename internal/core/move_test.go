@@ -2,65 +2,70 @@ package core
 
 import "testing"
 
-func TestDepartLeavesTheLineAndMarksIt(t *testing.T) {
-	src, _ := Parse("- add retries to the sync job", 4)
-	Depart(&src, "2026-09")
-	if src.Text != "add retries to the sync job" {
-		t.Error("departing must not touch the text")
+func TestTakeRemembersTheMonthItLeft(t *testing.T) {
+	src := New("add retries to the sync job", []string{"infra"})
+	src.Month = "2026-08"
+	Move(&src, LayerTray, "")
+	if src.Layer != LayerTray || src.Month != "" {
+		t.Errorf("a taken task is on the tray and in no month: %+v", src)
 	}
-	if src.Live() {
-		t.Error("a departed line is no longer live, so it can't move twice")
+	if src.FromMonth != "2026-08" {
+		t.Errorf("from = %q, want the garage month it left", src.FromMonth)
 	}
-	want := "- add retries to the sync job → 2026-09"
-	if got := Line(src, false); got != want {
-		t.Errorf("got %q, want %q", got, want)
-	}
-}
-
-func TestArriveStamps(t *testing.T) {
-	src, _ := Parse("- add metrics to the worker +infra", 0)
-	fresh := Arrive(src, "2026-08", day("2026-08-07"))
-
-	if fresh.Attrs["from"] != "2026-08" {
-		t.Errorf("from = %q", fresh.Attrs["from"])
-	}
-	if fresh.Attrs["entry"] != "2026-08-07" {
-		t.Errorf("entry = %q", fresh.Attrs["entry"])
-	}
-	if fresh.Moved != "" {
-		t.Error("the copy that travels carries no arrow")
-	}
-	if len(fresh.Tags) != 1 || fresh.Tags[0] != "infra" {
-		t.Errorf("tags should survive the move: %v", fresh.Tags)
+	if len(src.Tags) != 1 {
+		t.Error("tags survive the move")
 	}
 }
 
-func TestArriveKeepsExistingProvenance(t *testing.T) {
-	// Handing back and taking again must not rewrite where it originally came from.
-	src, _ := Parse("- [ ] Fix alerts priority:H from:2026-06 entry:2026-06-01", 0)
-	fresh := Arrive(src, "2026-08", day("2026-08-07"))
-	if fresh.Attrs["from"] != "2026-06" {
-		t.Errorf("from = %q, want the original 2026-06", fresh.Attrs["from"])
+// Handing back with no destination goes home, and forgets home: it lives there again.
+func TestHandBackGoesHomeAndForgets(t *testing.T) {
+	task := Task{Layer: LayerTray, Text: "Fix alerts", Priority: "H", FromMonth: "2026-06"}
+	Move(&task, LayerGarage, "")
+	if task.Layer != LayerGarage || task.Month != "2026-06" || task.FromMonth != "" {
+		t.Errorf("got %+v", task)
 	}
-	if fresh.Attrs["entry"] != "2026-06-01" {
-		t.Errorf("entry = %q, want the original", fresh.Attrs["entry"])
+	if task.Priority != "H" {
+		t.Error("what the tray added comes home with it (88a)")
+	}
+	// Taking it again stamps where it lives now, not where it once was.
+	Move(&task, LayerTray, "")
+	if task.FromMonth != "2026-06" {
+		t.Errorf("from = %q", task.FromMonth)
+	}
+}
+
+func TestCarryForwardIsAMonthChange(t *testing.T) {
+	task := Task{Layer: LayerGarage, Month: "2026-08", Text: "leftover"}
+	Move(&task, LayerGarage, "2026-09")
+	if task.Month != "2026-09" || task.Layer != LayerGarage || task.FromMonth != "" {
+		t.Errorf("got %+v", task)
 	}
 }
 
 func TestFinishIsTerminalInPlace(t *testing.T) {
-	task, _ := Parse("- [ ] Renew the TLS certificate priority:H", 2)
-	Finish(&task, "done", day("2026-08-07"))
-	if !task.Done || task.Live() {
+	task, _ := Parse("- [ ] Renew the TLS certificate priority:H", day("2026-08-01"))
+	Finish(&task, day("2026-08-07"))
+	if !task.Terminal() || task.Live() {
 		t.Error("want done and not live")
 	}
 	want := "- [x] ~~Renew the TLS certificate~~ priority:H done:2026-08-07"
 	if got := Line(task, true); got != want {
 		t.Errorf("got %q, want %q", got, want)
 	}
+	Restore(&task)
+	if task.Terminal() || !task.Live() {
+		t.Error("restore reopens it, with no trace")
+	}
+}
 
-	other, _ := Parse("- [ ] Dead idea", 3)
-	Restore(&other)
-	if other.Done || !other.Live() {
-		t.Error("restoring an open task leaves it open")
+// Done on a template ends the recurrence rather than striking a template through.
+func TestFinishOnATemplateStopsIt(t *testing.T) {
+	tpl := Task{Layer: LayerTray, Text: "Weekly review", Recur: "weekly", Due: "2026-10-03"}
+	Finish(&tpl, day("2026-08-07"))
+	if tpl.Done != "" || tpl.Until != "2026-08-07" {
+		t.Errorf("got %+v", tpl)
+	}
+	if tpl.Live() {
+		t.Error("a template is never live work")
 	}
 }

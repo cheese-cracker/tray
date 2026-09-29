@@ -1,26 +1,38 @@
-// Package core holds the rules — grammar, urgency, moves. It never touches a file.
+// Package core holds the rules — grammar, urgency, moves. It never touches a file or
+// a table: the grammar here is for the wire (the CLI's mods, import and export), and
+// the store keeps columns.
 package core
 
 import (
 	"regexp"
 	"strings"
+	"time"
 	"unicode"
 )
 
-// KnownAttrs is also the order attributes serialise in.
-var KnownAttrs = []string{"priority", "due", "project", "entry", "from", "done"}
+const (
+	LayerTray   = "tray"
+	LayerGarage = "garage"
+)
 
-// dropped: was a third terminal state, removed. It is still *read* so a file written
-// by an older build degrades into `done:` rather than having the attribute swallowed
-// into the task's own text — which is what an unknown key off the end of a line does.
-const legacyDropped = "dropped"
+// KnownAttrs is the wire order: what follows a task's words on a line, and the keys
+// the CLI accepts as key:value. Each is a column; `from` is spelled from_month there.
+var KnownAttrs = []string{"priority", "due", "wait", "recur", "until", "entry", "from", "done"}
 
-// TagMark is what a tag is written with **in a file**. Taskwarrior's spelling, which is
-// what 4 aligns with and what `tray export | task import` rests on. Both are read (see
-// tagRe); the interface draws `#` instead, which is a rendering choice and not this one.
+// Read, never written: a project is a tag here (9), so project: on the wire becomes
+// one; and a file written by an older build may still carry dropped:, which reads as
+// done. Both have to be recognised, or the key is swallowed into the words — an unknown
+// key off the end of a line is just more sentence (17).
+const (
+	legacyDropped = "dropped"
+	legacyProject = "project"
+)
+
+// TagMark is what a tag is written with on the wire. Taskwarrior's spelling, which is
+// what 4 aligns with; both spellings are read (see tagRe).
 const TagMark = "+"
 
-var aliases = map[string]string{"pri": "priority", "p": "priority", "proj": "project"}
+var aliases = map[string]string{"pri": "priority", "p": "priority"}
 
 var (
 	bulletRe = regexp.MustCompile(`^(\s*)[-*]\s+(?:\[([ xX])\]\s+)?(.*)$`)
@@ -30,42 +42,91 @@ var (
 )
 
 type Task struct {
-	Index int // line index in the file it came from
-	Span  int // how many lines it occupies there: the bullet, then its note
-	Raw   string
+	ID    string // four base36 characters, see id.go
+	Layer string // LayerTray or LayerGarage
+	Month string // garage only: 2026-09, someday, or the plugin whose garage it is
 	Text  string
-	Attrs map[string]string
-	Tags  []string
-	Done  bool
-	Moved string // "tray", "2026-09", or empty
 
-	// Note is the indented lines under the bullet, joined by newlines and with the
-	// indent stripped. One note, any length — a bag of tasks does not track history,
-	// so there is nothing to date. Empty for the common case.
-	Note string
+	Priority string // H, M or L; "" reads as M (32)
+	Due      string // YYYY-MM-DD
+	Wait     string // a garage row that surfaces onto the tray on this day
+	Recur    string // a period; set, the row is a template rather than a task
+	Until    string // when a template stops
+	Entry    string // created
+	Done     string // finished on; "" is live
+	// FromMonth is the garage month a tray task was taken from, so handing it back
+	// needs no destination. Cleared on the way home: it lives there again.
+	FromMonth string
+
+	Tags   []string
+	Note   string
+	Source string // <plugin>:<key>, recur:<id>, tw:<uuid> — where a row came from
+
+	// Moved is read off a line's trailing `→ 2026-09` and never stored. To an importer
+	// it says the line is history whose live copy went elsewhere.
+	Moved string
 }
 
 func New(text string, tags []string) Task {
-	return Task{Index: -1, Text: text, Attrs: map[string]string{}, Tags: tags}
+	return Task{Layer: LayerGarage, Text: text, Tags: tags}
 }
 
-func (t Task) Terminal() bool { return t.Done }
-func (t Task) Live() bool     { return !t.Terminal() && t.Moved == "" }
-func (t Task) Parsed() bool   { return t.Text != "" }
-func (t Task) Priority() string {
-	return strings.ToUpper(t.Attrs["priority"])
+func (t Task) Terminal() bool { return t.Done != "" }
+
+// Live is work you can pick up: not finished, not a template, not a line that moved.
+func (t Task) Live() bool { return !t.Terminal() && t.Recur == "" && t.Moved == "" }
+
+// Waiting is a row whose day has not come.
+func (t Task) Waiting(today time.Time) bool {
+	d, ok := Date(t.Wait)
+	return ok && d.After(today)
 }
 
-// Copy is what travels during a move. Terminal state comes along, so a done task
-// handed back to the garage arrives struck through rather than looking open.
-func (t Task) Copy() Task {
-	attrs := make(map[string]string, len(t.Attrs))
-	for k, v := range t.Attrs {
-		attrs[k] = v
+// Attr reads a field by its wire name.
+func (t Task) Attr(key string) string {
+	switch key {
+	case "priority":
+		return t.Priority
+	case "due":
+		return t.Due
+	case "wait":
+		return t.Wait
+	case "recur":
+		return t.Recur
+	case "until":
+		return t.Until
+	case "entry":
+		return t.Entry
+	case "from":
+		return t.FromMonth
+	case "done":
+		return t.Done
+	case "month":
+		return t.Month
 	}
-	return Task{
-		Index: -1, Text: t.Text, Attrs: attrs, Tags: append([]string{}, t.Tags...),
-		Done: t.Done,
+	return ""
+}
+
+// SetAttr writes a field by its wire name; an empty value clears it. Unknown keys
+// are ignored, which is what lets `to:` ride along in Mods without becoming a field.
+func (t *Task) SetAttr(key, value string) {
+	switch key {
+	case "priority":
+		t.Priority = strings.ToUpper(value)
+	case "due":
+		t.Due = value
+	case "wait":
+		t.Wait = value
+	case "recur":
+		t.Recur = value
+	case "until":
+		t.Until = value
+	case "entry":
+		t.Entry = value
+	case "from":
+		t.FromMonth = value
+	case "done":
+		t.Done = value
 	}
 }
 
@@ -76,12 +137,10 @@ func canonical(key string) string {
 	return key
 }
 
-// known is deliberately wider than KnownAttrs, which is the *write* order. A retired
-// key still has to be recognised on the way in, or it stops being an attribute and
-// gets absorbed into the task's own text — 17 reads attributes off the end and only
-// for known keys, so an unknown one is just more sentence.
+// known is wider than KnownAttrs, which is the write order: a retired key still has to
+// be recognised on the way in or it becomes part of the words.
 func known(key string) bool {
-	if key == legacyDropped {
+	if key == legacyDropped || key == legacyProject {
 		return true
 	}
 	for _, k := range KnownAttrs {
@@ -92,8 +151,10 @@ func known(key string) bool {
 	return false
 }
 
-// Parse reads one line. A bullet is a task; anything else is prose we leave alone.
-func Parse(raw string, index int) (Task, bool) {
+// Parse reads one markdown line. A bullet is a task; anything else is prose. A struck
+// or ticked line is finished, and one that carries no date is dated today — that is
+// what strikethrough means to someone reading the file with no tray in the loop.
+func Parse(raw string, today time.Time) (Task, bool) {
 	m := bulletRe.FindStringSubmatch(raw)
 	if m == nil {
 		return Task{}, false
@@ -137,41 +198,39 @@ func Parse(raw string, index int) (Task, bool) {
 		text = strings.TrimSpace(text[2 : len(text)-2])
 	}
 
-	// A struck-through line is finished, whatever else the line says: that is what
-	// the strikethrough means to anyone reading the file without tray.
-	_, hasDone := attrs["done"]
-	done := strings.EqualFold(box, "x") || hasDone || struck
-	if when, was := attrs[legacyDropped]; was {
-		delete(attrs, legacyDropped)
-		done = true
-		if attrs["done"] == "" {
-			attrs["done"] = when
-		}
+	t := Task{Text: text, Tags: tags, Moved: moved}
+	for key, value := range attrs {
+		t.SetAttr(key, value)
 	}
-
-	return Task{
-		Index: index, Raw: raw, Text: text, Attrs: attrs, Tags: tags,
-		Done: done, Moved: moved,
-	}, true
+	if when, was := attrs[legacyDropped]; was && t.Done == "" {
+		t.Done = when
+	}
+	if p, was := attrs[legacyProject]; was && !contains(t.Tags, p) {
+		t.Tags = append(t.Tags, p)
+	}
+	if (strings.EqualFold(box, "x") || struck) && t.Done == "" {
+		t.Done = today.Format(DateLayout)
+	}
+	return t, true
 }
 
-// Tasks parses every bullet in a file, keeping each one's line index.
-func Tasks(lines []string) []Task {
+// Tasks parses every bullet in a document, each with the indented lines under it.
+func Tasks(lines []string, today time.Time) []Task {
 	var out []Task
 	for i := 0; i < len(lines); {
-		t, ok := Parse(lines[i], i)
+		t, ok := Parse(lines[i], today)
 		if !ok {
 			i++
 			continue
 		}
-		t.Span = SpanAt(lines, i)
+		span := SpanAt(lines, i)
 		var note []string
-		for _, raw := range lines[i+1 : i+t.Span] {
+		for _, raw := range lines[i+1 : i+span] {
 			note = append(note, strings.TrimSpace(raw))
 		}
 		t.Note = strings.Join(note, "\n")
 		out = append(out, t)
-		i += t.Span
+		i += span
 	}
 	return out
 }
@@ -179,9 +238,6 @@ func Tasks(lines []string) []Task {
 // SpanAt is how many lines the task at i occupies: its bullet, then every following
 // line that is indented and is not itself a bullet. A blank line ends it, which is
 // the escape hatch for prose that sits under a task without belonging to it.
-//
-// Indented bullets stay tasks — bulletRe allows the indent and always has — so a note
-// line is "indented and not a task", not merely "indented".
 func SpanAt(lines []string, i int) int {
 	n := 1
 	for i+n < len(lines) && isNoteLine(lines[i+n]) {
@@ -210,7 +266,7 @@ func Lines(t Task, checkbox bool) []string {
 	return out
 }
 
-// Line serialises a task back to markdown.
+// Line serialises a task to markdown.
 func Line(t Task, checkbox bool) string {
 	body := t.Text
 	if t.Terminal() {
@@ -218,7 +274,7 @@ func Line(t Task, checkbox bool) string {
 	}
 	parts := []string{body}
 	for _, key := range KnownAttrs {
-		if v := t.Attrs[key]; v != "" {
+		if v := t.Attr(key); v != "" {
 			parts = append(parts, key+":"+v)
 		}
 	}
@@ -229,25 +285,15 @@ func Line(t Task, checkbox bool) string {
 	box := ""
 	if checkbox {
 		box = "[ ] "
-		if t.Done {
+		if t.Terminal() {
 			box = "[x] "
 		}
 	}
-	line := "- " + box + strings.Join(nonEmpty(parts), " ")
+	line := "- " + box + strings.Join(parts, " ")
 	if t.Moved != "" {
 		line += " → " + t.Moved
 	}
 	return line
-}
-
-func nonEmpty(in []string) []string {
-	out := in[:0:0]
-	for _, s := range in {
-		if s != "" {
-			out = append(out, s)
-		}
-	}
-	return out
 }
 
 type Mods struct {
@@ -286,15 +332,14 @@ func SplitMods(tokens []string) Mods {
 
 // ApplyMods writes mods onto a task. An empty value removes the attribute.
 func ApplyMods(t *Task, mods Mods) {
-	if t.Attrs == nil {
-		t.Attrs = map[string]string{}
-	}
 	for key, val := range mods.Attrs {
-		if val == "" {
-			delete(t.Attrs, key)
+		if key == legacyProject {
+			if val != "" && !contains(mods.AddTags, val) {
+				mods.AddTags = append(mods.AddTags, val)
+			}
 			continue
 		}
-		t.Attrs[key] = val
+		t.SetAttr(key, val)
 	}
 	if len(mods.DelTags) > 0 {
 		kept := t.Tags[:0:0]

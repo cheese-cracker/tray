@@ -1,47 +1,70 @@
 package ui
 
 import (
+	"regexp"
 	"strings"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/cheese-cracker/tray/internal/core"
 	"github.com/cheese-cracker/tray/internal/store"
 )
 
-// Behaviour is asserted on model state and on what landed in the file. Frames are
-// only checked for structure, so restyling doesn't break the suite.
+// ts is the sandbox's store: what every model under test reads and writes, and what
+// the assertions read back (63). sandbox replaces it per test.
+var ts *store.Store
+
+// Behaviour is asserted on model state and on what landed in the store. Frames are
+// only checked for structure, so restyling doesn't break the suite. The seed lines
+// are the markdown wire, so a test still reads like the file it used to write.
 func sandbox(t *testing.T, lines ...string) {
 	t.Helper()
 	t.Setenv("TRAY_HOME", t.TempDir())
 	t.Setenv("TRAY_TODAY", "2026-08-07")
-	doc, err := store.Tray()
+	s, err := store.Open(store.Home())
 	if err != nil {
 		t.Fatal(err)
 	}
-	doc.Lines = append([]string{store.TrayHeader, ""}, lines...)
-	if err := doc.Save(); err != nil {
+	t.Cleanup(func() { s.Close() })
+	ts = s
+	seed(t, core.LayerTray, "", lines...)
+}
+
+// seed parses wire lines and lands them on a layer, in order, so ids follow the seed.
+func seed(t *testing.T, layer, month string, lines ...string) {
+	t.Helper()
+	for _, task := range core.Tasks(lines, store.Today()) {
+		task.Layer, task.Month = layer, month
+		if err := ts.Put(&task); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+// rendered is a layer as the markdown wire would write it — what the file used to
+// hold, read back from the store so every assertion is about what landed there.
+func rendered(t *testing.T, f store.Filter, checkbox bool) string {
+	t.Helper()
+	f.All = true
+	rows, err := ts.Tasks(f)
+	if err != nil {
 		t.Fatal(err)
 	}
+	var lines []string
+	for _, task := range rows {
+		lines = append(lines, core.Lines(task, checkbox)...)
+	}
+	return strings.Join(lines, "\n")
 }
 
 func trayFile(t *testing.T) string {
-	t.Helper()
-	lines, err := store.Read(store.TrayPath())
-	if err != nil {
-		t.Fatal(err)
-	}
-	return strings.Join(lines, "\n")
+	return rendered(t, store.Filter{Layer: core.LayerTray}, true)
 }
 
 func garageFile(t *testing.T) string {
-	t.Helper()
-	lines, err := store.Read(store.MonthPath(""))
-	if err != nil {
-		t.Fatal(err)
-	}
-	return strings.Join(lines, "\n")
+	return rendered(t, store.Filter{Layer: core.LayerGarage, Month: store.ThisMonth()}, false)
 }
 
 func keys(m tea.Model, presses ...string) tea.Model {
@@ -86,7 +109,7 @@ func TestListOrdersByUrgency(t *testing.T) {
 		"- [ ] urgent thing priority:H due:2026-08-08",
 		"- [ ] middle thing priority:M",
 	)
-	m := New()
+	m := New(ts)
 	if len(m.items()) != 3 {
 		t.Fatalf("got %d items", len(m.items()))
 	}
@@ -101,14 +124,14 @@ func TestTerminalTasksAreNotListed(t *testing.T) {
 		"- [x] ~~done thing~~ done:2026-08-01",
 		"- ~~struck by hand~~ priority:M",
 	)
-	if got := len(New().items()); got != 1 {
+	if got := len(New(ts).items()); got != 1 {
 		t.Errorf("listed %d items, want only the live one", got)
 	}
 }
 
 func TestCursorMoves(t *testing.T) {
 	sandbox(t, "- [ ] one priority:H", "- [ ] two priority:M", "- [ ] three priority:L")
-	m := keys(New(), "j", "j").(Model)
+	m := keys(New(ts), "j", "j").(Model)
 	if m.list.Index() != 2 {
 		t.Errorf("cursor = %d, want 2", m.list.Index())
 	}
@@ -136,7 +159,7 @@ func TestOnlyTabSwitchesLayers(t *testing.T) {
 	sandbox(t, "- [ ] on the tray priority:H")
 	garage(t, "2026-08", "- in the garage")
 
-	m := New()
+	m := New(ts)
 	for _, dead := range []string{"left", "right", "h", "l"} {
 		if got := keys(m, dead).(Model).layer().title; got != "tray" {
 			t.Errorf("%q should not switch layers, landed on %q", dead, got)
@@ -152,8 +175,8 @@ func TestOnlyTabSwitchesLayers(t *testing.T) {
 
 func TestSpaceMarksAndUnmarks(t *testing.T) {
 	sandbox(t, "- [ ] one priority:H", "- [ ] two priority:M")
-	m := keys(New(), " ").(Model)
-	if len(m.marked) != 1 || !m.marked["one"] {
+	m := keys(New(ts), " ").(Model)
+	if len(m.marked) != 1 || !m.marked[m.items()[0].ID] {
 		t.Errorf("marked = %v", m.marked)
 	}
 	m = keys(m, " ").(Model)
@@ -164,7 +187,7 @@ func TestSpaceMarksAndUnmarks(t *testing.T) {
 
 func TestDoneFromTheList(t *testing.T) {
 	sandbox(t, "- [ ] one priority:H", "- [ ] two priority:M")
-	m := keys(New(), "x").(Model) // acts on the cursor when nothing is marked
+	m := keys(New(ts), "x").(Model) // acts on the cursor when nothing is marked
 
 	if got := trayFile(t); !strings.Contains(got, "~~one~~") {
 		t.Errorf("file did not record done:\n%s", got)
@@ -176,7 +199,7 @@ func TestDoneFromTheList(t *testing.T) {
 
 func TestActionAppliesToEveryMark(t *testing.T) {
 	sandbox(t, "- [ ] one priority:H", "- [ ] two priority:M", "- [ ] three priority:L")
-	m := keys(New(), " ", "j", " ", "x").(Model) // mark two, finish both
+	m := keys(New(ts), " ", "j", " ", "x").(Model) // mark two, finish both
 
 	got := trayFile(t)
 	if !strings.Contains(got, "~~one~~") || !strings.Contains(got, "~~two~~") {
@@ -192,7 +215,7 @@ func TestActionAppliesToEveryMark(t *testing.T) {
 
 func TestHandBackMovesToTheGarage(t *testing.T) {
 	sandbox(t, "- [ ] one priority:H +infra")
-	keys(New(), "d")
+	keys(New(ts), "d")
 
 	if got := garageFile(t); !strings.Contains(got, "one priority:H") {
 		t.Errorf("garage did not receive it:\n%s", got)
@@ -208,7 +231,7 @@ func TestTagKeyKeepsEveryTagOnBothLayers(t *testing.T) {
 	sandbox(t, "- [ ] two tags priority:M +infra +work")
 	garage(t, "2026-08", "- a jotting")
 
-	m := keys(New(), "#").(Model)
+	m := keys(New(ts), "#").(Model)
 	if m.mode != editing {
 		t.Fatal("# should open the tag field on the tray")
 	}
@@ -225,7 +248,7 @@ func TestTagKeyKeepsEveryTagOnBothLayers(t *testing.T) {
 
 	// The screen draws `#`, the file keeps Taskwarrior's `+`. Both spellings parse, so
 	// the two can differ without the file ever becoming ambiguous.
-	if view := keys(New(), "q").(Model).View(); !strings.Contains(view, "#infra") {
+	if view := keys(New(ts), "q").(Model).View(); !strings.Contains(view, "#infra") {
 		t.Errorf("the table should draw a # tag:\n%s", view)
 	}
 	if got := trayFile(t); strings.Contains(got, "#infra") {
@@ -233,7 +256,7 @@ func TestTagKeyKeepsEveryTagOnBothLayers(t *testing.T) {
 	}
 
 	// And the garage gets it, because `tray dump +infra` already writes tags there.
-	g := keys(New(), "tab", "#").(Model)
+	g := keys(New(ts), "tab", "#").(Model)
 	if g.mode != editing {
 		t.Fatal("# should open the tag field in the garage")
 	}
@@ -249,7 +272,7 @@ func TestTheSweepFooterNamesTheSweepsVerbs(t *testing.T) {
 	garage(t, "2026-07", "- left over from july")
 	garage(t, "2026-08", "- dumped this month")
 
-	view := NewSweep("2026-07").View()
+	view := NewSweep(ts, "2026-07").View()
 	for _, want := range []string{"> move to", "t take", "v review", "enter act"} {
 		if !strings.Contains(view, want) {
 			t.Errorf("the sweep footer should name %q:\n%s", want, view)
@@ -262,10 +285,10 @@ func TestTheSweepFooterNamesTheSweepsVerbs(t *testing.T) {
 	}
 
 	// Still bound, just unadvertised — same as `#` working on the tray.
-	if m := keys(NewSweep("2026-07"), "a").(Model); m.mode != editing {
+	if m := keys(NewSweep(ts, "2026-07"), "a").(Model); m.mode != editing {
 		t.Error("a should still add during a sweep")
 	}
-	if m := keys(NewSweep("2026-07"), "/").(Model); !m.list.SettingFilter() {
+	if m := keys(NewSweep(ts, "2026-07"), "/").(Model); !m.list.SettingFilter() {
 		t.Error("/ should still filter during a sweep")
 	}
 }
@@ -276,7 +299,7 @@ func TestTheSweepFooterNamesTheSweepsVerbs(t *testing.T) {
 func TestEraseIsUnreachableOutsideReview(t *testing.T) {
 	sandbox(t, "- [ ] one priority:H")
 
-	m := keys(New(), "E").(Model)
+	m := keys(New(ts), "E").(Model)
 	for _, a := range m.offered() {
 		if a.key == "E" {
 			t.Error("the working list must not offer erase")
@@ -292,7 +315,7 @@ func TestEraseIsUnreachableOutsideReview(t *testing.T) {
 
 func TestMenuOpensAndActs(t *testing.T) {
 	sandbox(t, "- [ ] one priority:H")
-	m := keys(New(), "enter").(Model)
+	m := keys(New(ts), "enter").(Model)
 	if m.mode != acting {
 		t.Fatal("enter should open the menu")
 	}
@@ -314,7 +337,7 @@ func TestMenuOpensAndActs(t *testing.T) {
 
 func TestEscClosesTheMenuWithoutActing(t *testing.T) {
 	sandbox(t, "- [ ] one priority:H")
-	m := keys(New(), "enter", "esc").(Model)
+	m := keys(New(ts), "enter", "esc").(Model)
 	if m.mode != browsing {
 		t.Error("esc should close the menu")
 	}
@@ -330,14 +353,14 @@ func TestEscAndQBothQuit(t *testing.T) {
 		"esc": {Type: tea.KeyEsc},
 	}
 	for name, msg := range quits {
-		if _, cmd := New().Update(msg); cmd == nil {
+		if _, cmd := New(ts).Update(msg); cmd == nil {
 			t.Errorf("%s should quit", name)
 		}
 	}
 
 	// In review mode `esc` backs out first, which is what the banner promises. It
 	// takes the same escape hatch a filter does, one layer further in.
-	m := keys(New(), "v").(Model)
+	m := keys(New(ts), "v").(Model)
 	if !m.viewing {
 		t.Fatal("v should enter review mode")
 	}
@@ -355,10 +378,10 @@ func TestEscAndQBothQuit(t *testing.T) {
 // TTY, so the rendered border is the same bytes in both modes under `go test`.
 func TestReviewRedrawsTheFrame(t *testing.T) {
 	sandbox(t, "- [ ] one priority:H")
-	if got := New().frameColor(); got != accent {
+	if got := New(ts).frameColor(); got != accent {
 		t.Errorf("the daily frame should be the accent, got %v", got)
 	}
-	if got := keys(New(), "v").(Model).frameColor(); got != reviewEdge {
+	if got := keys(New(ts), "v").(Model).frameColor(); got != reviewEdge {
 		t.Errorf("the review frame should change colour, got %v", got)
 	}
 }
@@ -367,10 +390,10 @@ func TestReviewRedrawsTheFrame(t *testing.T) {
 // cost nothing — two keys for one verb was never load-bearing.
 func TestAAddsAndNOpensTheNote(t *testing.T) {
 	sandbox(t, "- [ ] a thing priority:M")
-	if m := keys(New(), "a").(Model); m.mode != editing || !m.form.creating {
+	if m := keys(New(ts), "a").(Model); m.mode != editing || !m.form.creating {
 		t.Error("a should start a new entry")
 	}
-	m := keys(New(), "n").(Model)
+	m := keys(New(ts), "n").(Model)
 	if m.mode != editing || m.form.creating {
 		t.Fatal("n should open the note on the row under the cursor")
 	}
@@ -381,7 +404,7 @@ func TestAAddsAndNOpensTheNote(t *testing.T) {
 
 func TestEmptyTraySaysSo(t *testing.T) {
 	sandbox(t)
-	view := New().View()
+	view := New(ts).View()
 	if !strings.Contains(view, "nothing on the tray") {
 		t.Errorf("view = %q", view)
 	}
@@ -391,7 +414,7 @@ func TestEmptyTraySaysSo(t *testing.T) {
 // changes don't break this.
 func TestFrameShowsRowsMarksAndKeymap(t *testing.T) {
 	sandbox(t, "- [ ] one priority:H", "- [ ] two priority:M")
-	view := keys(New(), " ").(Model).View()
+	view := keys(New(ts), " ").(Model).View()
 
 	for _, want := range []string{"tray", "one", "two", "●", "pri", "due", "enter act", "? help"} {
 		if !strings.Contains(view, want) {
@@ -411,7 +434,7 @@ func TestFrameShowsRowsMarksAndKeymap(t *testing.T) {
 func TestFooterNamesEveryKeyItKnows(t *testing.T) {
 	sandbox(t, "- [ ] one priority:H")
 	for _, width := range []int{80, 120} {
-		out, _ := New().Update(tea.WindowSizeMsg{Width: width, Height: 20})
+		out, _ := New(ts).Update(tea.WindowSizeMsg{Width: width, Height: 20})
 		m := out.(Model)
 		view := m.View()
 		for _, b := range m.keys().ShortHelp() {
@@ -431,7 +454,7 @@ func TestFooterNamesEveryKeyItKnows(t *testing.T) {
 // so the diagram leads and the keys follow.
 func TestHelpScreenExplainsTheTwoLayers(t *testing.T) {
 	sandbox(t, "- [ ] a task worth seeing behind the dialog priority:H")
-	m := keys(New(), "?").(Model)
+	m := keys(New(ts), "?").(Model)
 	if !m.help.ShowAll {
 		t.Fatal("? should open the dialog")
 	}
@@ -495,7 +518,7 @@ func TestHelpScreenExplainsTheTwoLayers(t *testing.T) {
 // should never have to work out which key closes a thing that is in your way.
 func TestAnyKeyClosesTheHelpDialog(t *testing.T) {
 	sandbox(t, "- [ ] one priority:H", "- [ ] two priority:M")
-	open := keys(New(), "?").(Model)
+	open := keys(New(ts), "?").(Model)
 
 	for _, k := range []string{"?", "esc", "j", "x", "q", "a", "tab", " ", "/", "R"} {
 		after := keys(open, k).(Model)
@@ -528,7 +551,7 @@ func TestHelpScreenFitsTheTerminal(t *testing.T) {
 	sandbox(t, "- [ ] one priority:H")
 	for _, size := range [][2]int{{80, 24}, {80, 30}, {100, 26}, {110, 34}, {60, 20}} {
 		width, height := size[0], size[1]
-		out, _ := New().Update(tea.WindowSizeMsg{Width: width, Height: height})
+		out, _ := New(ts).Update(tea.WindowSizeMsg{Width: width, Height: height})
 		view := keys(out, "?").(Model).View()
 		lines := strings.Split(strings.TrimRight(view, "\n"), "\n")
 		for _, line := range lines {
@@ -561,7 +584,7 @@ func TestHelpScreenFitsTheTerminal(t *testing.T) {
 // Drives a real tea.Program, so the wiring itself is covered rather than Update alone.
 func TestProgramRunsAndQuits(t *testing.T) {
 	sandbox(t, "- [ ] one priority:H")
-	drive(t, New()).waitFor("one").press("q").final()
+	drive(t, New(ts)).waitFor("one").press("q").final()
 }
 
 // The delegate renders marks by reading the Model's own map, so the two must stay
@@ -573,11 +596,11 @@ func TestMarksKeepRenderingAfterTheyAreCleared(t *testing.T) {
 
 	marked := func(m Model) bool { return strings.Contains(m.View(), "●") }
 
-	m := keys(New(), " ").(Model)
+	m := keys(New(ts), " ").(Model)
 	if !marked(m) {
 		t.Fatalf("a mark should draw a ●:\n%s", m.View())
 	}
-	if !m.deleg.marked["one"] {
+	if !m.deleg.marked[m.items()[0].ID] {
 		t.Error("the delegate is not reading the model's mark map")
 	}
 
@@ -607,17 +630,18 @@ func TestTrayShowsCheckboxesAndTheGarageDoesNot(t *testing.T) {
 	)
 	garage(t, "2026-08", "- a jotting", "- ~~a finished jotting~~ done:2026-08-06")
 
-	// Review mode lists both kinds, so one frame carries both boxes.
-	trayView := keys(New(), "v").(Model).View()
-	for _, want := range []string{"[ ] still open", "[x] finished"} {
-		if !strings.Contains(trayView, want) {
+	// Review mode lists both kinds, so one frame carries both boxes. The id sits
+	// between the box and the words, so the shape is `[x]  2  finished`.
+	trayView := keys(New(ts), "v").(Model).View()
+	for _, want := range []string{`\[ \]\s+[0-9a-z]{4}\s+still open`, `\[x\]\s+[0-9a-z]{4}\s+finished`} {
+		if !regexp.MustCompile(want).MatchString(trayView) {
 			t.Errorf("the tray should show %q:\n%s", want, trayView)
 		}
 	}
 
-	garageView := keys(New(), "tab", "v").(Model).View()
-	for _, want := range []string{"a jotting", "✓ a finished jotting"} {
-		if !strings.Contains(garageView, want) {
+	garageView := keys(New(ts), "tab", "v").(Model).View()
+	for _, want := range []string{`[0-9a-z]{4}\s+a jotting`, `✓\s+[0-9a-z]{4}\s+a finished jotting`} {
+		if !regexp.MustCompile(want).MatchString(garageView) {
 			t.Errorf("the garage should show %q:\n%s", want, garageView)
 		}
 	}
@@ -630,7 +654,7 @@ func TestTrayShowsCheckboxesAndTheGarageDoesNot(t *testing.T) {
 // lost its dot. They are separate columns now.
 func TestASelectedFinishedRowShowsBoth(t *testing.T) {
 	sandbox(t, "- [x] ~~finished~~ priority:M done:2026-08-06")
-	view := keys(New(), "v", " ").(Model).View()
+	view := keys(New(ts), "v", " ").(Model).View()
 	if !strings.Contains(view, "● [x]") {
 		t.Errorf("a selected finished row should show both:\n%s", view)
 	}

@@ -9,6 +9,7 @@ import (
 	"go/parser"
 	"go/token"
 	"os"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
@@ -18,7 +19,7 @@ import (
 const (
 	flowsDoc  = "../../FLOWS.md"
 	shellFile = "../../scripts/check-tray.sh"
-	uiFlows   = "../ui/flows_test.go"
+	uiFlows   = "../ui/*_test.go"
 )
 
 // A row is `| F1 | what must keep working | ` + "`held by`" + ` |`.
@@ -62,19 +63,27 @@ func shellFlows(t *testing.T) []string {
 	return out
 }
 
-// goFlows are the TestFlow… functions in the teatest suite. Parsed rather than
-// grepped, so a name inside a comment or a string can't satisfy a row.
+// goFlows are the TestFlow… functions in the interface's suite. Parsed rather than
+// grepped, so a name inside a comment or a string can't satisfy a row. Every test file
+// in the package counts: the round trip with the CLI lives in an external test package,
+// which Go keeps in a file of its own.
 func goFlows(t *testing.T) []string {
 	t.Helper()
-	file, err := parser.ParseFile(token.NewFileSet(), uiFlows, nil, 0)
+	files, err := filepath.Glob(uiFlows)
 	if err != nil {
 		t.Fatal(err)
 	}
 	var out []string
-	for _, decl := range file.Decls {
-		fn, ok := decl.(*ast.FuncDecl)
-		if ok && fn.Recv == nil && strings.HasPrefix(fn.Name.Name, testPre) {
-			out = append(out, fn.Name.Name)
+	for _, path := range files {
+		file, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, decl := range file.Decls {
+			fn, ok := decl.(*ast.FuncDecl)
+			if ok && fn.Recv == nil && strings.HasPrefix(fn.Name.Name, testPre) {
+				out = append(out, fn.Name.Name)
+			}
 		}
 	}
 	return out

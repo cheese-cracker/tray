@@ -1,20 +1,38 @@
 package store
 
 import (
-	"os"
-	"path/filepath"
-	"strings"
+	"errors"
+	"reflect"
 	"testing"
 
 	"github.com/cheese-cracker/tray/internal/core"
 )
 
-func sandbox(t *testing.T) string {
+func sandbox(t *testing.T) *Store {
 	t.Helper()
-	dir := t.TempDir()
-	t.Setenv("TRAY_HOME", dir)
 	t.Setenv("TRAY_TODAY", "2026-08-07")
-	return dir
+	s, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { s.Close() })
+	return s
+}
+
+func put(t *testing.T, s *Store, task core.Task) core.Task {
+	t.Helper()
+	if err := s.Put(&task); err != nil {
+		t.Fatal(err)
+	}
+	return task
+}
+
+func texts(tasks []core.Task) []string {
+	var out []string
+	for _, t := range tasks {
+		out = append(out, t.Text)
+	}
+	return out
 }
 
 func TestMonthMath(t *testing.T) {
@@ -31,10 +49,15 @@ func TestMonthMath(t *testing.T) {
 			t.Errorf("PrevMonth(%s) = %s, want %s", c.in, got, c.prev)
 		}
 	}
+	for name, want := range map[string]bool{"2026-08": true, Someday: false, "notion": false} {
+		if IsMonth(name) != want {
+			t.Errorf("IsMonth(%s) = %v", name, !want)
+		}
+	}
 }
 
 func TestTodayHonoursOverride(t *testing.T) {
-	sandbox(t)
+	t.Setenv("TRAY_TODAY", "2026-08-07")
 	if got := Today().Format(core.DateLayout); got != "2026-08-07" {
 		t.Errorf("Today() = %s", got)
 	}
@@ -43,194 +66,17 @@ func TestTodayHonoursOverride(t *testing.T) {
 	}
 }
 
-func TestPaths(t *testing.T) {
-	dir := sandbox(t)
-	if got := TrayPath(); got != filepath.Join(dir, "tray.md") {
-		t.Errorf("TrayPath = %s", got)
-	}
-	if got := MonthPath(""); got != filepath.Join(dir, "2026-08.md") {
-		t.Errorf("MonthPath(\"\") = %s", got)
-	}
-	if got := MonthPath(Someday); got != filepath.Join(dir, "someday.md") {
-		t.Errorf("MonthPath(someday) = %s", got)
-	}
-}
-
-func TestWriteIsAtomicAndLeavesNoTemp(t *testing.T) {
-	dir := sandbox(t)
-	path := filepath.Join(dir, "tray.md")
-	if err := Write(path, []string{"# tray", "- [ ] a"}); err != nil {
-		t.Fatal(err)
-	}
-	raw, _ := os.ReadFile(path)
-	if string(raw) != "# tray\n- [ ] a\n" {
-		t.Errorf("content = %q", raw)
-	}
-	entries, _ := os.ReadDir(dir)
-	for _, e := range entries {
-		if strings.HasPrefix(e.Name(), ".tray-") {
-			t.Errorf("left a temp file behind: %s", e.Name())
-		}
-	}
-}
-
-// The contract that matters: we only own the lines we recognise.
-func TestHandWrittenProseSurvives(t *testing.T) {
-	sandbox(t)
-	doc, err := Garage("2026-08")
-	if err != nil {
-		t.Fatal(err)
-	}
-	doc.Lines = []string{
-		"# 2026-08",
-		"",
-		"- add metrics to the worker",
-		"",
-		"## notes to self",
-		"this paragraph is mine and must survive",
-		"* a star bullet with weird: punctuation",
-		"- ",
-	}
-	if err := doc.Save(); err != nil {
-		t.Fatal(err)
-	}
-
-	// A full edit cycle: add one, mark one terminal, drop one.
-	doc, _ = Garage("2026-08")
-	doc.Add(core.New("another line", nil))
-	tasks := doc.Tasks()
-	core.Finish(&tasks[0], "done", Today())
-	doc.Set(tasks[0])
-	if err := doc.Save(); err != nil {
-		t.Fatal(err)
-	}
-
-	lines, _ := Read(MonthPath("2026-08"))
-	body := strings.Join(lines, "\n")
-	for _, must := range []string{
-		"## notes to self",
-		"this paragraph is mine and must survive",
-		"* a star bullet with weird: punctuation",
-		"- another line",
-		"~~add metrics to the worker~~",
-	} {
-		if !strings.Contains(body, must) {
-			t.Errorf("lost %q from:\n%s", must, body)
-		}
-	}
-}
-
-func TestRemoveOnlyDropsItsOwnLine(t *testing.T) {
-	sandbox(t)
-	doc, _ := Tray()
-	doc.Lines = []string{"# tray", "- [ ] first", "keep me", "- [ ] second"}
-	_ = doc.Save()
-
-	doc, _ = Tray()
-	tasks := doc.Tasks()
-	doc.Remove(tasks[0])
-	_ = doc.Save()
-
-	lines, _ := Read(TrayPath())
-	body := strings.Join(lines, "\n")
-	if strings.Contains(body, "first") {
-		t.Error("removed line is still there")
-	}
-	for _, must := range []string{"# tray", "keep me", "- [ ] second"} {
-		if !strings.Contains(body, must) {
-			t.Errorf("lost %q from:\n%s", must, body)
-		}
-	}
-}
-
-func TestResolveRanges(t *testing.T) {
-	items := []core.Task{
-		core.New("one", nil), core.New("two", nil), core.New("three", nil),
-		core.New("four", nil), core.New("five", nil), core.New("six", nil),
-		core.New("seven", nil),
-	}
-	cases := []struct {
-		spec string
-		want []string
-	}{
-		{"3", []string{"three"}},
-		{"2,5-7", []string{"two", "five", "six", "seven"}},
-		{"1-3", []string{"one", "two", "three"}},
-		{"99", nil}, // out of range is ignored, not an error
-		{"bogus", nil},
-	}
-	for _, c := range cases {
-		got := Resolve(items, c.spec)
-		if len(got) != len(c.want) {
-			t.Errorf("Resolve(%q) gave %d items, want %d", c.spec, len(got), len(c.want))
-			continue
-		}
-		for i, w := range c.want {
-			if got[i].Text != w {
-				t.Errorf("Resolve(%q)[%d] = %s, want %s", c.spec, i, got[i].Text, w)
-			}
-		}
-	}
-}
-
-func TestEnsureCreatesWithHeader(t *testing.T) {
-	sandbox(t)
-	if _, err := Tray(); err != nil {
-		t.Fatal(err)
-	}
-	lines, _ := Read(TrayPath())
-	if len(lines) == 0 || lines[0] != TrayHeader {
-		t.Errorf("lines = %v, want a header", lines)
-	}
-}
-
-func TestGrepAcrossMonthsIsOrdered(t *testing.T) {
-	sandbox(t)
-	for _, month := range []string{"2026-05", "2026-06", "2026-07"} {
-		doc, _ := Garage(month)
-		doc.Add(core.New("add retries to the sync job", nil))
-		_ = doc.Save()
-	}
-	hits := Grep("RETRIES") // case-insensitive
-	if len(hits) != 3 {
-		t.Fatalf("got %d hits, want 3: %v", len(hits), hits)
-	}
-	if hits[0].Where != "2026-05" || hits[2].Where != "2026-07" {
-		t.Errorf("months out of order: %v", hits)
-	}
-	if got := MonthsWith(hits); got != 3 {
-		t.Errorf("MonthsWith = %d, want 3", got)
-	}
-	if len(Grep("nothingmatchesthis")) != 0 {
-		t.Error("a miss must return nothing")
-	}
-}
-
-func TestMonthsListsOnlyMonthFiles(t *testing.T) {
-	sandbox(t)
-	for _, m := range []string{"2026-07", "2026-08"} {
-		doc, _ := Garage(m)
-		_ = doc.Save()
-	}
-	if _, err := Tray(); err != nil {
-		t.Fatal(err)
-	}
-	doc, _ := Garage(Someday)
-	_ = doc.Save()
-
-	got := Months()
-	if len(got) != 2 || got[0] != "2026-07" || got[1] != "2026-08" {
-		t.Errorf("Months() = %v, want the two month files only", got)
-	}
-}
-
-// The default home is visible and named after the binary. It is a decision (53, 53a),
-// so it gets an assertion rather than living only in a constant.
-func TestDefaultHomeIsTrayInTheHomeDirectory(t *testing.T) {
+// The home is hidden, by 53's own rule: nobody is meant to open a sqlite file.
+func TestDefaultHomeIsTheXDGDataDirectory(t *testing.T) {
 	t.Setenv("HOME", "/tmp/somewhere")
 	t.Setenv("TRAY_HOME", "")
-	if got, want := Home(), "/tmp/somewhere/tray"; got != want {
+	t.Setenv("XDG_DATA_HOME", "")
+	if got, want := Home(), "/tmp/somewhere/.local/share/tray"; got != want {
 		t.Errorf("Home() = %s, want %s", got, want)
+	}
+	t.Setenv("XDG_DATA_HOME", "/tmp/xdg")
+	if got := Home(); got != "/tmp/xdg/tray" {
+		t.Errorf("XDG_DATA_HOME should be honoured, got %s", got)
 	}
 	t.Setenv("TRAY_HOME", "/tmp/elsewhere")
 	if got := Home(); got != "/tmp/elsewhere" {
@@ -238,62 +84,143 @@ func TestDefaultHomeIsTrayInTheHomeDirectory(t *testing.T) {
 	}
 }
 
-// Set defers to Save. Every caller that edits several tasks parses once and then Sets
-// in a loop; if a growing note shifted Lines in place, the second Set would land on
-// the wrong line. This is the bug the deferral exists to prevent.
-func TestBatchSetSurvivesANoteThatGrows(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("TRAY_HOME", home)
-	path := filepath.Join(home, "tray.md")
-	os.WriteFile(path, []byte(strings.Join([]string{
-		"# tray",
-		"- [ ] first priority:H",
-		"- [ ] second priority:M",
-		"- [ ] third priority:L",
-		"",
-	}, "\n")), 0o644)
+// An id is four characters the store hands out once: two rows never share one, and an
+// erased row's id does not come back on the next insert.
+func TestIdsArePermanent(t *testing.T) {
+	s := sandbox(t)
+	a := put(t, s, core.New("a", nil))
+	b := put(t, s, core.New("b", nil))
+	if !core.IsID(a.ID) || !core.IsID(b.ID) || a.ID == b.ID {
+		t.Fatalf("ids = %q, %q — want two distinct four-character ids", a.ID, b.ID)
+	}
+	if err := s.Delete(b.ID); err != nil {
+		t.Fatal(err)
+	}
+	c := put(t, s, core.New("c", nil))
+	if c.ID == b.ID || c.ID == a.ID {
+		t.Errorf("c took %q, which another row had", c.ID)
+	}
+	if _, ok, _ := s.Get(b.ID); ok {
+		t.Error("an erased row is still there")
+	}
+}
 
-	doc, err := Tray()
+func TestPutRoundTripsEveryColumn(t *testing.T) {
+	s := sandbox(t)
+	want := core.Task{
+		Layer: core.LayerTray, Text: "Rotate the keys", Priority: "H", Due: "2026-08-12",
+		Wait: "2026-08-10", Recur: "weekly", Until: "2027-01-01", Entry: "2026-08-01",
+		Done: "2026-08-07", FromMonth: "2026-07", Tags: []string{"infra", "work"},
+		Note: "two\nlines", Source: "tw:abc",
+	}
+	want = put(t, s, want)
+	got, ok, err := s.Get(want.ID)
+	if err != nil || !ok {
+		t.Fatalf("Get = %v, %v", ok, err)
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("got  %+v\nwant %+v", got, want)
+	}
+
+	// An update rewrites every column, and a cleared field reads back as "".
+	want.Priority, want.Tags, want.Done = "", nil, ""
+	put(t, s, want)
+	got, _, _ = s.Get(want.ID)
+	if got.Priority != "" || len(got.Tags) != 0 || got.Done != "" {
+		t.Errorf("cleared fields came back: %+v", got)
+	}
+}
+
+func TestPutStampsEntry(t *testing.T) {
+	s := sandbox(t)
+	got := put(t, s, core.New("fresh", nil))
+	if got.Entry != "2026-08-07" {
+		t.Errorf("entry = %q, want today", got.Entry)
+	}
+}
+
+func TestTasksFilters(t *testing.T) {
+	s := sandbox(t)
+	live := put(t, s, core.Task{Layer: core.LayerTray, Text: "Urgent thing", Priority: "H", Due: "2026-08-08", Tags: []string{"infra"}})
+	finished := put(t, s, core.Task{Layer: core.LayerTray, Text: "Finished thing", Done: "2026-08-06"})
+	put(t, s, core.Task{Layer: core.LayerTray, Text: "Weekly review", Recur: "weekly", Due: "2026-08-14"})
+	put(t, s, core.Task{Layer: core.LayerGarage, Month: "2026-08", Text: "a jotting", Tags: []string{"Infra"}})
+	put(t, s, core.Task{Layer: core.LayerGarage, Month: "2026-09", Text: "later"})
+
+	cases := []struct {
+		name string
+		f    Filter
+		want []string
+	}{
+		{"live tray hides finished and templates", Filter{Layer: core.LayerTray}, []string{"Urgent thing"}},
+		{"all tray", Filter{Layer: core.LayerTray, All: true}, []string{"Urgent thing", "Finished thing", "Weekly review"}},
+		{"a garage month", Filter{Layer: core.LayerGarage, Month: "2026-08"}, []string{"a jotting"}},
+		{"tag, exact", Filter{Tags: []string{"infra"}}, []string{"Urgent thing"}},
+		{"attr, case-insensitive", Filter{Attrs: map[string]string{"priority": "h"}}, []string{"Urgent thing"}},
+		{"attr on a field nothing has", Filter{Attrs: map[string]string{"due": "2027-01-01"}}, nil},
+		{"text over words", Filter{Text: "THING"}, []string{"Urgent thing"}},
+		{"text over tags", Filter{Text: "inf", All: true}, []string{"Urgent thing", "a jotting"}},
+		{"ids reach every state", Filter{IDs: []string{live.ID, finished.ID}, All: true}, []string{"Urgent thing", "Finished thing"}},
+	}
+	for _, c := range cases {
+		got, err := s.Tasks(c.f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(texts(got), c.want) {
+			t.Errorf("%s: got %v, want %v", c.name, texts(got), c.want)
+		}
+	}
+}
+
+func TestUpdateIsAllOrNothing(t *testing.T) {
+	s := sandbox(t)
+	boom := errors.New("boom")
+	err := s.Update(func(tx *Store) error {
+		if err := tx.Put(&core.Task{Layer: core.LayerTray, Text: "half"}); err != nil {
+			return err
+		}
+		return boom
+	})
+	if !errors.Is(err, boom) {
+		t.Fatalf("Update swallowed the error: %v", err)
+	}
+	got, _ := s.Tasks(Filter{All: true})
+	if len(got) != 0 {
+		t.Errorf("a rolled-back row landed: %v", texts(got))
+	}
+}
+
+func TestMonthsAreCalendarMonthsOnly(t *testing.T) {
+	s := sandbox(t)
+	for _, m := range []string{"2026-08", Someday, "2026-07", "notion"} {
+		put(t, s, core.Task{Layer: core.LayerGarage, Month: m, Text: "in " + m})
+	}
+	put(t, s, core.Task{Layer: core.LayerTray, Text: "on the tray"})
+	got, err := s.Months()
 	if err != nil {
 		t.Fatal(err)
 	}
-	tasks := doc.Tasks()
-	tasks[0].Note = "a note\nthat is two lines long"
-	tasks[2].Note = "third gets one too"
-	for _, task := range tasks { // the order every batch caller uses
-		doc.Set(task)
+	if !reflect.DeepEqual(got, []string{"2026-07", "2026-08"}) {
+		t.Errorf("Months() = %v", got)
 	}
-	if err := doc.Save(); err != nil {
-		t.Fatal(err)
-	}
+}
 
-	raw, _ := os.ReadFile(path)
-	want := strings.Join([]string{
-		"# tray",
-		"- [ ] first priority:H",
-		"  a note",
-		"  that is two lines long",
-		"- [ ] second priority:M",
-		"- [ ] third priority:L",
-		"  third gets one too",
-		"",
-	}, "\n")
-	if string(raw) != want {
-		t.Errorf("file =\n%s\nwant\n%s", raw, want)
+func TestParseIDs(t *testing.T) {
+	cases := []struct {
+		spec string
+		want []string
+	}{
+		{"k79l", []string{"k79l"}},
+		{"k79l,79ya", []string{"k79l", "79ya"}},
+		{"done", nil}, // four letters and no digit is a word, never an id
+		{"k79", nil},  // too short
+		{"K79L", nil}, // ids are lower case
+		{"bogus", nil},
 	}
-
-	// Shrinking is the mirror: the old note lines must go, not linger.
-	doc, _ = Tray()
-	tasks = doc.Tasks()
-	tasks[0].Note = ""
-	doc.Set(tasks[0])
-	doc.Remove(tasks[2]) // a remove takes the note with it
-	doc.Save()
-	raw, _ = os.ReadFile(path)
-	if strings.Contains(string(raw), "a note") || strings.Contains(string(raw), "third gets") {
-		t.Errorf("old note lines lingered:\n%s", raw)
-	}
-	if !strings.Contains(string(raw), "second priority:M") {
-		t.Errorf("an untouched neighbour was lost:\n%s", raw)
+	for _, c := range cases {
+		if got := ParseIDs(c.spec); !reflect.DeepEqual(got, c.want) {
+			t.Errorf("ParseIDs(%q) = %v, want %v", c.spec, got, c.want)
+		}
 	}
 }

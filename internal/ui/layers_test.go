@@ -8,34 +8,23 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/cheese-cracker/tray/internal/core"
 	"github.com/cheese-cracker/tray/internal/store"
 )
 
 func garage(t *testing.T, month string, lines ...string) {
 	t.Helper()
-	doc, err := store.Garage(month)
-	if err != nil {
-		t.Fatal(err)
-	}
-	doc.Lines = append([]string{store.MonthHeader(month), ""}, lines...)
-	if err := doc.Save(); err != nil {
-		t.Fatal(err)
-	}
+	seed(t, core.LayerGarage, month, lines...)
 }
 
 func monthFile(t *testing.T, month string) string {
-	t.Helper()
-	lines, err := store.Read(store.MonthPath(month))
-	if err != nil {
-		t.Fatal(err)
-	}
-	return strings.Join(lines, "\n")
+	return rendered(t, store.Filter{Layer: core.LayerGarage, Month: month}, false)
 }
 
 // Day to day there are exactly two: what you're doing, and what you dumped.
 func TestTabsAreTrayAndThisMonth(t *testing.T) {
 	sandbox(t, "- [ ] on the tray")
-	m := New()
+	m := New(ts)
 	if len(m.layers) != 2 {
 		t.Fatalf("tabs = %v, want just tray + this month", titles(m))
 	}
@@ -50,7 +39,7 @@ func TestNoSomedayOrOldMonthTab(t *testing.T) {
 	garage(t, "2026-07", "- left over from july")
 	garage(t, store.Someday, "- one day maybe")
 
-	for _, l := range New().layers {
+	for _, l := range New(ts).layers {
 		if l.month == store.Someday || l.month == "2026-07" {
 			t.Errorf("%q should not be a tab", l.title)
 		}
@@ -63,7 +52,7 @@ func TestSweepTabsAreTheMonths(t *testing.T) {
 	garage(t, "2026-07", "- left over from july")
 	garage(t, "2026-08", "- dumped this month")
 
-	m := NewSweep("")
+	m := NewSweep(ts, "")
 	want := []string{"2026-07", "2026-08", "2026-09", "someday"}
 	var got []string
 	for _, l := range m.layers {
@@ -86,7 +75,7 @@ func TestSweepTabsAreTheMonths(t *testing.T) {
 func TestSweepHonoursAChosenMonth(t *testing.T) {
 	sandbox(t)
 	garage(t, "2026-05", "- ancient")
-	m := NewSweep("2026-05")
+	m := NewSweep(ts, "2026-05")
 	if m.layers[0].month != "2026-05" {
 		t.Errorf("tabs = %v, want the month asked for", titles(m))
 	}
@@ -96,7 +85,7 @@ func TestSweepHonoursAChosenMonth(t *testing.T) {
 func TestSomedayIsStillADestination(t *testing.T) {
 	sandbox(t, "- [ ] on the tray")
 	var found bool
-	for _, d := range New().destinations() {
+	for _, d := range New(ts).destinations() {
 		if d.month == store.Someday {
 			found = true
 		}
@@ -110,7 +99,7 @@ func TestTabSwitchesLayer(t *testing.T) {
 	sandbox(t, "- [ ] on the tray")
 	garage(t, "2026-08", "- in the garage")
 
-	m := New()
+	m := New(ts)
 	if m.items()[0].Text != "on the tray" {
 		t.Fatalf("first tab should be the tray, got %q", m.items()[0].Text)
 	}
@@ -134,7 +123,7 @@ func TestTabSwitchesLayer(t *testing.T) {
 func TestSwitchingTabsClearsMarks(t *testing.T) {
 	sandbox(t, "- [ ] one", "- [ ] two")
 	garage(t, "2026-08", "- in the garage")
-	m := keys(New(), " ").(Model)
+	m := keys(New(ts), " ").(Model)
 	if len(m.marked) != 1 {
 		t.Fatal("setup: nothing marked")
 	}
@@ -147,7 +136,7 @@ func TestSwitchingTabsClearsMarks(t *testing.T) {
 func TestGarageOffersTakeAndNotHandBack(t *testing.T) {
 	sandbox(t)
 	garage(t, "2026-08", "- in the garage")
-	m := keys(New(), "tab").(Model)
+	m := keys(New(ts), "tab").(Model)
 
 	var keysOffered []string
 	for _, a := range m.offered() {
@@ -166,13 +155,13 @@ func TestGarageOffersTakeAndNotHandBack(t *testing.T) {
 func TestTakeFromGarageMovesAndOpensTheForm(t *testing.T) {
 	sandbox(t)
 	garage(t, "2026-08", "- add retries to the sync job")
-	m := keys(New(), "tab", "t").(Model)
+	m := keys(New(ts), "tab", "t").(Model)
 
 	if got := trayFile(t); !strings.Contains(got, "add retries to the sync job") {
 		t.Errorf("tray did not receive it:\n%s", got)
 	}
-	if got := monthFile(t, "2026-08"); !strings.Contains(got, "→ tray") {
-		t.Errorf("source should be annotated, not removed:\n%s", got)
+	if got := monthFile(t, "2026-08"); strings.Contains(got, "add retries") {
+		t.Errorf("the row moved; the garage should not keep a copy:\n%s", got)
 	}
 	if m.mode != editing || m.form == nil {
 		t.Error("take should open the rewrite form on what landed")
@@ -182,10 +171,10 @@ func TestTakeFromGarageMovesAndOpensTheForm(t *testing.T) {
 	}
 }
 
-func TestMoveToCarriesForwardWithAnArrow(t *testing.T) {
+func TestMoveToMovesTheRowToTheMonth(t *testing.T) {
 	sandbox(t)
 	garage(t, "2026-08", "- not this month after all")
-	m := keys(New(), "tab", ">").(Model)
+	m := keys(New(ts), "tab", ">").(Model)
 	if m.mode != sending {
 		t.Fatal("> should ask where to")
 	}
@@ -211,8 +200,8 @@ func TestMoveToCarriesForwardWithAnArrow(t *testing.T) {
 	if got := monthFile(t, "2026-09"); !strings.Contains(got, "not this month after all") {
 		t.Errorf("september did not receive it:\n%s", got)
 	}
-	if got := monthFile(t, "2026-08"); !strings.Contains(got, "→ 2026-09") {
-		t.Errorf("august should keep the line, annotated:\n%s", got)
+	if got := monthFile(t, "2026-08"); strings.Contains(got, "not this month") {
+		t.Errorf("august should have let the row go:\n%s", got)
 	}
 	if m.mode != browsing {
 		t.Error("should return to the list after moving")
@@ -221,7 +210,7 @@ func TestMoveToCarriesForwardWithAnArrow(t *testing.T) {
 
 func TestDestinationsExcludeWhereYouAlreadyAre(t *testing.T) {
 	sandbox(t, "- [ ] on the tray")
-	m := New()
+	m := New(ts)
 	for _, d := range m.destinations() {
 		if d.month == m.layer().month {
 			t.Errorf("destinations should not include the current layer: %v", d)
@@ -231,7 +220,7 @@ func TestDestinationsExcludeWhereYouAlreadyAre(t *testing.T) {
 
 func TestTabBarShowsEveryLayer(t *testing.T) {
 	sandbox(t, "- [ ] one")
-	view := New().View()
+	view := New(ts).View()
 	if strings.Contains(view, "someday") {
 		t.Errorf("someday should not be on the tab bar:\n%s", view)
 	}
@@ -262,7 +251,7 @@ func texts(m Model) []string {
 // makes the alt screen jitter, so these assert we stay inside it.
 func TestFullPageFitsTheTerminal(t *testing.T) {
 	sandbox(t, "- [ ] one priority:H", "- [ ] two priority:M")
-	m := New()
+	m := New(ts)
 	out, _ := m.Update(tea.WindowSizeMsg{Width: 70, Height: 18})
 	view := out.(Model).View()
 
@@ -285,7 +274,7 @@ func TestLongListPagesAroundTheCursor(t *testing.T) {
 	}
 	sandbox(t, lines...)
 
-	m := New()
+	m := New(ts)
 	out, _ := m.Update(tea.WindowSizeMsg{Width: 60, Height: 14})
 	m = out.(Model)
 
@@ -318,33 +307,30 @@ func TestHandBackReturnsTheLineItCameFrom(t *testing.T) {
 	sandbox(t)
 	garage(t, "2026-08", "- fix the sync job")
 
-	m := keys(New(), "tab", "t").(Model) // take it
-	m = keys(m, "esc").(Model)           // skip the form
+	m := keys(New(ts), "tab", "t").(Model) // take it
+	m = keys(m, "esc").(Model)             // skip the form
 	if got := trayFile(t); !strings.Contains(got, "fix the sync job") {
 		t.Fatalf("setup: not taken:\n%s", got)
 	}
 
-	keys(New(), "d") // hand it back from the tray
+	keys(New(ts), "d") // hand it back from the tray
 
 	tray := trayFile(t)
 	if strings.Contains(tray, "fix the sync job") {
 		t.Errorf("it should have left the tray:\n%s", tray)
 	}
 	month := monthFile(t, "2026-08")
-	if strings.Contains(month, "→ tray") {
-		t.Errorf("the arrow should be cleared — it isn't on the tray any more:\n%s", month)
-	}
 	if n := strings.Count(month, "fix the sync job"); n != 1 {
 		t.Errorf("want exactly one line, got %d:\n%s", n, month)
 	}
-	if len(New().items()) != 0 {
+	if len(New(ts).items()) != 0 {
 		t.Error("the tray should be empty")
 	}
 }
 
 func TestRewriteIsTheDefaultOnTheTray(t *testing.T) {
 	sandbox(t, "- [ ] a thing priority:M")
-	m := keys(New(), "enter").(Model)
+	m := keys(New(ts), "enter").(Model)
 	if got := m.offered()[m.menuAt].key; got != "r" {
 		t.Errorf("the default action is %q, want rewrite", got)
 	}
@@ -353,7 +339,7 @@ func TestRewriteIsTheDefaultOnTheTray(t *testing.T) {
 func TestTakeIsTheDefaultInTheGarage(t *testing.T) {
 	sandbox(t)
 	garage(t, "2026-08", "- something jotted")
-	m := keys(New(), "tab", "enter").(Model)
+	m := keys(New(ts), "tab", "enter").(Model)
 	if got := m.offered()[m.menuAt].key; got != "t" {
 		t.Errorf("the default action is %q, want take", got)
 	}
@@ -361,7 +347,7 @@ func TestTakeIsTheDefaultInTheGarage(t *testing.T) {
 
 func TestTabsCycle(t *testing.T) {
 	sandbox(t, "- [ ] on the tray")
-	m := New()
+	m := New(ts)
 	if len(m.layers) != 2 {
 		t.Fatalf("setup: %v", titles(m))
 	}
@@ -383,7 +369,7 @@ func TestTabsCycle(t *testing.T) {
 	}
 
 	// h and l are the same movement, so they wrap too.
-	m = New()
+	m = New(ts)
 	for i := 0; i < len(m.layers); i++ {
 		m = keys(m, "tab").(Model)
 	}
@@ -398,7 +384,7 @@ func TestSweepNamedMonthReplacesTheClosingTab(t *testing.T) {
 	sandbox(t)
 	garage(t, "2026-05", "- ancient history")
 
-	m := NewSweep("2026-05")
+	m := NewSweep(ts, "2026-05")
 	if m.layers[0].month != "2026-05" {
 		t.Errorf("first tab = %q, want the named month", m.layers[0].month)
 	}
@@ -437,7 +423,7 @@ func TestMoveToOffersTheTabsOnScreen(t *testing.T) {
 		return false
 	}
 
-	sweep := NewSweep("2026-11")
+	sweep := NewSweep(ts, "2026-11")
 	dests := titles(sweep.destinations())
 	for _, want := range append(titles(sweep.layers), "tray") {
 		if want == sweep.layer().title {
@@ -453,7 +439,7 @@ func TestMoveToOffersTheTabsOnScreen(t *testing.T) {
 	}
 
 	// The daily screen keeps reaching past its two tabs, which is what 10 rests on.
-	daily := titles(New().destinations())
+	daily := titles(New(ts).destinations())
 	for _, want := range []string{"September", "someday"} {
 		if !has(t, daily, want) {
 			t.Errorf("the daily screen should still reach %q, got %v", want, daily)
@@ -477,7 +463,7 @@ func TestSweepTabsFollowTheNamedMonth(t *testing.T) {
 		{"this month still needs a forward slot", "2026-08", []string{"August", "September", "someday"}},
 		{"a future month is the forward slot", "2026-11", []string{"August", "November", "someday"}},
 	} {
-		m := NewSweep(c.closing)
+		m := NewSweep(ts, c.closing)
 		var got []string
 		for _, l := range m.layers {
 			got = append(got, l.title)

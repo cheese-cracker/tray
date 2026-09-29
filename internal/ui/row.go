@@ -33,13 +33,18 @@ const tagMark = "#"
 // noteMark says a row has a note. Three lines of text, which is what a note is.
 const noteMark = "≡"
 
+// templateMark is a row that repeats: furniture, not work. Review is the only place
+// it is listed.
+const templateMark = "↻"
+
 // column is one column of data: its heading, and how to fill it from a task.
 type column struct {
-	head string // the heading, and the width the column starts from
-	pad  int    // air to its right
-	tray bool   // tray only — the garage has none of these decided yet
-	desc bool   // the description: carries the row's state, and gives way when narrow
-	cell func(d *rowDelegate, t core.Task) string
+	head   string // the heading, and the width the column starts from
+	pad    int    // air to its right
+	tray   bool   // tray only — the garage has none of these decided yet
+	garage bool   // garage only — a day a line waits for, which a tray task has already had
+	desc   bool   // the description: carries the row's state, and gives way when narrow
+	cell   func(d *rowDelegate, t core.Task) string
 
 	// tint is a colour of this column's own, when the value carries meaning the other
 	// columns' do not. Nil is the common case: an attribute stays quiet.
@@ -48,6 +53,12 @@ type column struct {
 
 // Every column the table knows how to draw.
 var (
+	// The permanent id, dim and first: what `tray 12 done` and an agent's export call
+	// this row. It never changes, so it never has to be looked up.
+	colID = column{head: "id", pad: 2,
+		cell: func(_ *rowDelegate, t core.Task) string { return t.ID },
+		tint: func(_ *rowDelegate, _ core.Task) lipgloss.TerminalColor { return style.Subtle }}
+
 	colTask = column{head: "task", desc: true,
 		cell: func(_ *rowDelegate, t core.Task) string { return t.Text }}
 
@@ -68,14 +79,14 @@ var (
 		}}
 
 	colPri = column{head: "pri", pad: 2, tray: true,
-		cell: func(_ *rowDelegate, t core.Task) string { return t.Priority() }}
+		cell: func(_ *rowDelegate, t core.Task) string { return t.Priority }}
 
 	colDue = column{head: "due", pad: 2, tray: true,
-		cell: func(_ *rowDelegate, t core.Task) string { return core.Day(t.Attrs["due"]) },
+		cell: func(_ *rowDelegate, t core.Task) string { return core.Day(t.Due) },
 		// The one attribute that is about now rather than about the task. Two states:
 		// on you today or already past, or not yet — see style.Now.
 		tint: func(d *rowDelegate, t core.Task) lipgloss.TerminalColor {
-			due, ok := core.Date(t.Attrs["due"])
+			due, ok := core.Date(t.Due)
 			if !ok {
 				return style.Later
 			}
@@ -92,6 +103,12 @@ var (
 			}
 			return tagMark + strings.Join(t.Tags, " "+tagMark)
 		}}
+
+	// A garage line that waits for a day says which. No heading, like the note mark, so
+	// the column measures to nothing until the first `wait:` is written.
+	colWait = column{pad: 2, garage: true,
+		cell: func(_ *rowDelegate, t core.Task) string { return core.Day(t.Wait) },
+		tint: func(_ *rowDelegate, _ core.Task) lipgloss.TerminalColor { return style.Subtle }}
 )
 
 // columns is the table as drawn, and it is the setting: adding or removing a line
@@ -101,7 +118,7 @@ var (
 // colUrg is left out. Urgency earns its keep by deciding the order, and the order is
 // already on screen — the row above the other says everything 17.1 beside 8.1 does,
 // in no width at all. Put it back in this list for Taskwarrior's report.
-var columns = []column{colTask, colNote, colPri, colDue, colTags}
+var columns = []column{colID, colTask, colNote, colPri, colDue, colWait, colTags}
 
 // The gutter, left of the data: cursor, selection, checkbox. Not part of `columns` —
 // it is chrome rather than fields, and there is nothing to configure about it.
@@ -142,7 +159,7 @@ func (d *rowDelegate) Render(w io.Writer, m list.Model, i int, item list.Item) {
 	}
 	// Selection and state used to share one cell, so a selected row that was also
 	// finished lost its dot. They are separate columns now.
-	marked := d.marked[r.Text]
+	marked := d.marked[r.ID]
 	g := [nGutter]string{gPoint: " ", gMark: " ", gBox: d.state(r.Task)}
 	if i == m.Index() {
 		g[gPoint] = "▸"
@@ -172,13 +189,16 @@ func (d *rowDelegate) header() string {
 // the file it came from, and is not ambiguous-width under a CJK locale. The garage has
 // no checkbox in its file, so it keeps a one-character mark instead.
 func (d *rowDelegate) state(t core.Task) string {
+	if t.Recur != "" {
+		return templateMark
+	}
 	if !d.tray {
-		if t.Done {
+		if t.Terminal() {
 			return "✓"
 		}
 		return " "
 	}
-	if t.Done {
+	if t.Terminal() {
 		return "[x]"
 	}
 	return "[ ]"
@@ -189,13 +209,13 @@ func (d *rowDelegate) state(t core.Task) string {
 // are no longer there.
 func (d *rowDelegate) measure(items []list.Item, avail int) {
 	d.gutter = [nGutter]int{gPoint: 1, gMark: 1}
-	for _, box := range []string{d.state(core.Task{}), d.state(core.Task{Done: true})} {
+	for _, box := range []string{d.state(core.Task{}), d.state(core.Task{Done: "x"})} {
 		d.gutter[gBox] = max(d.gutter[gBox], lipgloss.Width(box))
 	}
 
 	d.cols = d.cols[:0]
 	for _, c := range columns {
-		if c.tray && !d.tray {
+		if (c.tray && !d.tray) || (c.garage && d.tray) {
 			continue // what `take` adds; the garage has not decided any of it
 		}
 		d.cols = append(d.cols, c)

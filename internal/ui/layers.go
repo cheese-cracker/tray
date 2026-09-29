@@ -1,9 +1,10 @@
 package ui
 
 import (
+	"sort"
+
 	"github.com/cheese-cracker/tray/internal/core"
 	"github.com/cheese-cracker/tray/internal/store"
-	"sort"
 )
 
 // A layer is one tab. Tray plus the garage months you can actually act on — last
@@ -16,11 +17,20 @@ type layer struct {
 
 func (l layer) isTray() bool { return l.month == "" }
 
-func (l layer) open() (*store.Doc, error) {
+// name is the layer as the store and a plugin spell it: `tray`, or the month.
+func (l layer) name() string {
 	if l.isTray() {
-		return store.Tray()
+		return core.LayerTray
 	}
-	return store.Garage(l.month)
+	return l.month
+}
+
+// filter is the rows this layer holds. Zero `All` is the working set: live rows only.
+func (l layer) filter(everything bool) store.Filter {
+	if l.isTray() {
+		return store.Filter{Layer: core.LayerTray, All: everything}
+	}
+	return store.Filter{Layer: core.LayerGarage, Month: l.month, All: everything}
 }
 
 // Two tabs is the whole day-to-day shape: what you're doing, and what you dumped.
@@ -81,18 +91,12 @@ func monthTitle(month string) string {
 	return month
 }
 
-func liveIn(month string) int {
-	doc, err := store.Garage(month)
+func liveIn(s *store.Store, month string) int {
+	rows, err := s.Tasks(store.Filter{Layer: core.LayerGarage, Month: month})
 	if err != nil {
 		return 0
 	}
-	n := 0
-	for _, t := range doc.Live() {
-		if t.Parsed() {
-			n++
-		}
-	}
-	return n
+	return len(rows)
 }
 
 // destinations are where `>` can send the selection: every other layer, plus next
@@ -119,7 +123,7 @@ func (m Model) destinations() []layer {
 			layer{title: monthTitle(store.NextMonth(this)), month: store.NextMonth(this)},
 			layer{title: store.Someday, month: store.Someday},
 		)
-		if last := store.PrevMonth(this); liveIn(last) > 0 {
+		if last := store.PrevMonth(this); liveIn(m.s, last) > 0 {
 			all = append(all, layer{title: monthTitle(last), month: last})
 		}
 	}
@@ -136,58 +140,39 @@ func (m Model) destinations() []layer {
 	return out
 }
 
-// move is take, hand back and carry forward at once: the source line stays with an
-// arrow to where its copy went.
+// move is take, hand back and carry forward at once (7): the row changes layer or
+// month and nothing is copied. Arriving on the tray remembers the month it left, so
+// handing back needs no destination; a row already where it is going is left alone.
 func (m *Model) move(picked []core.Task, to layer) string {
-	from, err := m.layer().open()
-	if err != nil {
-		return err.Error()
-	}
-	dst, err := to.open()
-	if err != nil {
-		return err.Error()
-	}
-
-	provenance := m.layer().month
-	seen := dst.LiveTexts()
 	moved := 0
-	for _, t := range picked {
-		switch {
-		case t.Text == "" || seen[t.Text]: // already live there
-		case !to.isTray() && dst.Reclaim(t): // it came from there: bring it home as it is
-			seen[t.Text] = true
-			moved++
-		case to.isTray():
-			dst.Add(core.Arrive(t, provenance, m.today))
-			seen[t.Text] = true
-			moved++
-		default:
-			dst.Add(t.Copy()) // between garage months nothing is being structured
-			seen[t.Text] = true
+	err := m.s.Update(func(tx *store.Store) error {
+		for _, t := range picked {
+			if to.isTray() && t.Layer == core.LayerTray {
+				continue
+			}
+			if !to.isTray() && t.Layer == core.LayerGarage && t.Month == to.month {
+				continue
+			}
+			core.Move(&t, layerOf(to), to.month)
+			if to.isTray() {
+				t.Wait = "" // you took it; its day is now
+			}
+			if err := tx.Put(&t); err != nil {
+				return err
+			}
 			moved++
 		}
-
-		// The source is dealt with either way — skipping this is what stranded
-		// tasks on the tray with the garage still pointing at them.
-		if m.layer().isTray() {
-			from.Remove(t) // the tray is a worklist, not a record: it releases
-		} else {
-			core.Depart(&t, arrow(to))
-			from.Set(t)
-		}
-	}
-	if err := dst.Save(); err != nil {
-		return err.Error()
-	}
-	if err := from.Save(); err != nil {
+		return nil
+	})
+	if err != nil {
 		return err.Error()
 	}
 	return plural(moved, "→ "+to.title)
 }
 
-func arrow(to layer) string {
-	if to.isTray() {
-		return core.DestTray
+func layerOf(l layer) string {
+	if l.isTray() {
+		return core.LayerTray
 	}
-	return to.month
+	return core.LayerGarage
 }

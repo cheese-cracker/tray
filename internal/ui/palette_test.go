@@ -37,7 +37,7 @@ func TestEveryColourComesFromThePalette(t *testing.T) {
 	}
 
 	sandbox(t, "- [ ] a thing priority:H due:2026-08-12 +infra")
-	base, _ := New().Update(tea.WindowSizeMsg{Width: 84, Height: 20})
+	base, _ := New(ts).Update(tea.WindowSizeMsg{Width: 84, Height: 20})
 
 	for name, view := range map[string]string{
 		"list":   base.(Model).View(),
