@@ -19,6 +19,33 @@ The plugin's garage is the month named after it: rows it pulls land in
 `layer=garage, month=<name>` with `source=<name>:<key>`, and climb like any other line.
 A row you have already taken stays where it is and is updated in place.
 
+## Events and hooks
+
+Nothing in tray runs on its own. It acts on two **events**:
+
+| Event | Fired by | What answers it |
+|---|---|---|
+| `write` | any change to the store — the CLI's, the interface's, a plugin's landing | the mirror |
+| `sync` | you: `tray sync`, `S` in the interface (`manual`); or an interface opening (`launch`) | the built-in hooks, then every plugin |
+
+A **hook** is one thing that answers an event, and `internal/sync/hooks.go` is the whole
+table, in the order they run:
+
+| Hook | On | Does |
+|---|---|---|
+| `recur` | sync | gives every template its next child |
+| `lift` | sync | moves a garage line whose day has come onto the tray |
+| `garage.md` | sync | reads the garage mirror back — new bullets, renamed bullets |
+| `mirror` | write, sync | rewrites `tray.md` and `garage.md` from the store |
+| *a plugin* | sync | its `sync plan`, reviewed; `sync apply` when you land it |
+
+The built-in hooks are tray's own data, so they land directly and report a phrase each
+(`materialized 1 · lifted 0 · garage.md +2 ~1`). A plugin is a hook too, on the same
+event — it runs after the built-ins, in its own process, and its plan is shown before
+anything lands (T5). On `launch` only plugins that left an `on-launch` file run; the
+built-ins always do. Adding a built-in is one row in the table; adding a plugin is a
+folder — nothing is registered, and neither knows about the other.
+
 ## `sync plan`
 
 Print what you see. stdin is the rows tray already holds for you, keyed the way you key

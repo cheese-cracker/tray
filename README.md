@@ -45,6 +45,8 @@ the form, adding a task, and marking one done.](docs/demo.svg)
 
 The tray orders itself by priority, due date, and age. The dim number at the left of
 every row is the task's id — four characters, permanent, and what `tray k79l done` means.
+Press **`S`** to sync: recurring tasks, waiting lines and what you typed into `garage.md`
+all land.
 
 | | |
 |---|---|
@@ -58,6 +60,7 @@ every row is the task's id — four characters, permanent, and what `tray k79l d
 | `#` | tag — the tag field alone, on either layer. The footer names it in the garage, where it is the only structure on offer |
 | `n` | note — a few lines of context under the task. `≡` in the row says one is there |
 | `v` | review — everything on the layer, live and finished, waiting lines with their day, templates `↻`. The frame changes colour, and it is the only place `R` restore and `E` erase exist. `v` or `esc` leaves |
+| `S` | sync — the one event, by hand: templates, waiting lines and `garage.md` land |
 | `/` | filter · `?` help · `q` quit |
 
 Setting a priority on a garage line means you want it on the tray — so the garage
@@ -71,8 +74,10 @@ Press **`?`** for a full-screen explainer: what the two layers are, and every ke
   date and tags, and only when you move a line onto it.
 - 🪜 **Structure in steps.** Words, then a tag, then the three questions, then a note,
   then a schedule — each when you are ready, never before.
-- 🗄️ **One private database.** SQLite, in `~/.local/share/tray/`. Nothing to hand-edit;
-  markdown, todo.txt and Taskwarrior JSON are how tasks come in and go out.
+- 🗄️ **One private database, one open mirror.** SQLite in `~/.local/share/tray/`, and
+  beside it `tray.md` and `garage.md`: one `- (id) words` bullet per open task, rewritten
+  after every write. Drop the folder in a vault and read your tray from a phone; add a
+  bullet to `garage.md` there and the next sync brings it in.
 - 🗓️ **A garage per month, and dates that act.** Dump into November in August. A line
   with `wait:` lies in the garage until its day and then lands on the tray. A template
   with `recur:` keeps one live child of itself.
@@ -82,8 +87,9 @@ Press **`?`** for a full-screen explainer: what the two layers are, and every ke
   you can restore or erase.
 - 🔗 **Imports and exports both ways.** `tray export | task import` works, and so does
   `task export | tray import`. todo.txt too, and markdown bullets for a journal.
-- ⚡ **One event.** Nothing runs on its own. `sync` materializes what is due and asks
-  each plugin what it sees; what comes from outside lands only when you say so, whole.
+- ⚡ **One event.** Nothing runs on its own. `sync` materializes what is due, lifts what
+  was waiting, reads `garage.md` back and asks each plugin what it sees; what comes from
+  outside lands only when you say so, whole.
 - 🔌 **Plugins on a one-file contract.** A folder with a `sync` executable is a garage
   that fills itself. Verbs under `actions/` join the `enter` menu.
 - 🐚 **A header for your shell.** `tray head` prints your top tasks in a new terminal,
@@ -118,12 +124,22 @@ for more rows.
 ```
 ~/.local/share/tray/    $TRAY_HOME overrides this ($XDG_DATA_HOME/tray if that is set)
   tray.db               every task, every layer, every month
+  tray.md               the open tray tasks, one `- (id) words` bullet each — written, never read
+  garage.md             the open garage lines under `## 2026-09` headings — written, and read back on sync
   plugins/              one folder per plugin
 ```
 
 `tray init` creates it and prints where it is. You never open `tray.db` by hand — the
 grammar you knew from the files is now the CLI's and the exports': `+tag` and
 `key:value` on the way in, markdown, todo.txt or Taskwarrior JSON on the way out.
+
+The two `.md` files are the **mirror**: the lightest view of your tasks there is, and the
+reason the folder can sit inside an Obsidian vault. Every write rewrites them. On the next
+`sync`, a bullet you added to `garage.md` with no id becomes a new line in the month it
+sits under (this month above any heading), and a bullet whose words you changed renames
+its task. Nothing else is read — not tags, not a deleted line, and never `tray.md`: the
+tray is not for adding to on a whim. A `garage.md` you have edited is never written over
+before it is read: the status line says so, and `S` or `tray sync` brings it in.
 
 Coming from a markdown home:
 
@@ -217,7 +233,7 @@ with the tool.
 
 | | |
 |---|---|
-| `tray sync` | Materializes due recurrences, lifts waiting rows whose day has come, then asks every plugin for its plan and prints them — adds, changes, pushes, evidence. **Nothing from a plugin lands here.** |
+| `tray sync` | The event, by hand: materializes due recurrences, lifts waiting rows whose day has come, reads `garage.md` back, then asks every plugin for its plan and prints them — adds, changes, pushes, evidence. **Nothing from a plugin lands here.** |
 | `tray sync --apply` | Lands every plan, each one whole or not at all, and hands the confirmed pushes back to its plugin. |
 | `tray sync --plugin <name>` · `--json` · `--timeout 10m` | One plugin; the same as JSON; how long a plugin may take. |
 | `tray plugin` | What is installed: its garage, how many rows, how the last run went. |
@@ -240,11 +256,19 @@ with the tool.
 
 Ids are four characters — base36, always with a digit, so a four-letter word is never
 one — printed first in every report and never handed out twice. `tray k79l` means the
-same task tomorrow, in a filter, in an export, and in the interface's first column.
+same task tomorrow, in a filter, in an export, in the interface's first column, and in
+the mirror's parentheses.
 
 </details>
 
-## Plugins
+## Events, hooks and plugins
+
+Nothing runs on its own. tray acts on two events — a **write** to the store, and a
+**sync** you ask for (`tray sync`, `S`) or an interface fires on opening — and a hook is
+one thing that answers an event. The built-in hooks are one table in
+`internal/sync/hooks.go`: `recur`, `lift`, `garage.md`, then the `mirror`, in that order.
+A plugin is a hook on sync too, run after them, in its own process, with its plan shown
+before anything lands. [`plugins/README.md`](plugins/README.md) has the table.
 
 A plugin is a folder under `plugins/`, and the folder is the manifest. A `sync`
 executable makes it a garage that fills itself: `sync plan` prints what it sees and what
