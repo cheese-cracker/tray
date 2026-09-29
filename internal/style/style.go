@@ -5,7 +5,12 @@
 // so it has to be legible on a light background as well as a dark one.
 package style
 
-import "github.com/charmbracelet/lipgloss"
+import (
+	"fmt"
+	"image/color"
+
+	"github.com/charmbracelet/lipgloss"
+)
 
 var (
 	Accent = lipgloss.AdaptiveColor{Light: "#874BFD", Dark: "#7D56F4"}
@@ -41,7 +46,7 @@ var (
 
 // Priority is the colour for H, M or L. An unset priority reads as medium but was
 // never chosen, so it gets the quiet treatment rather than medium's.
-func Priority(p string) lipgloss.TerminalColor {
+func Priority(p string) lipgloss.AdaptiveColor {
 	switch p {
 	case "H":
 		return High
@@ -52,4 +57,16 @@ func Priority(p string) lipgloss.TerminalColor {
 	default:
 		return Subtle
 	}
+}
+
+// RGBA is the palette entry as the app draws it. One palette for the header and the
+// window (78g, 102): the hex strings above are the truth and this only reads them.
+func RGBA(c lipgloss.AdaptiveColor, dark bool) color.RGBA {
+	hex := c.Light
+	if dark {
+		hex = c.Dark
+	}
+	var r, g, b uint8
+	fmt.Sscanf(hex, "#%02x%02x%02x", &r, &g, &b)
+	return color.RGBA{R: r, G: g, B: b, A: 0xff}
 }

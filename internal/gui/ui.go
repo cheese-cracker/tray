@@ -1,0 +1,373 @@
+// Package gui is the desktop app: a client of store and core that owns no rule of its
+// own. Simple actions are one step from a row; anything that asks a question opens a
+// form; anything that destroys, bulk-moves or brings data in gets a mode of its own.
+// The TUI's letters survive as shortcuts, not as the design.
+package gui
+
+import (
+	"fmt"
+	"sort"
+	"strings"
+
+	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/canvas"
+	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/theme"
+	"fyne.io/fyne/v2/widget"
+
+	"github.com/cheese-cracker/tray/internal/core"
+	"github.com/cheese-cracker/tray/internal/store"
+	"github.com/cheese-cracker/tray/internal/style"
+)
+
+// mode is which screen owns the window. Home is the only one so far; review, sweep,
+// sync review and plugins each add a case and a root of their own.
+type mode int
+
+const modeHome mode = iota
+
+type ui struct {
+	s    *store.Store
+	win  fyne.Window
+	mode mode
+
+	garage, tray *taskList
+	tabs         *container.AppTabs
+	search       *escEntry
+	hidden       *canvas.Text
+	top          *fyne.Container
+	capture      *escEntry
+	status       *widget.Label
+	details      *details
+	root         fyne.CanvasObject
+
+	filter string
+	marks  map[int64]bool
+	pop    *widget.PopUp
+	form   *form // the open form, so a test can fill it in
+	closed bool
+}
+
+func newUI(s *store.Store, w fyne.Window) *ui {
+	u := &ui{s: s, win: w, marks: map[int64]bool{}}
+	u.details = newDetails(u)
+	u.garage = newTaskList(u, core.LayerGarage)
+	u.tray = newTaskList(u, core.LayerTray)
+
+	// Capture costs nothing: words, Enter, done. The bar reads to: and +tag off the
+	// front exactly as `tray dump` does, and the rest is literal.
+	u.capture = newEscEntry(u.focusList)
+	u.capture.SetPlaceHolder("dump a line — to:2026-11 +tag the words…")
+	u.capture.OnSubmitted = func(text string) {
+		u.dump(text)
+		u.capture.SetText("")
+	}
+
+	add := widget.NewButton("add", func() { u.do("a", u.tray) })
+	add.Importance = widget.LowImportance
+
+	u.tabs = container.NewAppTabs(
+		container.NewTabItem("garage · "+store.ThisMonth(), container.NewBorder(nil, u.capture, nil, nil, u.garage)),
+		container.NewTabItem("tray", container.NewBorder(nil, container.NewHBox(add), nil, nil, u.tray)),
+	)
+	u.tabs.OnSelected = func(*container.TabItem) {
+		u.focusList()
+		u.details.show(u.current().cursorTask())
+	}
+
+	u.search = newEscEntry(func() {
+		u.clearFilter()
+		u.focusList()
+	})
+	u.search.SetPlaceHolder("/ filter by words or tag")
+	u.search.OnChanged = func(text string) {
+		u.filter = text
+		u.refilter()
+	}
+	u.hidden = grey("")
+	u.status = widget.NewLabel("")
+
+	split := container.NewHSplit(u.tabs, container.NewVScroll(u.details.box))
+	split.Offset = 0.6
+	u.top = container.NewBorder(nil, nil, nil, u.hidden, u.search)
+	u.root = container.NewBorder(u.top, u.status, nil, nil, split)
+	u.reload()
+	return u
+}
+
+func (u *ui) current() *taskList {
+	if u.tabs.SelectedIndex() == 1 {
+		return u.tray
+	}
+	return u.garage
+}
+
+// switchLayer cycles: with two tabs, forward and back are the same move (28a).
+func (u *ui) switchLayer() { u.tabs.SelectIndex((u.tabs.SelectedIndex() + 1) % 2) }
+
+func (u *ui) focusList() { u.win.Canvas().Focus(u.current()) }
+
+// reload reads both layers again. The tray sorts by urgency, live rows first is
+// already true of a live-only list; the garage reads oldest first.
+func (u *ui) reload() {
+	today := store.Today()
+	garage, err := u.s.Tasks(store.Filter{Layer: core.LayerGarage, Month: store.ThisMonth()})
+	if err != nil {
+		u.fail(err)
+		return
+	}
+	tray, err := u.s.Tasks(store.Filter{Layer: core.LayerTray})
+	if err != nil {
+		u.fail(err)
+		return
+	}
+	sort.SliceStable(tray, func(i, j int) bool {
+		return core.Urgency(tray[i], today) > core.Urgency(tray[j], today)
+	})
+	u.garage.load(garage)
+	u.tray.load(tray)
+	u.refilter()
+	u.status.SetText(u.statusText())
+	u.details.show(u.current().cursorTask())
+}
+
+// refilter narrows both lists and says what the filter hid, so a list quietly
+// showing 3 of 17 rows is never misread (57a).
+func (u *ui) refilter() {
+	u.garage.apply(u.filter)
+	u.tray.apply(u.filter)
+	hid := len(u.current().all) - len(u.current().rows)
+	if u.filter == "" || hid == 0 {
+		u.hidden.Text = ""
+	} else {
+		u.hidden.Text = fmt.Sprintf("%d hidden", hid)
+	}
+	u.hidden.Refresh()
+	u.top.Refresh() // the label's width changed; the search field takes up the rest
+}
+
+func (u *ui) clearFilter() {
+	u.filter = ""
+	u.search.SetText("")
+	u.refilter()
+}
+
+func (u *ui) statusText() string {
+	all, err := u.s.Tasks(store.Filter{All: true})
+	if err != nil {
+		return err.Error()
+	}
+	today := store.Today()
+	live, waiting, templates := 0, 0, 0
+	for _, t := range all {
+		switch {
+		case t.Layer == core.LayerGarage && t.Waiting(today):
+			waiting++
+		case t.Recur != "":
+			if until, ended := core.Date(t.Until); !(ended && until.Before(today)) {
+				templates++
+			}
+		case t.Layer == core.LayerTray && t.Live():
+			live++
+		}
+	}
+	return fmt.Sprintf("tray %d · waiting %d · templates %d · garage %s", live, waiting, templates, store.ThisMonth())
+}
+
+func (u *ui) fail(err error) { u.status.SetText("error: " + err.Error()) }
+
+// targets is what an action applies to: the marks, or the row under the cursor.
+// Marks are kept by id across the whole layer, so a filter hides a row without
+// unmarking it (57b).
+func (u *ui) targets(l *taskList) []core.Task {
+	var out []core.Task
+	for _, t := range l.all {
+		if u.marks[t.ID] {
+			out = append(out, t)
+		}
+	}
+	if len(out) == 0 {
+		if t, ok := l.cursorTask(); ok {
+			out = []core.Task{t}
+		}
+	}
+	return out
+}
+
+func (u *ui) setMark(id int64, on bool) {
+	if on {
+		u.marks[id] = true
+	} else {
+		delete(u.marks, id)
+	}
+}
+
+// do is the one dispatcher, so a letter, a row button and a menu can never disagree
+// about what a verb does (24).
+func (u *ui) do(verb string, l *taskList) {
+	picked := u.targets(l)
+	switch verb {
+	case " ":
+		if t, ok := l.cursorTask(); ok {
+			u.setMark(t.ID, !u.marks[t.ID])
+			l.Refresh()
+		}
+	case "t":
+		if l.layer == core.LayerGarage && len(picked) > 0 {
+			u.openForm(picked, true)
+		}
+	case "x":
+		today := store.Today()
+		for i := range picked {
+			core.Finish(&picked[i], today)
+		}
+		u.save(picked)
+	case "d":
+		if l.layer != core.LayerTray {
+			return
+		}
+		for i := range picked {
+			// Home is the month it left, else this one; what it learned stays (88a).
+			month := picked[i].FromMonth
+			if month == "" {
+				month = store.ThisMonth()
+			}
+			core.Move(&picked[i], core.LayerGarage, month)
+		}
+		u.save(picked)
+	case ">":
+		if len(picked) > 0 {
+			u.openMove(picked)
+		}
+	case "r":
+		if len(picked) > 0 {
+			u.openForm(picked, false)
+		}
+	case "#":
+		if len(picked) > 0 {
+			u.openTags(picked)
+		}
+	case "n":
+		if len(picked) > 0 {
+			u.openNote(picked)
+		}
+	case "a":
+		if l.layer == core.LayerGarage {
+			u.win.Canvas().Focus(u.capture)
+		} else {
+			u.openForm(nil, false)
+		}
+	case "l":
+		u.details.focus()
+	case "/":
+		u.win.Canvas().Focus(u.search)
+	case "?":
+		u.openHelp()
+	case "q":
+		u.quit()
+	}
+}
+
+// save lands every task in one transaction, then reads the world back. Marks are
+// spent by the action they were for.
+func (u *ui) save(tasks []core.Task) {
+	err := u.s.Update(func(tx *store.Store) error {
+		for i := range tasks {
+			if err := tx.Put(&tasks[i]); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		u.fail(err)
+		return
+	}
+	u.marks = map[int64]bool{}
+	u.reload()
+}
+
+// dump is the capture bar's verb, with the CLI's reading of the front of the line.
+func (u *ui) dump(text string) {
+	tail := strings.Fields(text)
+	month, tags := store.ThisMonth(), []string{}
+	for len(tail) > 0 {
+		if rest, ok := strings.CutPrefix(tail[0], "to:"); ok && rest != "" {
+			month = rest
+			tail = tail[1:]
+			continue
+		}
+		if mods := core.SplitMods([]string{tail[0]}); len(mods.AddTags) == 1 {
+			tags = append(tags, mods.AddTags[0])
+			tail = tail[1:]
+			continue
+		}
+		break
+	}
+	if len(tail) == 0 {
+		return
+	}
+	t := core.New(strings.Join(tail, " "), tags)
+	t.Month = month
+	u.save([]core.Task{t})
+}
+
+// tagHint is the vocabulary in use, offered rather than picked from (30).
+func (u *ui) tagHint() string {
+	all, err := u.s.Tasks(store.Filter{All: true})
+	if err != nil {
+		return ""
+	}
+	seen := map[string]bool{}
+	var tags []string
+	for _, t := range all {
+		for _, g := range t.Tags {
+			if !seen[g] {
+				seen[g] = true
+				tags = append(tags, g)
+			}
+		}
+	}
+	if len(tags) == 0 {
+		return "tags, space separated"
+	}
+	sort.Strings(tags)
+	return "in use: " + strings.Join(tags, " ")
+}
+
+// show puts content over the home screen and hands it the keyboard. One popup at a
+// time: a form over a form is a question you cannot see.
+func (u *ui) show(content fyne.CanvasObject, focus fyne.Focusable) {
+	u.hide()
+	u.pop = widget.NewModalPopUp(container.NewPadded(content), u.win.Canvas())
+	u.pop.Show()
+	if focus != nil {
+		u.win.Canvas().Focus(focus)
+	}
+}
+
+func (u *ui) hide() {
+	if u.pop != nil {
+		u.pop.Hide()
+		u.pop = nil
+	}
+	u.focusList()
+}
+
+func (u *ui) quit() {
+	u.closed = true
+	u.win.Close()
+}
+
+// grey is a line that informs without asking to be read first.
+func grey(text string) *canvas.Text {
+	t := canvas.NewText(text, style.RGBA(style.Subtle, dark()))
+	t.TextSize = theme.TextSize()
+	return t
+}
+
+func plain(text string) *canvas.Text {
+	t := canvas.NewText(text, theme.Color(theme.ColorNameForeground))
+	t.TextSize = theme.TextSize()
+	return t
+}
