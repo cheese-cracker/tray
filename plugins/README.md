@@ -66,7 +66,7 @@ A plugin with nothing to push is never asked to apply.
 ## Environment and limits
 
 Every run gets `TRAY_HOME` and `TRAY_PLUGIN_DIR`; a verb also gets `TRAY_LAYER` and
-`TRAY_IDS`. `sync plan` and `sync apply` have ten minutes by default (`--timeout`);
+`TRAY_IDS` — the picked tasks' four-character ids, comma separated. `sync plan` and `sync apply` have ten minutes by default (`--timeout`);
 a verb owns the screen and has none. A plugin runs as you; the exec bit is the consent.
 
 ## Trying one

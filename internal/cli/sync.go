@@ -87,13 +87,13 @@ func renderPlans(results []sync.Result, applied map[string]sync.Applied) []strin
 			out = append(out, "  + "+row.Text+tagsOf(row.Tags))
 		}
 		for _, u := range r.Diff.Updates {
-			out = append(out, fmt.Sprintf("  ~ %d %s: %s", u.Old.ID, u.Old.Text, changes(u)))
+			out = append(out, fmt.Sprintf("  ~ %s %s: %s", u.Old.ID, u.Old.Text, changes(u)))
 		}
 		for _, p := range r.Push {
 			out = append(out, "  ↑ "+p.Key+" "+setOf(p.Set))
 		}
 		for _, g := range r.Diff.Gone {
-			out = append(out, fmt.Sprintf("  gone from source: %d %s (kept)", g.ID, g.Text))
+			out = append(out, fmt.Sprintf("  gone from source: %s %s (kept)", g.ID, g.Text))
 		}
 		if r.Evidence != "" {
 			out = append(out, "  evidence: "+r.Evidence)
@@ -175,13 +175,13 @@ type planJSON struct {
 }
 
 type updateJSON struct {
-	ID     int64                `json:"id"`
+	ID     string               `json:"id"`
 	Text   string               `json:"text"`
 	Fields map[string][2]string `json:"fields"`
 }
 
 type goneJSON struct {
-	ID   int64  `json:"id"`
+	ID   string `json:"id"`
 	Text string `json:"text"`
 }
 

@@ -197,17 +197,19 @@ func TestFlowHandBackMovesTheRowHome(t *testing.T) {
 }
 
 // T20 · the id column is the permanent id, not the row's place in the list: erase the
-// row above and the one below keeps its number, which is what makes `tray 12 done`
-// mean the same task tomorrow.
+// row above and the one below keeps its id, which is what makes `tray k79l done` mean
+// the same task tomorrow.
 func TestFlowTheIdColumnReadsThePermanentId(t *testing.T) {
 	sandbox(t, "- [ ] first priority:M", "- [ ] second priority:M")
+	all, _ := ts.Tasks(store.Filter{All: true})
+	first, second := all[0].ID, all[1].ID
 
 	u := drive(t, New(ts)).waitFor("second")
 	m := u.press("q").final()
 	rows := strings.Split(m.View(), "\n")
 	has(t, m.View(), "id")
-	if !rowStartsWith(rows, "1", "first") || !rowStartsWith(rows, "2", "second") {
-		t.Fatalf("rows should read their ids:\n%s", m.View())
+	if !rowStartsWith(rows, first, "first") || !rowStartsWith(rows, second, "second") {
+		t.Fatalf("rows should read their ids %s and %s:\n%s", first, second, m.View())
 	}
 
 	u = drive(t, New(ts)).waitFor("second")
@@ -215,12 +217,12 @@ func TestFlowTheIdColumnReadsThePermanentId(t *testing.T) {
 	u.press("E").waitFor(`erased "first"`)
 	m = u.press("v").waitFor("second").final()
 	rows = strings.Split(m.View(), "\n")
-	if rowStartsWith(rows, "1", "second") || !rowStartsWith(rows, "2", "second") {
-		t.Errorf("the surviving row must keep id 2, not slide to 1:\n%s", m.View())
+	if !rowStartsWith(rows, second, "second") {
+		t.Errorf("the surviving row must keep id %s:\n%s", second, m.View())
 	}
 	left, _ := ts.Tasks(store.Filter{All: true})
-	if len(left) != 1 || left[0].ID != 2 {
-		t.Errorf("the store should hold id 2 alone, got %+v", left)
+	if len(left) != 1 || left[0].ID != second {
+		t.Errorf("the store should hold %s alone, got %+v", second, left)
 	}
 }
 

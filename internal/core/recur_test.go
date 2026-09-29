@@ -26,11 +26,11 @@ func TestPeriodVocabulary(t *testing.T) {
 // A template with a live child is left alone; one whose child is done gets the next
 // occurrence — after the last due, never the same period again, and never a backlog.
 func TestMaterializeServesEachPeriodOnce(t *testing.T) {
-	tpl := Task{ID: 7, Layer: LayerTray, Text: "Weekly review", Recur: "weekly", Due: "2026-08-08", Priority: "M", Tags: []string{"ops"}}
+	tpl := Task{ID: "ab7c", Layer: LayerTray, Text: "Weekly review", Recur: "weekly", Due: "2026-08-08", Priority: "M", Tags: []string{"ops"}}
 	today := day("2026-08-07")
 
 	first := Materialize([]Task{tpl}, nil, today)
-	if len(first) != 1 || first[0].Due != "2026-08-08" || first[0].Source != "recur:7" || first[0].Priority != "M" {
+	if len(first) != 1 || first[0].Due != "2026-08-08" || first[0].Source != "recur:ab7c" || first[0].Priority != "M" {
 		t.Fatalf("first child = %+v", first)
 	}
 	if got := Materialize([]Task{tpl}, first, today); len(got) != 0 {

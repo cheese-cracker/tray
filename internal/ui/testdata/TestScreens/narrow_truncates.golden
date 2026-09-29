@@ -3,8 +3,8 @@
 │  tray  ││  garage · August  │               
 │        └┴───────────────────┴───────────────
 │                                            │
-│         id  task         pri  due  tags    │
-│  ▸  [ ] 1   a task wit…  H         #infra  │
+│         id    task       pri  due  tags    │
+│  ▸  [ ] id01  a task w…  H         #infra  │
 │                                            │
 └────────────────────────────────────────────┘
  ↑↓ move · space select · tab switch    

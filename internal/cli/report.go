@@ -62,7 +62,7 @@ func mark(t core.Task) string {
 	}
 }
 
-func id(t core.Task) string { return fmt.Sprintf("%d%s", t.ID, mark(t)) }
+func id(t core.Task) string { return t.ID + mark(t) }
 
 func trayTable(items []core.Task, today time.Time) string {
 	if len(items) == 0 {
@@ -141,7 +141,7 @@ func grouped(items []core.Task, today time.Time, numbered bool) string {
 		for _, t := range groups[name] {
 			switch {
 			case numbered:
-				out = append(out, fmt.Sprintf("  %d  %s", t.ID, t.Text))
+				out = append(out, fmt.Sprintf("  %s  %s", t.ID, t.Text))
 			case t.Terminal():
 				out = append(out, "- [x] ~~"+t.Text+"~~")
 			default:
@@ -164,7 +164,7 @@ func contextReport(items []core.Task, today time.Time) string {
 	for _, name := range names {
 		out = append(out, "**"+name+"**")
 		for _, t := range groups[name] {
-			out = append(out, fmt.Sprintf("  %d  %s", t.ID, t.Text))
+			out = append(out, fmt.Sprintf("  %s  %s", t.ID, t.Text))
 			out = append(out, indented(t.Note, "      ")...)
 		}
 		out = append(out, "")

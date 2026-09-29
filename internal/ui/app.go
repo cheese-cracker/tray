@@ -54,7 +54,7 @@ type Model struct {
 	list   list.Model
 	deleg  *rowDelegate
 	help   help.Model
-	marked map[int64]bool // by id, so it survives a reload and a filter
+	marked map[string]bool // by id, so it survives a reload and a filter
 
 	mode   mode
 	menuAt int
@@ -76,13 +76,13 @@ type Model struct {
 }
 
 func New(s *store.Store) Model {
-	return start(Model{s: s, marked: map[int64]bool{}, today: store.Today()})
+	return start(Model{s: s, marked: map[string]bool{}, today: store.Today()})
 }
 
 // NewSweep is `tray carryover`: the closing month, this one, and someday.
 func NewSweep(s *store.Store, closing string) Model {
 	return start(Model{
-		s: s, marked: map[int64]bool{}, today: store.Today(), sweep: true, closing: closing,
+		s: s, marked: map[string]bool{}, today: store.Today(), sweep: true, closing: closing,
 	})
 }
 
@@ -630,7 +630,7 @@ func (m *Model) openTagger(picked []core.Task) string {
 func (m *Model) take(picked []core.Task) string {
 	status := m.move(picked, layer{title: "tray"})
 
-	ids := make([]int64, 0, len(picked))
+	ids := make([]string, 0, len(picked))
 	for _, t := range picked {
 		ids = append(ids, t.ID)
 	}

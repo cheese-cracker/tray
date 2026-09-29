@@ -25,7 +25,21 @@ var verbs = []string{
 	"sync", "status", "restore", "plugin", "help",
 }
 
-var idSpec = regexp.MustCompile(`^\d+([,-]\d+)*$`)
+// An id token is one id or a comma list of them; every part must be shaped like one, so
+// a four-letter word is a filter and a four-character id is an id.
+var idSpec = regexp.MustCompile(`^[0-9a-z]{4}(,[0-9a-z]{4})*$`)
+
+func isIDList(tok string) bool {
+	if !idSpec.MatchString(tok) {
+		return false
+	}
+	for _, part := range strings.Split(tok, ",") {
+		if !core.IsID(part) {
+			return false
+		}
+	}
+	return true
+}
 
 const usage = `tray — two layers, one database. Dump to the garage, take onto the tray.
 
@@ -36,14 +50,14 @@ const usage = `tray — two layers, one database. Dump to the garage, take onto 
   tray dump to:2026-11 +infra <text>
   tray add <desc> pri:H due:2026-08-12
   tray add <desc> wait:2027-03-13   → the garage of that month, until that day
-  tray 12 take [pri:H due:...]       garage → tray, the structuring step
-  tray 12 done  ·  tray 12,15-17 done  ·  tray 12 erase   erase removes the row
-  tray 12 note <text>                a few lines of context under a task; --note on dump/add
-  tray --all list  ·  tray 12 restore      see the finished; say one wasn't
-  tray 12 rewrite pri:M              every field — recur: wait: until: too
-  tray 12 edit <new text>            the words alone
+  tray k79l take [pri:H due:...]     garage → tray, the structuring step
+  tray k79l done  ·  tray k79l,79ya done  ·  tray k79l erase   erase removes the row
+  tray k79l note <text>              a few lines of context under a task; --note on dump/add
+  tray --all list  ·  tray k79l restore    see the finished; say one wasn't
+  tray k79l rewrite pri:M            every field — recur: wait: until: too
+  tray k79l edit <new text>          the words alone
   tray unload --to 2026-09           hand the tray back to a month, whole
-  tray 12 unload                     one task, back to the month it came from
+  tray k79l unload                   one task, back to the month it came from
   tray carryover --run --month 2026-08     that month's leftovers move to the next
   tray garage list  ·  tray +infra list  ·  tray list --all (with the finished)
   tray find <text>                   every layer, every month
@@ -55,7 +69,8 @@ const usage = `tray — two layers, one database. Dump to the garage, take onto 
   tray sync [--plugin <name>] [--apply] [--json]  the one event: recurrence and waiting rows land,
                                      plugin plans print — and land whole only under --apply
 
-Ids are permanent. Filters: ids (12, 2,5-7), +tag, key:value, and ` + "`garage`" + ` to switch layer.`
+Ids are permanent, four characters. Filters: ids (k79l, k79l,79ya), +tag, key:value, and
+` + "`garage`" + ` to switch layer.`
 
 type options struct {
 	json, all, run, apply, help, version     bool
@@ -150,7 +165,7 @@ func parse(args []string) request {
 		switch {
 		case tok == "garage":
 			req.scope = "garage"
-		case idSpec.MatchString(tok):
+		case isIDList(tok):
 			req.ids = tok
 		default:
 			req.filters = append(req.filters, tok)

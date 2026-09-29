@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strconv"
 	"strings"
 
 	_ "modernc.org/sqlite"
@@ -16,11 +15,12 @@ import (
 
 const File = "tray.db"
 
-// Ids are AUTOINCREMENT so an erased id is never handed out again — an agent that
-// remembers one across runs must never find a different task behind it.
+// Ids are four random base36 characters (core.NewID), checked against the table on the
+// way in — an agent that remembers one across runs must never find a different task
+// behind it. Insertion order is the rowid, which a text key keeps.
 const schema = `
 CREATE TABLE IF NOT EXISTS task (
-  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  id         TEXT PRIMARY KEY,
   layer      TEXT NOT NULL CHECK (layer IN ('tray','garage')),
   month      TEXT,
   text       TEXT NOT NULL,
@@ -98,7 +98,7 @@ type Filter struct {
 	Layer        string
 	Month        string
 	All          bool // finished rows and templates too
-	IDs          []int64
+	IDs          []string
 	Tags         []string          // every one must be present
 	Attrs        map[string]string // key:value on a wire name, case-insensitive
 	Text         string            // case-insensitive substring of the words or a tag
@@ -131,7 +131,7 @@ func (s *Store) Tasks(f Filter) ([]core.Task, error) {
 		escaped := strings.NewReplacer(`\`, `\\`, "%", `\%`, "_", `\_`).Replace(f.SourcePrefix)
 		where, args = append(where, `source LIKE ? ESCAPE '\'`), append(args, escaped+"%")
 	}
-	rows, err := s.q.Query("SELECT "+columns+" FROM task WHERE "+strings.Join(where, " AND ")+" ORDER BY id", args...)
+	rows, err := s.q.Query("SELECT "+columns+" FROM task WHERE "+strings.Join(where, " AND ")+" ORDER BY rowid", args...)
 	if err != nil {
 		return nil, err
 	}
@@ -180,7 +180,7 @@ func has(tags []string, g string) bool {
 	return false
 }
 
-func (s *Store) Get(id int64) (core.Task, bool, error) {
+func (s *Store) Get(id string) (core.Task, bool, error) {
 	rows, err := s.q.Query("SELECT "+columns+" FROM task WHERE id = ?", id)
 	if err != nil {
 		return core.Task{}, false, err
@@ -202,21 +202,39 @@ func (s *Store) Put(t *core.Task) error {
 		t.Layer, null(t.Month), t.Text, null(t.Priority), null(t.Due), null(t.Wait), null(t.Recur),
 		null(t.Until), t.Entry, null(t.Done), null(t.FromMonth), strings.Join(t.Tags, " "), t.Note, null(t.Source),
 	}
-	if t.ID == 0 {
-		res, err := s.q.Exec(`INSERT INTO task (layer, month, text, priority, due, wait, recur, until, entry, done, from_month, tags, note, source)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, vals...)
+	if t.ID == "" {
+		id, err := s.fresh()
 		if err != nil {
 			return err
 		}
-		t.ID, err = res.LastInsertId()
-		return err
+		_, err = s.q.Exec(`INSERT INTO task (id, layer, month, text, priority, due, wait, recur, until, entry, done, from_month, tags, note, source)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, append([]any{id}, vals...)...)
+		if err != nil {
+			return err
+		}
+		t.ID = id
+		return nil
 	}
 	_, err := s.q.Exec(`UPDATE task SET layer = ?, month = ?, text = ?, priority = ?, due = ?, wait = ?, recur = ?,
 		until = ?, entry = ?, done = ?, from_month = ?, tags = ?, note = ?, source = ? WHERE id = ?`, append(vals, t.ID)...)
 	return err
 }
 
-func (s *Store) Delete(id int64) error {
+// fresh is an id no row holds. A collision is one in a million and costs one more roll.
+func (s *Store) fresh() (string, error) {
+	for {
+		id := core.NewID()
+		var n int
+		if err := s.q.QueryRow("SELECT count(*) FROM task WHERE id = ?", id).Scan(&n); err != nil {
+			return "", err
+		}
+		if n == 0 {
+			return id, nil
+		}
+	}
+}
+
+func (s *Store) Delete(id string) error {
 	_, err := s.q.Exec("DELETE FROM task WHERE id = ?", id)
 	return err
 }
@@ -299,36 +317,14 @@ func null(s string) any {
 	return s
 }
 
-// ParseIDs turns id specs — 3, or 2,5-7 — into ids. Anything that is not a number or a
-// range is ignored, not an error.
-func ParseIDs(spec string) []int64 {
-	var out []int64
+// ParseIDs turns an id list — `k79l`, or `k79l,79ya` — into ids. Anything that is not
+// shaped like one is ignored, not an error.
+func ParseIDs(spec string) []string {
+	var out []string
 	for _, part := range strings.Split(spec, ",") {
-		if lo, hi, ok := rangeOf(part); ok {
-			for n := lo; n <= hi; n++ {
-				out = append(out, n)
-			}
-			continue
-		}
-		if n, err := strconv.ParseInt(part, 10, 64); err == nil {
-			out = append(out, n)
+		if core.IsID(part) {
+			out = append(out, part)
 		}
 	}
 	return out
-}
-
-func rangeOf(part string) (int64, int64, bool) {
-	lo, hi, ok := strings.Cut(part, "-")
-	if !ok || lo == "" {
-		return 0, 0, false
-	}
-	a, err := strconv.ParseInt(lo, 10, 64)
-	if err != nil {
-		return 0, 0, false
-	}
-	b, err := strconv.ParseInt(hi, 10, 64)
-	if err != nil || b < a {
-		return 0, 0, false
-	}
-	return a, b, true
 }

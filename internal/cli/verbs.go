@@ -137,7 +137,7 @@ func missing(t core.Task) string {
 	if len(wants) == 0 {
 		return ""
 	}
-	return fmt.Sprintf(" — no %s; add with `tray %d rewrite %s`",
+	return fmt.Sprintf(" — no %s; add with `tray %s rewrite %s`",
 		strings.Join(wants, " or "), t.ID, strings.Join(wants, " "))
 }
 
@@ -404,7 +404,7 @@ func cmdUnload(s *store.Store, req request) (string, error) {
 				continue // a template is the tray's own furniture, not work to hand back
 			}
 			if to == "" && t.FromMonth == "" {
-				return fmt.Errorf("%d never came from a month — tray %d unload --to %s", t.ID, t.ID, store.ThisMonth())
+				return fmt.Errorf("%s never came from a month — tray %s unload --to %s", t.ID, t.ID, store.ThisMonth())
 			}
 			core.Move(&t, core.LayerGarage, to)
 			if err := tx.Put(&t); err != nil {

@@ -84,21 +84,21 @@ func TestDefaultHomeIsTheXDGDataDirectory(t *testing.T) {
 	}
 }
 
-// An erased id is never reused: an agent holding it across runs must not find another
-// task behind it.
+// An id is four characters the store hands out once: two rows never share one, and an
+// erased row's id does not come back on the next insert.
 func TestIdsArePermanent(t *testing.T) {
 	s := sandbox(t)
 	a := put(t, s, core.New("a", nil))
 	b := put(t, s, core.New("b", nil))
-	if a.ID == 0 || b.ID <= a.ID {
-		t.Fatalf("ids = %d, %d — want climbing from 1", a.ID, b.ID)
+	if !core.IsID(a.ID) || !core.IsID(b.ID) || a.ID == b.ID {
+		t.Fatalf("ids = %q, %q — want two distinct four-character ids", a.ID, b.ID)
 	}
 	if err := s.Delete(b.ID); err != nil {
 		t.Fatal(err)
 	}
 	c := put(t, s, core.New("c", nil))
-	if c.ID <= b.ID {
-		t.Errorf("c took %d, which b (%d) had", c.ID, b.ID)
+	if c.ID == b.ID || c.ID == a.ID {
+		t.Errorf("c took %q, which another row had", c.ID)
 	}
 	if _, ok, _ := s.Get(b.ID); ok {
 		t.Error("an erased row is still there")
@@ -142,7 +142,7 @@ func TestPutStampsEntry(t *testing.T) {
 func TestTasksFilters(t *testing.T) {
 	s := sandbox(t)
 	live := put(t, s, core.Task{Layer: core.LayerTray, Text: "Urgent thing", Priority: "H", Due: "2026-08-08", Tags: []string{"infra"}})
-	put(t, s, core.Task{Layer: core.LayerTray, Text: "Finished thing", Done: "2026-08-06"})
+	finished := put(t, s, core.Task{Layer: core.LayerTray, Text: "Finished thing", Done: "2026-08-06"})
 	put(t, s, core.Task{Layer: core.LayerTray, Text: "Weekly review", Recur: "weekly", Due: "2026-08-14"})
 	put(t, s, core.Task{Layer: core.LayerGarage, Month: "2026-08", Text: "a jotting", Tags: []string{"Infra"}})
 	put(t, s, core.Task{Layer: core.LayerGarage, Month: "2026-09", Text: "later"})
@@ -160,7 +160,7 @@ func TestTasksFilters(t *testing.T) {
 		{"attr on a field nothing has", Filter{Attrs: map[string]string{"due": "2027-01-01"}}, nil},
 		{"text over words", Filter{Text: "THING"}, []string{"Urgent thing"}},
 		{"text over tags", Filter{Text: "inf", All: true}, []string{"Urgent thing", "a jotting"}},
-		{"ids reach every state", Filter{IDs: []int64{live.ID, live.ID + 1}, All: true}, []string{"Urgent thing", "Finished thing"}},
+		{"ids reach every state", Filter{IDs: []string{live.ID, finished.ID}, All: true}, []string{"Urgent thing", "Finished thing"}},
 	}
 	for _, c := range cases {
 		got, err := s.Tasks(c.f)
@@ -209,12 +209,13 @@ func TestMonthsAreCalendarMonthsOnly(t *testing.T) {
 func TestParseIDs(t *testing.T) {
 	cases := []struct {
 		spec string
-		want []int64
+		want []string
 	}{
-		{"3", []int64{3}},
-		{"2,5-7", []int64{2, 5, 6, 7}},
-		{"1-3", []int64{1, 2, 3}},
-		{"7-5", nil}, // a backwards range is nothing, not a crash
+		{"k79l", []string{"k79l"}},
+		{"k79l,79ya", []string{"k79l", "79ya"}},
+		{"done", nil}, // four letters and no digit is a word, never an id
+		{"k79", nil},  // too short
+		{"K79L", nil}, // ids are lower case
 		{"bogus", nil},
 	}
 	for _, c := range cases {

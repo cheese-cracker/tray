@@ -4,7 +4,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strconv"
 	"testing"
 	"time"
 
@@ -68,7 +67,7 @@ func TestTickMaterializesAndLiftsWithoutReview(t *testing.T) {
 		if task.Text == "Call mom" && (task.Wait != "" || task.Priority != "H" || task.FromMonth != "2026-08") {
 			t.Errorf("lifted row = %+v", task)
 		}
-		if task.Source == "recur:"+itoa(tpl.ID) && task.Due != "2026-08-08" {
+		if task.Source == "recur:"+tpl.ID && task.Due != "2026-08-08" {
 			t.Errorf("child = %+v", task)
 		}
 	}
@@ -182,8 +181,6 @@ func TestApplyLandsWholeOrNotAtAll(t *testing.T) {
 		t.Errorf("the good row landed alone: %v", got)
 	}
 }
-
-func itoa(n int64) string { return strconv.FormatInt(n, 10) }
 
 func contains(s, sub string) bool {
 	for i := 0; i+len(sub) <= len(s); i++ {

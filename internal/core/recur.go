@@ -1,7 +1,6 @@
 package core
 
 import (
-	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -34,7 +33,7 @@ func days(n int) func(time.Time) time.Time {
 }
 
 // ChildOf is the source a template's children carry.
-func ChildOf(template Task) string { return fmt.Sprintf("recur:%d", template.ID) }
+func ChildOf(template Task) string { return "recur:" + template.ID }
 
 // Materialize is the recurrence step: for every template with no live child, one
 // child, due on the first occurrence on or after today — and after the last child's

@@ -84,7 +84,7 @@ suite rather than hanging it.
 | T17 | A garage rewrite refuses a batch — there is nothing left for it to change | `TestFlowGarageRewriteRefusesABatch` |
 | T18 | `E` removes a row outright and names it in the status, and is reachable only in review mode | `TestFlowEraseRemovesTheLineAndSaysWhatWent` |
 | T19 | `n` opens the note alone on either layer, saves it on the row, and the row shows `≡` | `TestFlowNoteIsTheIndentedLinesUnderATask` |
-| T20 | The id column reads the permanent id: erase the row above and the one below keeps its number | `TestFlowTheIdColumnReadsThePermanentId` |
+| T20 | The id column reads the permanent id: erase the row above and the one below keeps its id | `TestFlowTheIdColumnReadsThePermanentId` |
 | T21 | The CLI and the interface share one store: what `dump` writes the interface shows, and what the interface takes, finishes and hands back `list --json` reads by the same ids | `TestFlowTheCLIAndTheTUIShareOneStore` |
 
 ## Adding one

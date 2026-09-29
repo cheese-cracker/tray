@@ -3,7 +3,6 @@ package ui
 import (
 	"fmt"
 	"io"
-	"strconv"
 	"strings"
 	"time"
 
@@ -57,7 +56,7 @@ var (
 	// The permanent id, dim and first: what `tray 12 done` and an agent's export call
 	// this row. It never changes, so it never has to be looked up.
 	colID = column{head: "id", pad: 2,
-		cell: func(_ *rowDelegate, t core.Task) string { return strconv.FormatInt(t.ID, 10) },
+		cell: func(_ *rowDelegate, t core.Task) string { return t.ID },
 		tint: func(_ *rowDelegate, _ core.Task) lipgloss.TerminalColor { return style.Subtle }}
 
 	colTask = column{head: "task", desc: true,
@@ -140,7 +139,7 @@ var gutterPad = [nGutter]int{gMark: 1, gBox: 1}
 type rowDelegate struct {
 	tray   bool
 	today  time.Time
-	marked map[int64]bool
+	marked map[string]bool
 
 	// cols and widths are set together by measure and are always the same length, so
 	// a row can never index past the widths it was measured for.

@@ -42,7 +42,7 @@ var (
 )
 
 type Task struct {
-	ID    int64
+	ID    string // four base36 characters, see id.go
 	Layer string // LayerTray or LayerGarage
 	Month string // garage only: 2026-09, someday, or the plugin whose garage it is
 	Text  string

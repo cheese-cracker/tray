@@ -456,15 +456,20 @@ tray add a pri:M >/dev/null
 tray add b pri:M >/dev/null
 tray add c pri:M >/dev/null
 ida=$(id_of a); idb=$(id_of b); idc=$(id_of c)
-# c holds the highest id, so this is the erase a plain rowid would silently reuse.
+for id in "$ida" "$idb" "$idc"; do
+  case $id in [0-9a-z][0-9a-z][0-9a-z][0-9a-z]) ;; *) bad "id $id is not four base36 characters" ;; esac
+  case $id in *[0-9]*) ;; *) bad "id $id has no digit, so it could be a word" ;; esac
+done
+[ "$ida" != "$idb" ] && [ "$idb" != "$idc" ] && [ "$ida" != "$idc" ] && pass "three rows, three ids" || bad "ids collide: $ida $idb $idc"
 tray "$idc" erase >/dev/null
 [ "$(id_of a)" = "$ida" ] && [ "$(id_of b)" = "$idb" ] \
-  && pass "erasing a neighbour renumbers nothing" || bad "a or b moved: $(tray_json | jq -c 'map(.id)')"
+  && pass "erasing a neighbour changes nothing" || bad "a or b changed: $(tray_json | jq -c 'map(.id)')"
 tray add d pri:M >/dev/null
-[ "$(id_of d)" -gt "$idc" ] && pass "a new task takes a new id, never an erased one" || bad "d took $(id_of d), c had $idc"
+[ "$(id_of d)" != "$ida" ] && [ "$(id_of d)" != "$idb" ] && pass "a new task takes an id of its own" || bad "d took a live id"
 tray "$ida" done >/dev/null
 [ "$(tray_json | field a status)" = "completed" ] && pass "an id names the same task after every change" || bad "wrong row marked"
 [ "$(id_of a)" = "$ida" ] && pass "and finishing keeps it too" || bad "a changed id"
+tray done list >/dev/null 2>&1; [ "$(tray_json | field b status)" = "pending" ] && pass "a four-letter word is a filter, not an id" || bad "'done' was read as an id"
 teardown
 
 # --- F33 · import -----------------------------------------------------------------
@@ -557,7 +562,7 @@ case $out in *"expires on the 12th"*) pass "and the note under its task" ;; *) b
 out=$(tray "$(id_of Plain)" context)
 case $out in *Rotate*) bad "an id should narrow it: $out" ;; *Plain*) pass "an id narrows it to that task" ;; *) bad "got: $out" ;; esac
 case $(tray +infra context) in *Plain*) bad "a filter should narrow it" ;; *Rotate*) pass "a filter narrows it too" ;; *) bad "filter broke it" ;; esac
-case $(tray 999 context) in "nothing to copy") pass "an unknown id says so" ;; *) bad "got: $(tray 999 context)" ;; esac
+case $(tray zz9z context) in "nothing to copy") pass "an unknown id says so" ;; *) bad "got: $(tray zz9z context)" ;; esac
 teardown
 
 # --- F25 · waiting ---------------------------------------------------------------------

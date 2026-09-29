@@ -176,7 +176,7 @@ func TestOnlyTabSwitchesLayers(t *testing.T) {
 func TestSpaceMarksAndUnmarks(t *testing.T) {
 	sandbox(t, "- [ ] one priority:H", "- [ ] two priority:M")
 	m := keys(New(ts), " ").(Model)
-	if len(m.marked) != 1 || !m.marked[1] {
+	if len(m.marked) != 1 || !m.marked[m.items()[0].ID] {
 		t.Errorf("marked = %v", m.marked)
 	}
 	m = keys(m, " ").(Model)
@@ -600,7 +600,7 @@ func TestMarksKeepRenderingAfterTheyAreCleared(t *testing.T) {
 	if !marked(m) {
 		t.Fatalf("a mark should draw a ●:\n%s", m.View())
 	}
-	if !m.deleg.marked[1] {
+	if !m.deleg.marked[m.items()[0].ID] {
 		t.Error("the delegate is not reading the model's mark map")
 	}
 
@@ -633,14 +633,14 @@ func TestTrayShowsCheckboxesAndTheGarageDoesNot(t *testing.T) {
 	// Review mode lists both kinds, so one frame carries both boxes. The id sits
 	// between the box and the words, so the shape is `[x]  2  finished`.
 	trayView := keys(New(ts), "v").(Model).View()
-	for _, want := range []string{`\[ \]\s+\d+\s+still open`, `\[x\]\s+\d+\s+finished`} {
+	for _, want := range []string{`\[ \]\s+[0-9a-z]{4}\s+still open`, `\[x\]\s+[0-9a-z]{4}\s+finished`} {
 		if !regexp.MustCompile(want).MatchString(trayView) {
 			t.Errorf("the tray should show %q:\n%s", want, trayView)
 		}
 	}
 
 	garageView := keys(New(ts), "tab", "v").(Model).View()
-	for _, want := range []string{`\d+\s+a jotting`, `✓\s+\d+\s+a finished jotting`} {
+	for _, want := range []string{`[0-9a-z]{4}\s+a jotting`, `✓\s+[0-9a-z]{4}\s+a finished jotting`} {
 		if !regexp.MustCompile(want).MatchString(garageView) {
 			t.Errorf("the garage should show %q:\n%s", want, garageView)
 		}

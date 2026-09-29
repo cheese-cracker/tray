@@ -44,7 +44,7 @@ Bare `tray` on a terminal opens it.
 the form, adding a task, and marking one done.](docs/demo.svg)
 
 The tray orders itself by priority, due date, and age. The dim number at the left of
-every row is the task's id — permanent, and what `tray 12 done` means.
+every row is the task's id — four characters, permanent, and what `tray k79l done` means.
 
 | | |
 |---|---|
@@ -162,27 +162,27 @@ it. Same tool, same database, in the half you never have to look at.
 
 | | |
 |---|---|
-| `tray 12 take [pri:H +infra]` | Garage → tray. Where a jotted pointer becomes a real task. The row remembers the month it left. |
-| `tray 12 rewrite pri:M +blocked -infra` | Restructure a task — every field, `recur:` `wait:` `until:` too. Exact and scriptable; what agents use. |
+| `tray k79l take [pri:H +infra]` | Garage → tray. Where a jotted pointer becomes a real task. The row remembers the month it left. |
+| `tray k79l rewrite pri:M +blocked -infra` | Restructure a task — every field, `recur:` `wait:` `until:` too. Exact and scriptable; what agents use. |
 | `tray unload --to 2026-09` | Hand the whole tray back to a month. **The month is never guessed** — bare `tray unload` picks it on a terminal and errors when piped. |
-| `tray 12 unload` | One task, back to the month it came from. |
+| `tray k79l unload` | One task, back to the month it came from. |
 | `tray carryover --run --month 2026-08` | That month's live leftovers move to the next month. A due date that has already passed is dropped on the way. `--month` is required, and `tray status` prints the line to run. On a terminal, bare `tray carryover` opens the months as tabs instead. |
 
 ### Finishing
 
 | | |
 |---|---|
-| `tray 12 done` | Dated, in place. Never moved. |
-| `tray 12,15-17 done` | Ranges, like Taskwarrior. |
-| `tray 12 restore` | Says it wasn't finished after all. No trace. |
-| `tray 12 erase` | **Removes the row.** The one verb that does — for something typed twice, or typed wrong. |
+| `tray k79l done` | Dated, in place. Never moved. |
+| `tray k79l,79ya done` | Several at once, comma separated. |
+| `tray k79l restore` | Says it wasn't finished after all. No trace. |
+| `tray k79l erase` | **Removes the row.** The one verb that does — for something typed twice, or typed wrong. |
 
 ### Editing
 
 | | |
 |---|---|
-| `tray 12 edit <new text>` | The words alone, everything else untouched. |
-| `tray 12 note <text>` · `tray 12 note` | Replace the note, or print it. |
+| `tray k79l edit <new text>` | The words alone, everything else untouched. |
+| `tray k79l note <text>` · `tray k79l note` | Replace the note, or print it. |
 
 `rewrite` will set a priority on a garage line, where the interface's form won't offer
 one. That asymmetry is deliberate: the interface guides a habit, the CLI doesn't police
@@ -238,9 +238,9 @@ with the tool.
 | `+tag` | `#tag` is read too, `+tag` is written. A `project` on any wire becomes one |
 | indented lines | the task's note, on the markdown wire. One note, any length. One Taskwarrior annotation; nothing in todo.txt |
 
-Ids are permanent integers, printed first in every report and never reused. `tray 12`
-means the same task tomorrow, in a filter, in an export, and in the interface's first
-column.
+Ids are four characters — base36, always with a digit, so a four-letter word is never
+one — printed first in every report and never handed out twice. `tray k79l` means the
+same task tomorrow, in a filter, in an export, and in the interface's first column.
 
 </details>
 

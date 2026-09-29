@@ -3,7 +3,6 @@ package ui
 import (
 	"os"
 	"os/exec"
-	"strconv"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -45,7 +44,7 @@ func command(a plugin.Action, layer string, picked []core.Task) *exec.Cmd {
 	ids := make([]string, 0, len(picked))
 	for _, t := range picked {
 		args = append(args, t.Text)
-		ids = append(ids, strconv.FormatInt(t.ID, 10))
+		ids = append(ids, t.ID)
 	}
 	cmd := exec.Command(a.Path, args...)
 	cmd.Env = append(os.Environ(), "TRAY_LAYER="+layer, "TRAY_IDS="+strings.Join(ids, ","))
