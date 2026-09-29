@@ -17,6 +17,7 @@ setup() {
   TRAY_HOME=$(mktemp -d)
   export TRAY_HOME
   export TRAY_TODAY=2026-08-07
+  export TRAY_CONFIG="$TRAY_HOME/config.yaml"   # never the user's — a real db.url would send every flow elsewhere
   tray() { "$BIN" "$@" </dev/null; }
   tray init >/dev/null
 }
@@ -751,7 +752,7 @@ teardown
 head_ "F37 · the config file names the store, and tray config masks its secrets"
 setup
 rm -f "$TRAY_HOME/tray.db"   # setup's init made one; this flow is about it staying away
-CFG="$TRAY_HOME/config.yaml"; OTHER="$TRAY_HOME/elsewhere/other.db"
+CFG="$TRAY_HOME/cfg.yaml"; OTHER="$TRAY_HOME/elsewhere/other.db"
 printf 'db:\n  url: "%s"\n  auth_token: "eyJhbGciOiJFZDI1NTE5In0.secret1234"\nopenrouter:\n  api_key: "sk-or-v1-abcdef9876"\n' "$OTHER" > "$CFG"
 TRAY_CONFIG="$CFG" tray dump 'lands in the other file' >/dev/null
 [ -f "$OTHER" ] && pass "the URL's file was created" || bad "no file at db.url"
