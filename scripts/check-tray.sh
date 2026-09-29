@@ -666,6 +666,29 @@ case $out in *"echo: 2 adds"*) pass "echo's plan still prints" ;; *) bad "echo s
 tray sync --timeout soon >/dev/null 2>&1 && bad "a bad timeout was accepted" || pass "a bad --timeout is an error"
 teardown
 
+# --- F34 · the whole event in one run --------------------------------------------------------
+# Three plugins installed at once, one sync: the good plan prints, the failure is named,
+# the slow one is cut off — then one --apply lands exactly the good plan and hands its push
+# back. The pieces are F28–F31; this is the run you actually do.
+head_ "F34 · one sync runs every plugin and lands one plan whole"
+setup
+install_plugin echo; install_plugin fail; install_plugin slow
+out=$(limit "$BIN" sync --timeout 1s </dev/null)
+case $out in *"echo: 2 adds · 0 updates · 1 push"*) pass "echo plans" ;; *) bad "got: $out" ;; esac
+case $out in *"fail: failed — boom"*) pass "fail is named" ;; *) bad "got: $out" ;; esac
+case $out in *"slow: failed — timed out"*) pass "slow is cut off" ;; *) bad "got: $out" ;; esac
+[ "$(garage_json echo | jq length)" = "0" ] && pass "and nothing has landed yet" || bad "rows landed before --apply"
+out=$(limit "$BIN" sync --apply --plugin echo --timeout 1s </dev/null)
+case $out in *"applied: 2 adds"*) pass "--apply --plugin lands the one plan" ;; *) bad "got: $out" ;; esac
+[ "$(garage_json echo | rows 'Ship the notes')" = "1" ] && [ "$(garage_json echo | rows 'Renew the cert')" = "1" ] \
+  && pass "both rows are in echo's garage" || bad "garage: $(garage_json echo)"
+[ "$(garage_json echo | field 'Ship the notes' tags)" = '["work"]' ] && pass "with their tags" || bad "tags lost"
+grep -q '"n0"' "$TRAY_HOME/plugins/echo/applied.json" && pass "the push reached the plugin" || bad "no applied.json"
+[ "$(garage_json fail | jq length)" = "0" ] && [ "$(garage_json slow | jq length)" = "0" ] \
+  && pass "the others landed nothing" || bad "a failed plugin landed rows"
+tray status | grep -q "fail failed — boom" && pass "status still names the failure" || bad "got: $(tray status)"
+teardown
+
 printf '\n'
 [ "$fail" = 0 ] && printf '\033[32mtray flows pass\033[0m\n' || printf '\033[31mtray flows FAILED\033[0m\n'
 exit "$fail"
