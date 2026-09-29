@@ -265,6 +265,9 @@ func count(n int, noun string) string {
 	if n == 1 {
 		return "1 " + noun
 	}
+	if strings.HasSuffix(noun, "sh") {
+		return fmt.Sprintf("%d %ses", n, noun)
+	}
 	return fmt.Sprintf("%d %ss", n, noun)
 }
 

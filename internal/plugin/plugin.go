@@ -34,6 +34,7 @@ const (
 	SettingsFile    = "settings.json"
 	OnLaunchMarker  = "on-launch"
 	AllRowsMarker   = "all-rows"
+	HealthFile      = "health"
 	LogFile         = "log"
 	EvidenceDir     = "evidence"
 )
@@ -44,6 +45,7 @@ type Plugin struct {
 	Name     string
 	Dir      string
 	Sync     string   // "" when the plugin keeps no garage
+	Health   string   // "" when the plugin has no probe
 	Verbs    []string // the executables under ActionsDir, in name order
 	OnLaunch bool     // run at launch too, not only on a manual sync
 	AllRows  bool     // `sync plan` reads every row, not only the ones it keyed
@@ -124,21 +126,31 @@ func List() []Plugin {
 		if !e.IsDir() {
 			continue
 		}
-		dir := filepath.Join(Dir(), e.Name())
-		p := Plugin{Name: e.Name(), Dir: dir, Verbs: verbs(dir)}
-		if sync := filepath.Join(dir, SyncFile); runnable(sync) {
-			p.Sync = sync
-		}
+		p := read(e.Name())
 		if p.Sync == "" && len(p.Verbs) == 0 {
 			continue
 		}
-		_, err := os.Stat(filepath.Join(dir, OnLaunchMarker))
-		p.OnLaunch = err == nil
-		_, err = os.Stat(filepath.Join(dir, AllRowsMarker))
-		p.AllRows = err == nil
 		found = append(found, p)
 	}
 	return found
+}
+
+// read is the folder as a Plugin, runnable parts only: a file without the exec bit is
+// simply not there yet.
+func read(name string) Plugin {
+	dir := filepath.Join(Dir(), name)
+	p := Plugin{Name: name, Dir: dir, Verbs: verbs(dir)}
+	if sync := filepath.Join(dir, SyncFile); runnable(sync) {
+		p.Sync = sync
+	}
+	if health := filepath.Join(dir, HealthFile); runnable(health) {
+		p.Health = health
+	}
+	_, err := os.Stat(filepath.Join(dir, OnLaunchMarker))
+	p.OnLaunch = err == nil
+	_, err = os.Stat(filepath.Join(dir, AllRowsMarker))
+	p.AllRows = err == nil
+	return p
 }
 
 func Find(name string) (Plugin, bool) {

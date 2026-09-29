@@ -12,6 +12,7 @@ $TRAY_HOME/plugins/<name>/
   settings.json           written by the form or `tray plugin set`; tray never reads it
   on-launch               marker: run `sync plan` when the app opens too. Absent ⇒ manual only
   all-rows                marker: `sync plan` reads the whole store, not only your rows (below)
+  health                  executable, optional: the probe `tray plugin check` runs (below)
   evidence/               plugin-written; the newest file is shown beside the plan
   log                     tray-written: stderr of the last run
 ```
@@ -112,6 +113,33 @@ stdin is the confirmed pushes: `{"push": [...]}`. Do them and answer:
 ```
 
 A plugin with nothing to push is never asked to apply.
+
+## `health`, and what `tray plugin` shows
+
+`health` is optional and takes no input. Exit **0**: well. Exit **2**: it needs you — write
+one line to stderr saying what (`token expired`, `not signed in`). Exit **1**: failed.
+`tray plugin check [name]` runs each probe with a ten-second limit and remembers the
+verdict apart from the last sync run, so neither hides the other. A plugin without a
+probe is reported as `no probe`, which is not a failure.
+
+`tray plugin` is the health view, one row per folder and one per core plugin:
+
+```
+NAME        KIND      STATE                          HOOKS                    SETTINGS  LAST
+turso       external  ok                             manual · all-rows        ok        check 2026-09-29 12:01 — ok
+gcal        external  never run                      verbs: schedule          —         —
+web-linear  external  unconfigured                   launch · manual          missing   —
+halfdone    external  half-installed                 —                        —         —
+openrouter  core      off — set openrouter.api_key   TRAY_OPENROUTER_* to plugins  —    —
+```
+
+`state` reads the folder before the history: a folder none of whose files carries the
+exec bit is `half-installed`; an example settings file with no `settings.json` beside it
+is `unconfigured`; otherwise the last probe, else the last sync run, else `never run`.
+`hooks` is what the plugin joins — `launch`, `manual`, `verbs: …`, `all-rows`. A **core
+plugin** is a capability shipped inside tray and switched on by the config file; it is
+listed either way so its absence has a name, never runs as a process, and tray is whole
+without it. `--json` gives the same rows to an agent.
 
 ## Environment and limits
 

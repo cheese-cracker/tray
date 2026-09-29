@@ -401,17 +401,19 @@ printf '#!/bin/sh\n' > "$TRAY_HOME/plugins/halfdone/sync"   # deliberately not e
 out=$(tray plugin list)
 case $out in *notion*) pass "an installed plugin is listed" ;; *) bad "got: $out" ;; esac
 tray help | grep -q "tray plugin" && pass "and now the help says so" || bad "help still silent with a plugin installed"
-case $out in *halfdone*) bad "a non-executable sync counted as a plugin: $out" ;;
-  *) pass "a folder without an executable sync is half an install" ;; esac
-case $out in *"garage empty"*) pass "a garage never written says so" ;; *) bad "got: $out" ;; esac
-case $out in *"never run"*) pass "and so does a plugin never run" ;; *) bad "got: $out" ;; esac
+case $out in *halfdone*half-installed*) pass "a folder without an executable sync is listed as half-installed" ;;
+  *) bad "half-installed folder not shown as such: $out" ;; esac
+case $(tray sync) in *halfdone*) bad "a half-installed folder was run" ;; *) pass "and is never run" ;; esac
+[ "$(tray plugin --json | jq -r '.[] | select(.name=="notion") | .hooks | join(" ")')" = "manual" ] \
+  && pass "a sync plugin joins the manual hook" || bad "hooks: $(tray plugin --json | jq -c '.[]|select(.name=="notion")|.hooks')"
+case $out in *"never run"*) pass "a plugin never run says so" ;; *) bad "got: $out" ;; esac
 
 # The garage a plugin owns is ordinary rows in the store, so it reads with no plugin
 # involved at all — which is what keeps a deleted plugin from taking your tasks.
 tray dump to:notion +infra ship the billing migration >/dev/null
 tray garage --month notion list | grep -q "billing migration" \
   && pass "a plugin garage reads as a plain garage" || bad "not readable: $(tray garage --month notion list)"
-tray plugin | grep -q "garage 1 row" && pass "and the listing counts it" || bad "got: $(tray plugin)"
+[ "$(garage_json notion | rows 'ship the billing migration')" = "1" ] && pass "and the store counts it" || bad "not in the store"
 
 tray "$(gid_of notion 'ship the billing migration')" take pri:H >/dev/null
 [ "$(tray_json | field 'ship the billing migration' from)" = "notion" ] \
@@ -421,7 +423,8 @@ tray "$(gid_of notion 'ship the billing migration')" take pri:H >/dev/null
 
 out=$(tray plugin run notion)
 case $out in *"notion: nothing new"*) pass "run prints one plugin's plan and lands nothing" ;; *) bad "got: $out" ;; esac
-tray plugin | grep -q "notion.*last manual.*ok" && pass "and the listing remembers the run" || bad "got: $(tray plugin)"
+[ "$(tray plugin --json | jq -r '.[] | select(.name=="notion") | .sync.hook + " " + (.sync.ok|tostring)')" = "manual true" ] \
+  && pass "and the listing remembers the run" || bad "got: $(tray plugin)"
 tray plugin run nope >/dev/null 2>&1 && bad "an unknown plugin ran" || pass "an unknown plugin is an error"
 
 # The example settings are the form; tray writes the answers and never reads them.
@@ -431,9 +434,9 @@ tray plugin set notion url=https://example.test >/dev/null
   && pass "set writes the plugin's settings file" || bad "settings not written"
 tray plugin set notion colour=red >/dev/null 2>&1 && bad "a key the example does not name was accepted" \
   || pass "a key the example does not name is refused"
-tray plugin | grep -q "on-launch" && bad "on-launch claimed without the marker" || pass "manual only until the marker exists"
+tray plugin | grep '^notion' | grep -q "launch" && bad "launch claimed without the marker" || pass "manual only until the marker exists"
 touch "$TRAY_HOME/plugins/notion/on-launch"
-tray plugin | grep -q "on-launch" && pass "the marker opts a plugin into launch" || bad "marker ignored"
+tray plugin | grep '^notion' | grep -q "launch" && pass "the marker opts a plugin into launch" || bad "marker ignored"
 
 # A menu verb is an executable under actions/, named after itself (105). A plugin may
 # be nothing but verbs — then it keeps no garage, and the listing says what it adds
@@ -640,7 +643,7 @@ tray sync --apply | grep -q "applied: 2 adds" && pass "--apply lands it" || bad 
   && [ "$(garage_json echo | field 'Renew the cert' priority)" = "H" ] \
   && pass "with what the plugin reported" || bad "fields lost: $(garage_json echo)"
 grep -q '"n0"' "$TRAY_HOME/plugins/echo/applied.json" && pass "the push reached the plugin" || bad "no applied.json"
-tray plugin | grep -q "echo.*last apply.*ok" && pass "the listing remembers the apply" || bad "got: $(tray plugin)"
+tray plugin | grep -q "echo.*apply .*applied" && pass "the listing remembers the apply" || bad "got: $(tray plugin)"
 case $(tray sync) in *"echo: 0 adds"*) pass "a second sync finds the rows it knows" ;; *) bad "got: $(tray sync)" ;; esac
 printf '{"pull":[{"key":"a","text":"good row"},{"key":"b","text":"bad row","priority":"Z"}],"push":[]}' > "$TRAY_HOME/plugins/echo/plan.json"
 tray sync --apply >/dev/null 2>&1 && bad "a plan the store rejects was applied" || pass "a row the store refuses fails the apply"
@@ -787,6 +790,37 @@ SEEN="$TRAY_HOME/plugins/allrows/seen.json"
 [ "$(jq -r '.tasks[] | select(.text=="a garage line") | .key == .id' "$SEEN")" = "true" ] && pass "and is keyed by it" || bad "key is not the id"
 tray plugin run own >/dev/null
 [ "$(jq '.tasks | length' "$TRAY_HOME/plugins/own/seen.json")" = "0" ] && pass "without the marker a plugin sees only rows it keyed — none" || bad "own saw $(jq '.tasks | length' "$TRAY_HOME/plugins/own/seen.json") rows"
+teardown
+
+# --- F40 · plugin is the health view --------------------------------------------------------
+# A plugin that fails at sync time, ten minutes in, is a plugin nobody asked. `check`
+# asks first, with the exit codes a sync already speaks, and the listing reads the
+# folder before the history: an unfinished install or an unfilled form is the state.
+head_ "F40 · plugin is the health view"
+setup
+install_plugin echo; install_plugin allrows; install_plugin healthy; install_plugin ask; install_plugin broken
+mkdir -p "$TRAY_HOME/plugins/unconf" "$TRAY_HOME/plugins/halfway" "$TRAY_HOME/plugins/gcal/actions"
+printf '#!/bin/sh\necho "{\\"pull\\":[]}"\n' > "$TRAY_HOME/plugins/unconf/sync"; chmod +x "$TRAY_HOME/plugins/unconf/sync"
+printf '{"url":""}' > "$TRAY_HOME/plugins/unconf/settings.example.json"
+printf '#!/bin/sh\n' > "$TRAY_HOME/plugins/halfway/sync"   # no exec bit
+printf '#!/bin/sh\n' > "$TRAY_HOME/plugins/gcal/actions/schedule"; chmod +x "$TRAY_HOME/plugins/gcal/actions/schedule"
+row() { tray plugin --json | jq -r --arg n "$1" ".[] | select(.name==\$n) | $2"; }
+tray plugin --json | jq -e 'type=="array"' >/dev/null && pass "--json is an array of rows" || bad "not JSON: $(tray plugin --json | head -c 80)"
+[ "$(row unconf .state)" = "unconfigured" ] && [ "$(row unconf .settings)" = "missing" ] && pass "an example with no settings.json is unconfigured" || bad "unconf: $(row unconf .state) / $(row unconf .settings)"
+[ "$(row halfway .state)" = "half-installed" ] && pass "a folder with no exec bit is half-installed" || bad "halfway: $(row halfway .state)"
+[ "$(row gcal '.hooks|join(" ")')" = "verbs: schedule" ] && pass "a verb-only plugin joins the menu and nothing else" || bad "gcal hooks: $(row gcal '.hooks|join(" ")')"
+[ "$(row allrows '.hooks|join(" ")')" = "manual all-rows" ] && pass "hooks name manual and all-rows" || bad "allrows hooks: $(row allrows '.hooks|join(" ")')"
+[ "$(row openrouter .kind)" = "core" ] && case $(row openrouter .state) in off*) pass "openrouter is a core plugin, off without a key" ;; *) bad "openrouter: $(row openrouter .state)" ;; esac
+[ "$(OPENROUTER_API_KEY=k tray plugin --json | jq -r '.[]|select(.name=="openrouter")|.state')" = "on" ] && pass "and on once a key is set" || bad "openrouter did not turn on"
+tray plugin run echo >/dev/null
+out=$(tray plugin check)
+case $out in *echo*"no probe"*) pass "a plugin without a probe says so" ;; *) bad "got: $out" ;; esac
+[ "$(row healthy .state)" = "ok" ] && [ "$(row healthy .check.ok)" = "true" ] && pass "exit 0 reads as ok" || bad "healthy: $(row healthy .state)"
+[ "$(row ask .state)" = "needs you — login needed" ] && pass "exit 2 reads as needs you, with the plugin's line" || bad "ask: $(row ask .state)"
+[ "$(row broken .state)" = "failed — boom" ] && pass "exit 1 reads as failed, with the plugin's line" || bad "broken: $(row broken .state)"
+[ "$(row echo .sync.hook)" = "manual" ] && [ "$(row echo .sync.ok)" = "true" ] && pass "check left the last sync run in place" || bad "echo sync run lost: $(row echo .sync)"
+case $(row echo .last) in check*) pass "and the newest thing it did is the check" ;; *) bad "last: $(row echo .last)" ;; esac
+tray plugin check nope >/dev/null 2>&1 && bad "checking an unknown plugin passed" || pass "an unknown plugin is an error"
 teardown
 
 printf '\n'
