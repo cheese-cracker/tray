@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -23,6 +24,7 @@ import (
 // import cli back.
 func TestFlowTheCLIAndTheTUIShareOneStore(t *testing.T) {
 	t.Setenv("TRAY_HOME", t.TempDir())
+	t.Setenv("TRAY_CONFIG", filepath.Join(t.TempDir(), "none.yaml")) // never the user's file
 	t.Setenv("TRAY_TODAY", "2026-08-07")
 
 	run(t, "dump", "fix the sync job")

@@ -11,6 +11,7 @@ import (
 
 	"github.com/charmbracelet/x/term"
 
+	"github.com/cheese-cracker/tray/internal/config"
 	"github.com/cheese-cracker/tray/internal/core"
 	"github.com/cheese-cracker/tray/internal/plugin"
 	"github.com/cheese-cracker/tray/internal/store"
@@ -21,7 +22,7 @@ import (
 const Version = "0.3.0"
 
 var verbs = []string{
-	"init", "dump", "add", "take", "rewrite", "edit", "note", "done", "erase",
+	"init", "config", "dump", "add", "take", "rewrite", "edit", "note", "done", "erase",
 	"unload", "carryover", "list", "head", "find", "print", "export", "import", "context",
 	"sync", "status", "restore", "plugin", "help",
 }
@@ -63,6 +64,7 @@ const usage = `tray — two layers, one database. Dump to the garage, take onto 
   tray garage list  ·  tray +infra list  ·  tray list --all (with the finished)
   tray find <text>                   every layer, every month
   tray print  ·  tray status
+  tray config                        where the config file is and what it says, secrets masked
   tray export [--format tw|todotxt|md] [--all]    Taskwarrior JSON by default
   tray import --format tw|todotxt [file|-]        from a file or stdin; --format md ~/tray for the old home
   tray context [ids]                 the report with ids and every note, for pasting to an agent
@@ -211,7 +213,7 @@ func pluginUsage() string {
 	if len(plugin.List()) == 0 {
 		return ""
 	}
-	return "\n\n  tray plugin                       what is installed: the verbs it adds, the garage it keeps"
+	return "\n\n  tray plugin  ·  tray plugin check     what is installed and how it is: state, hooks, settings, last run; check runs each probe"
 }
 
 // Run dispatches one invocation and returns an exit code.
@@ -231,6 +233,15 @@ func Run(args []string) int {
 		return 2
 	}
 
+	cfg, err := config.Load()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "tray: "+err.Error())
+		return 2
+	}
+	if req.verb == "config" {
+		fmt.Println(cmdConfig(cfg))
+		return 0
+	}
 	s, err := store.Open(store.Home())
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "tray: "+err.Error())

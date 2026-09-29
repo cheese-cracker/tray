@@ -27,6 +27,10 @@ decision, not a feature.
   the filtering.
 - [ ] `[plugin]` **Google Calendar** — `tray-gcal` is verb-only and already fits: copy the
   folder into the new home. Nothing to port.
+- [x] `[plugin]` **Turso** — `tray-turso`, its own repo: an `all-rows` plugin that keeps a
+  copy of every task in a Turso database and merges three ways against the rows it last
+  pushed, local winning every conflict; a row typed on another device comes back as a
+  garage line for review (T37). Python, stdlib only, the HTTP pipeline API.
 - [ ] `[plugin]` **A board's API** — Linear or Jira over `sync plan|apply`; the board's
   project is a tag (9).
 - [ ] `[plugin]` **Claude conversations** — an `actions/attach` that compacts a transcript

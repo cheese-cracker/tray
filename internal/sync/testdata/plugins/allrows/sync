@@ -1,0 +1,9 @@
+#!/bin/sh
+# A fixture plugin that asked for every row (the all-rows marker beside this file): it
+# keeps what it was handed and plans nothing, so a flow can read seen.json back.
+here=$(dirname "$0")
+case "$1" in
+  plan)  cat > "$here/seen.json"; echo '{"pull":[],"push":[]}' ;;
+  apply) echo '{"ok":[],"failed":[]}' ;;
+  *) echo "usage: sync plan|apply" >&2; exit 1 ;;
+esac
