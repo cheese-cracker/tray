@@ -6,7 +6,6 @@ import (
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/widget"
 
 	"github.com/cheese-cracker/tray/internal/core"
 	"github.com/cheese-cracker/tray/internal/store"
@@ -27,22 +26,20 @@ func (u *ui) openSweep() {
 		l := newTaskList(u, core.LayerGarage, sweepVerbs)
 		l.month = m
 		lists = append(lists, l)
-		content := fyne.CanvasObject(l)
+		content := l.view()
 		if store.IsMonth(m) {
-			// Words, not an arrow: the bundled font has no glyph for one.
-			carry := lowButton("carry forward "+m+" into "+store.NextMonth(m), func() { u.carry(m) })
-			content = container.NewBorder(nil, container.NewHBox(carry), nil, nil, l)
+			carry := newLink("carry forward "+m+" → "+store.NextMonth(m), func() { u.carry(m) })
+			content = container.NewBorder(nil, container.NewPadded(container.NewHBox(carry)), nil, nil, content)
 		}
 		items = append(items, container.NewTabItem(m, content))
 	}
-	tabs := container.NewAppTabs(items...)
+	tabs := newTabs(items...)
 	tabs.OnSelected = u.tabChanged
 	tabs.SelectIndex(1)
 	u.sw = &screen{tabs: tabs, lists: lists, load: loadSweep}
 
-	accent := style.RGBA(style.Accent, dark())
 	root := container.NewBorder(
-		container.NewVBox(banner("sweep — > move to a month · t take · esc leaves", accent), u.top),
+		container.NewVBox(banner("sweep", "> move to a month · t take · esc leaves", style.AccentSoft, style.Accent), u.top),
 		u.bottom, nil, nil, u.split(tabs))
 	u.enter(modeSweep, root)
 }
@@ -85,7 +82,7 @@ func (u *ui) carry(source string) {
 		u.fail(err)
 		return
 	}
-	u.flash = fmt.Sprintf("%d %s to %s", len(rows), source, target)
+	u.flash = fmt.Sprintf("%d %s → %s", len(rows), source, target)
 	u.reload()
 }
 
@@ -159,10 +156,11 @@ func (u *ui) openUnload() {
 		{store.Someday, store.Someday},
 		{fmt.Sprintf("where they came from (%d have a home)", home), ""},
 	}
-	box := container.NewVBox(widget.NewLabel(fmt.Sprintf("hand the tray back — %d rows will move", len(rows))))
+	title := semibold(fmt.Sprintf("hand the tray back — %d rows will move", len(rows)), style.Ink)
+	box := container.NewVBox(title)
 	for i, d := range dests {
 		d := d
-		box.Add(widget.NewButton(string(rune('1'+i))+"  "+d.label, func() { unload(d.month) }))
+		box.Add(lowButton(string(rune('1'+i))+"  "+d.label, func() { unload(d.month) }))
 	}
 	typed := newEscEntry(u.hide)
 	typed.SetPlaceHolder("or a month, 2026-11")

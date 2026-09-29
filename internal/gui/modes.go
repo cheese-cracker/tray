@@ -1,14 +1,14 @@
 package gui
 
 import (
-	"image/color"
 	"sort"
 	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/widget"
+
+	"github.com/charmbracelet/lipgloss"
 
 	"github.com/cheese-cracker/tray/internal/core"
 	"github.com/cheese-cracker/tray/internal/store"
@@ -18,7 +18,7 @@ import (
 // screen is a set of lists under tabs — home's two layers, review's two, the sweep's
 // months — with the loader that fills them. The window shows one at a time.
 type screen struct {
-	tabs  *container.AppTabs
+	tabs  *tabs
 	lists []*taskList
 	load  func(u *ui) error
 }
@@ -28,7 +28,7 @@ type screen struct {
 func (u *ui) enter(m mode, root fyne.CanvasObject) {
 	u.hide()
 	u.mode = m
-	u.win.SetContent(root)
+	u.win.SetContent(u.frame(root))
 	u.reload()
 	u.focusList()
 }
@@ -44,20 +44,24 @@ func (u *ui) leave() {
 	u.focusList()
 }
 
-// banner names the mode and the way out, above the table, where you look on arriving
-// (92f). Its colour says which mode before a word is read (92g).
-func banner(text string, tint color.RGBA) fyne.CanvasObject {
-	tint.A = 0x60 // a wash, so the label keeps the theme's own contrast
-	bg := canvas.NewRectangle(tint)
-	label := widget.NewLabelWithStyle(text, fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
-	return container.NewStack(bg, label)
+// banner names the mode and the way out, above everything else, where you look on
+// arriving (92f). Its colour says which mode before a word is read (92g).
+func banner(name, exit string, fill, ink lipgloss.AdaptiveColor) fyne.CanvasObject {
+	label := semibold(name, ink)
+	label.TextSize = 16
+	way := caption(exit, ink)
+	strip := container.NewBorder(nil, nil, container.NewCenter(label), container.NewCenter(way))
+	return container.NewStack(rounded(fill, 0), container.NewPadded(strip))
 }
 
-// rule is the frame: a line in the mode's colour above and below the table.
-func rule(tint color.RGBA) fyne.CanvasObject {
-	r := canvas.NewRectangle(tint)
-	r.SetMinSize(fyne.NewSize(0, 3))
-	return r
+// framed is a mode's colour drawn around its content, two pixels all the way round.
+func framed(content fyne.CanvasObject, c lipgloss.AdaptiveColor) fyne.CanvasObject {
+	edge := func(w, h float32) fyne.CanvasObject {
+		r := canvas.NewRectangle(rgba(c))
+		r.SetMinSize(fyne.NewSize(w, h))
+		return r
+	}
+	return container.NewBorder(edge(0, 2), edge(0, 2), edge(2, 0), edge(2, 0), content)
 }
 
 // openReview widens each layer to everything on it and narrows the keys to restore and
@@ -65,22 +69,21 @@ func rule(tint color.RGBA) fyne.CanvasObject {
 // two verbs you reach for monthly live here and nowhere else. Amber, because those two
 // are a correction and a removal — not danger, not the daily flow either.
 func (u *ui) openReview() {
-	amber := style.RGBA(style.Review, dark())
 	garage := newTaskList(u, core.LayerGarage, reviewVerbs)
 	garage.month, garage.review = store.ThisMonth(), true
 	tray := newTaskList(u, core.LayerTray, reviewVerbs)
 	tray.review = true
-	tabs := container.NewAppTabs(
-		container.NewTabItem("garage · "+store.ThisMonth(), garage),
-		container.NewTabItem("tray", tray),
+	tabs := newTabs(
+		container.NewTabItem("garage · "+store.ThisMonth(), garage.view()),
+		container.NewTabItem("tray", tray.view()),
 	)
 	tabs.OnSelected = u.tabChanged
 	tabs.SelectIndex(u.tabs.SelectedIndex()) // review the layer you were looking at
 	u.rv = &screen{tabs: tabs, lists: []*taskList{garage, tray}, load: loadReview}
 
 	root := container.NewBorder(
-		container.NewVBox(banner("review — everything on the layer · R restore · E erase · v or esc leaves", amber), u.top, rule(amber)),
-		container.NewVBox(rule(amber), u.bottom), nil, nil, u.split(tabs))
+		container.NewVBox(banner("review", "everything on the layer · R restore · E erase · v or esc leaves", style.ReviewSoft, style.Review), u.top),
+		u.bottom, nil, nil, framed(u.split(tabs), style.Review))
 	u.enter(modeReview, root)
 }
 

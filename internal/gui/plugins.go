@@ -2,6 +2,7 @@ package gui
 
 import (
 	"fmt"
+	"image/color"
 	"os"
 	"path/filepath"
 	"strings"
@@ -27,9 +28,8 @@ type pluginsPane struct {
 
 func (u *ui) openPlugins() {
 	pane := &pluginsPane{u: u, box: container.NewVBox()}
-	accent := style.RGBA(style.Accent, dark())
-	p := newPage(container.NewBorder(banner("plugins — esc leaves", accent), u.bottom, nil, nil,
-		container.NewVScroll(pane.box)))
+	p := newPage(container.NewBorder(banner("plugins", "esc leaves", style.Card, style.Ink), u.bottom, nil, nil,
+		container.NewVScroll(container.NewPadded(pane.box))))
 	p.onKey = func(k *fyne.KeyEvent) {
 		if k.Name == fyne.KeyEscape {
 			u.leave()
@@ -53,8 +53,8 @@ func (pane *pluginsPane) fill() {
 		pane.u.fail(err)
 	}
 	if len(found) == 0 {
-		pane.box.Add(widget.NewLabel("no plugins — one is a folder in " + plugin.Dir() +
-			" holding an executable `" + plugin.SyncFile + "` or a verb under `" + plugin.ActionsDir + "/`"))
+		pane.box.Add(container.NewPadded(grey("No plugins — one is a folder in " + plugin.Dir() +
+			" holding an executable " + plugin.SyncFile + ", or a verb under " + plugin.ActionsDir + "/.")))
 	}
 	for _, p := range found {
 		pane.box.Add(pane.card(p, runs[p.Name]))
@@ -75,7 +75,16 @@ func (pane *pluginsPane) card(p plugin.Plugin, last store.Run) fyne.CanvasObject
 	if len(p.Verbs) > 0 {
 		parts = append(parts, "enter → "+strings.Join(p.Verbs, ", "))
 	}
-	lines := container.NewVBox()
+	state := style.Subtle
+	switch {
+	case last.Name != "" && last.OK:
+		state = style.Low
+	case last.Name != "":
+		state = style.High
+	}
+	head := container.NewHBox(fixed(dot(8, rgba(state), color.Transparent, 0), 8, 8),
+		container.NewCenter(semibold(p.Name, style.Ink)), container.NewCenter(caption(strings.Join(parts, " · "), style.Ink2)))
+	lines := container.NewVBox(head)
 	if p.Sync != "" {
 		lines.Add(lastRun(last))
 		launch := widget.NewCheck("run at launch", func(on bool) {
@@ -84,24 +93,27 @@ func (pane *pluginsPane) card(p plugin.Plugin, last store.Run) fyne.CanvasObject
 			}
 		})
 		launch.Checked = p.OnLaunch
-		lines.Add(container.NewHBox(launch, lowButton("run now", func() { pane.run(p.Name) })))
+		actions := container.NewHBox(launch, newLink("run now", func() { pane.run(p.Name) }))
+		if len(p.SettingsKeys()) > 0 {
+			actions.Add(newLink("settings…", func() { pane.settings(p) }))
+			actions.Add(newLink("duplicate…", func() { pane.duplicate(p) }))
+		}
+		lines.Add(actions)
+	} else if len(p.SettingsKeys()) > 0 {
+		lines.Add(container.NewHBox(newLink("settings…", func() { pane.settings(p) }),
+			newLink("duplicate…", func() { pane.duplicate(p) })))
 	}
-	if len(p.SettingsKeys()) > 0 {
-		lines.Add(container.NewHBox(
-			lowButton("settings…", func() { pane.settings(p) }),
-			lowButton("duplicate…", func() { pane.duplicate(p) })))
-	}
-	return widget.NewCard(p.Name, strings.Join(parts, " · "), lines)
+	return container.NewPadded(container.NewStack(rounded(style.Card, 8), container.NewPadded(lines)))
 }
 
 func lastRun(last store.Run) fyne.CanvasObject {
 	switch {
 	case last.Name == "":
-		return grey("never run")
+		return caption("never run", style.Subtle)
 	case last.OK:
-		return grey(fmt.Sprintf("last %s %s ok — %s", last.Hook, last.At, last.Message))
+		return caption(fmt.Sprintf("last %s %s ok — %s", last.Hook, last.At, last.Message), style.Ink2)
 	}
-	return warn(fmt.Sprintf("last %s %s failed — %s", last.Hook, last.At, last.Message))
+	return caption(fmt.Sprintf("last %s %s failed — %s", last.Hook, last.At, last.Message), style.High)
 }
 
 // setOnLaunch writes or removes the marker: the folder states the fact (T8).
@@ -156,7 +168,7 @@ func (pane *pluginsPane) settings(p plugin.Plugin) {
 	if len(entries) > 0 {
 		focus = entries[0]
 	}
-	u.show(container.NewVBox(widget.NewLabelWithStyle(p.Name+" settings", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}), f), focus)
+	u.show(container.NewVBox(semibold(p.Name+" settings", style.Ink), f), focus)
 }
 
 // duplicate copies the folder under a new name: a copy is an install, and the settings,

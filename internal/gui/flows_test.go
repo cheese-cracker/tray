@@ -9,6 +9,7 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/driver/desktop"
 	"fyne.io/fyne/v2/test"
+	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/cheese-cracker/tray/internal/core"
@@ -18,6 +19,9 @@ import (
 
 // Every flow here drives the real app through the test driver and asserts on the
 // model and the store, never on a frame (40, 63). Goldens live in screens_test.go.
+
+// testVariant is the half of the palette a test window wears; TestShots flips it.
+var testVariant = theme.VariantLight
 
 type harness struct {
 	t *testing.T
@@ -38,6 +42,8 @@ func open(t *testing.T, seed ...core.Task) *harness {
 		then()
 	}
 	test.NewTempApp(t)
+	// The house palette, light, so a golden records the look a desktop gets by default.
+	fyne.CurrentApp().Settings().SetTheme(newTheme(testVariant))
 	s, err := store.Open(home)
 	if err != nil {
 		t.Fatal(err)
@@ -58,7 +64,7 @@ func open(t *testing.T, seed ...core.Task) *harness {
 		}
 	})
 	w.SetContent(u.root)
-	w.Resize(fyne.NewSize(960, 620))
+	w.Resize(fyne.NewSize(1120, 720))
 	u.focusList()
 	return &harness{t: t, u: u, s: s, w: w}
 }
@@ -155,7 +161,7 @@ func TestFlowSweepOpensTheMonthsAndCarriesForward(t *testing.T) {
 	if got := h.get(1); got.Month != "2026-09" || got.Due != "" {
 		t.Fatalf("carry forward moves the named month on and drops a due that passed (75): %+v", got)
 	}
-	if !strings.Contains(h.u.status.Text, "1 2026-08 to 2026-09") {
+	if !strings.Contains(h.u.status.Text, "1 2026-08 → 2026-09") {
 		t.Fatalf("the status names what moved: %q", h.u.status.Text)
 	}
 	h.key(fyne.KeyEscape)

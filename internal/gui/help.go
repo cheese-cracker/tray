@@ -3,7 +3,10 @@ package gui
 import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
+
+	"github.com/cheese-cracker/tray/internal/style"
 )
 
 // page is content that takes the keyboard: a help screen any key dismisses, a picker a
@@ -45,22 +48,35 @@ func (p *page) Tapped(*fyne.PointEvent) {
 	}
 }
 
-const diagram = `  garage  ──take──▶  tray  ──done──▶  finished
-  any words          priority · due · tags     a date, where it sits
-     ▲                  │
-     └────hand back─────┘`
-
 // openHelp is a page, not a keymap strip (86): what needs explaining is why there
 // are two layers at all, so the prose comes first, the picture second, and the
 // shortcuts last under a rule. Any key or click closes it.
 func (u *ui) openHelp() {
-	prose := widget.NewLabel("Write anything into the garage — a few words, no questions.\n" +
-		"Take a line onto the tray when you are ready to work on it; that is when\n" +
-		"it asks for a priority, a date and tags. A task gets clearer in steps, each\n" +
-		"one when you are ready and never before.")
-	pic := widget.NewLabelWithStyle(diagram, fyne.TextAlignLeading, fyne.TextStyle{Monospace: true})
+	title := semibold("Two layers, and a task that gets clearer in steps", style.Ink)
+	title.TextSize = theme.Size(theme.SizeNameHeadingText)
 
-	keys := container.NewGridWithColumns(2)
+	prose := widget.NewRichText(
+		&widget.TextSegment{Style: widget.RichTextStyle{SizeName: sizeProse}, Text: "Write anything into the garage — a few words, no questions. " +
+			"Take a line onto the tray when you are ready to work on it; that is when it asks for a priority, a date and tags. " +
+			"Everything else — a note, a schedule, where it came from — is a rung it climbs later, each one when you are ready and never before."},
+	)
+	prose.Wrapping = fyne.TextWrapWord
+
+	// The picture: three places and the two moves between them.
+	box := func(name, what string) fyne.CanvasObject {
+		return container.NewStack(rounded(style.Card, 8),
+			container.NewPadded(container.NewVBox(semibold(name, style.Ink), caption(what, style.Ink2))))
+	}
+	arrow := func(verb string) fyne.CanvasObject {
+		return container.NewCenter(container.NewVBox(caption(verb, style.Accent), text("→", style.Accent)))
+	}
+	pic := container.NewVBox(
+		container.NewHBox(box("garage", "any words"), arrow("take"), box("tray", "priority · due · tags"), arrow("done"), box("finished", "a date, where it sits")),
+		caption("← hand back returns a line to the garage, keeping what it learned", style.Ink2),
+	)
+
+	// Two pairs a line: twenty keys in ten rows fit under the picture on a laptop screen.
+	keys := container.NewGridWithColumns(4)
 	for _, k := range [][2]string{
 		{"↑ ↓  j k", "move"}, {"tab", "switch layer"}, {"space", "select"}, {"enter  l", "open the pane"},
 		{"t", "take"}, {"x", "done"}, {"d", "hand back"}, {">", "move to a month"},
@@ -68,11 +84,12 @@ func (u *ui) openHelp() {
 		{"v", "review — R restore and E erase live there"}, {"s", "sync"}, {"p", "plugins"}, {"c", "copy context"},
 		{"/", "filter"}, {"esc", "clear the filter, leave the mode, then quit"}, {"?", "this page"}, {"q", "quit"},
 	} {
-		keys.Add(widget.NewLabelWithStyle(k[0], fyne.TextAlignLeading, fyne.TextStyle{Monospace: true}))
-		keys.Add(widget.NewLabel(k[1]))
+		keys.Add(mono(k[0], style.Ink))
+		keys.Add(text(k[1], style.Ink2))
 	}
 
-	p := newPage(container.NewVBox(prose, pic, widget.NewSeparator(), keys, grey("any key closes this")))
+	body := container.NewVBox(title, prose, pic, vrule(), keys, caption("any key closes this", style.Subtle))
+	p := newPage(container.NewStack(rounded(style.Paper, 8), container.NewPadded(body)))
 	p.onKey = func(*fyne.KeyEvent) { u.hide() }
 	p.onRune = func(rune) { u.hide() }
 	p.onTap = u.hide

@@ -1,14 +1,13 @@
 package gui
 
 import (
+	"image/color"
 	"strings"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/driver/desktop"
-	"fyne.io/fyne/v2/layout"
-	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/cheese-cracker/tray/internal/core"
@@ -16,20 +15,25 @@ import (
 	"github.com/cheese-cracker/tray/internal/style"
 )
 
+// rowHeight gives a line of Fira Sans room to breathe and a finger something to hit.
+const rowHeight = 40
+
 // taskList is one layer's rows. It owns the keyboard while you browse: the letters
 // are shortcuts for the controls on the rows, and Tab is the layer switch rather than
 // focus traversal, which is why it accepts the key itself.
 type taskList struct {
 	widget.List
-	u      *ui
-	layer  string
-	month  string   // the garage month shown, where the layer is the garage
-	verbs  []string // the actions a row here offers, in reading order
-	review bool     // everything on the layer: finished and templates draw as such
-	all    []core.Task
-	rows   []core.Task // what the filter left
-	cur    int
-	focus  bool
+	u        *ui
+	layer    string
+	month    string   // the garage month shown, where the layer is the garage
+	verbs    []string // the actions a row here offers, in reading order
+	review   bool     // everything on the layer: finished and templates draw as such
+	all      []core.Task
+	rows     []core.Task // what the filter left
+	cur      int
+	focus    bool
+	empty    *canvas.Text // what an empty layer says, centred over the list
+	emptyMsg string
 	// items is the row widget last shown for an index, for tests that read a row.
 	// ponytail: List recycles item widgets on scroll, so this is only true while every
 	// row fits on screen; a proper lookup if lists ever grow past a screen.
@@ -61,8 +65,24 @@ func newTaskList(u *ui, layer string, verbs []string) *taskList {
 		l.u.details.show(l.cursorTask())
 	}
 	l.HideSeparators = true
+	// Empty states say what to do next rather than that there is nothing (T12: the
+	// garage's next step is typing, the tray's is taking).
+	msg := "Nothing here."
+	switch layer {
+	case core.LayerGarage:
+		msg = "Nothing here yet — type below."
+	case core.LayerTray:
+		msg = "Nothing on the tray. Take a line from the garage (t)."
+	}
+	l.emptyMsg = msg
+	l.empty = grey(msg)
 	l.ExtendBaseWidget(l)
 	return l
+}
+
+// view is the list with its empty state over it.
+func (l *taskList) view() fyne.CanvasObject {
+	return container.NewStack(l, container.NewCenter(l.empty))
 }
 
 func (l *taskList) load(rows []core.Task) { l.all = rows }
@@ -82,6 +102,11 @@ func (l *taskList) apply(filter string) {
 			l.cur = i
 		}
 	}
+	l.empty.Text = l.emptyMsg
+	if filter != "" {
+		l.empty.Text = "Nothing matches."
+	}
+	setShown(l.empty, len(l.rows) == 0)
 	l.Refresh()
 	if len(l.rows) > 0 {
 		l.Select(l.cur)
@@ -117,15 +142,15 @@ func (l *taskList) move(by int) {
 
 func (l *taskList) AcceptsTab() bool { return true }
 
+// FocusGained keeps the focus flag here and never tells the List: it would paint its own
+// focus ring on an item of its choosing, beside the cursor row this widget draws.
 func (l *taskList) FocusGained() {
 	l.focus = true
-	l.List.FocusGained()
 	l.Refresh()
 }
 
 func (l *taskList) FocusLost() {
 	l.focus = false
-	l.List.FocusLost()
 	l.Refresh()
 }
 
@@ -177,8 +202,10 @@ func fuzzy(needle, hay string) bool {
 	return i == len(n)
 }
 
-// row draws one task. Its actions appear when the pointer is on it or the cursor is,
-// so the list reads clean and every verb is still one click away.
+// row draws one task: the cursor bar, the mark, a priority dot and letter, the words,
+// its tags as chips, the date in Fira Code, the note sign, and — when the pointer or
+// the cursor is on it — its actions, so the list reads clean and every verb is still
+// one click away.
 type row struct {
 	widget.BaseWidget
 	l   *taskList
@@ -186,39 +213,53 @@ type row struct {
 	t   core.Task
 
 	hovered bool
-	mark    *widget.Check
+	acting  bool // the actions are up; appear() runs on the way up only
+	bg      *canvas.Rectangle
+	bar     *canvas.Rectangle
+	mark    *markDot
+	priDot  *canvas.Circle
 	pri     *canvas.Text
 	text    *canvas.Text
-	tags    *canvas.Text
+	chips   *fyne.Container
 	when    *canvas.Text
-	note    *canvas.Text
-	verbs   map[string]*widget.Button
+	note    *glyph
+	verbs   map[string]*link
 	actions *fyne.Container
-	box     *fyne.Container
+	box     fyne.CanvasObject
 }
 
 func newRow(l *taskList) *row {
-	r := &row{l: l, verbs: map[string]*widget.Button{}}
-	r.mark = widget.NewCheck("", func(on bool) { r.l.u.setMark(r.t.ID, on) })
-	r.pri = grey("")
-	r.pri.TextStyle.Bold = true
+	r := &row{l: l, verbs: map[string]*link{}}
+	r.bg = canvas.NewRectangle(color.Transparent)
+	r.bg.SetMinSize(fyne.NewSize(0, rowHeight))
+	r.bar = canvas.NewRectangle(rgba(style.Accent))
+	r.mark = newMarkDot(func() {
+		r.l.u.setMark(r.t.ID, !r.l.u.marks[r.t.ID])
+		r.Refresh()
+	})
+	r.priDot = dot(8, rgba(style.Subtle), color.Transparent, 0)
+	r.pri = mono("·", style.Subtle)
 	r.text = plain("")
-	r.tags = grey("")
-	r.when = grey("")
-	r.note = grey("≡")
+	r.chips = container.NewHBox()
+	r.when = mono("", style.Later)
+	r.note = newGlyph(glyphNote, rgba(style.Subtle))
 	r.actions = container.NewHBox()
 	// Creation order is reading order: the layer's own verbs first, open last on both.
 	for _, key := range []string{"x", "d", ">", "t", "#", "R", "E", "l"} {
 		key := key
-		b := widget.NewButton(verbLabels[key], func() {
+		a := newLink(verbLabels[key], func() {
 			r.l.pick(r.idx)
 			r.l.u.do(key, r.l)
 		})
-		b.Importance = widget.LowImportance
-		r.verbs[key] = b
-		r.actions.Add(b)
+		r.verbs[key] = a
+		r.actions.Add(a)
 	}
-	r.box = container.NewHBox(r.mark, r.pri, r.text, r.tags, r.when, r.note, layout.NewSpacer(), r.actions)
+	left := container.NewHBox(fixed(r.bar, 3, rowHeight), fixed(r.mark, 28, rowHeight),
+		container.NewCenter(container.NewHBox(fixed(r.priDot, 8, 8), r.pri)))
+	right := container.NewHBox(container.NewCenter(r.when), fixed(r.note, 16, rowHeight),
+		container.NewCenter(r.actions), fixed(canvas.NewRectangle(color.Transparent), 6, 1))
+	middle := container.NewHBox(container.NewCenter(r.text), container.NewCenter(r.chips))
+	r.box = container.NewStack(r.bg, container.NewBorder(nil, nil, left, right, middle))
 	r.ExtendBaseWidget(r)
 	return r
 }
@@ -228,56 +269,73 @@ func (r *row) CreateRenderer() fyne.WidgetRenderer { return widget.NewSimpleRend
 func (r *row) set(idx int, t core.Task) {
 	r.idx, r.t = idx, t
 	r.Refresh()
+	// A line you just captured lands with a soft accent that fades to the paper, so the
+	// eye finds where it went without a word said.
+	if r.l.u.flashID != 0 && r.l.u.flashID == t.ID {
+		r.l.u.flashID = 0
+		// Opaque to opaque, then clear: a fade to alpha zero would pass through colours
+		// RGBA cannot hold, and the list's own highlight has to show through at the end.
+		from, to := rgba(style.AccentSoft), rgba(style.Paper)
+		canvas.NewColorRGBAAnimation(from, to, linger, func(c color.Color) {
+			r.bg.FillColor = c
+			if c == color.Color(to) {
+				r.bg.FillColor = color.Transparent
+			}
+			r.bg.Refresh()
+		}).Start()
+	}
 }
 
 func (r *row) Refresh() {
 	tray := r.l.layer == core.LayerTray
-	isDark := dark()
 	finished := r.t.Done != ""
-	r.mark.Checked = r.l.u.marks[r.t.ID]
-	r.mark.Refresh()
+	cursor := r.l.cur == r.idx && len(r.l.rows) > 0
+	setShown(r.bar, cursor)
+	r.mark.set(r.l.u.marks[r.t.ID], finished)
 
 	// An unset priority reads as medium but was never chosen, so it prints a dot (78c).
 	r.pri.Text = "·"
+	tint := style.Priority(r.t.Priority)
 	if r.t.Priority != "" {
 		r.pri.Text = r.t.Priority
 	}
-	r.pri.Color = style.RGBA(style.Priority(r.t.Priority), isDark)
 	if finished {
-		r.pri.Color = style.RGBA(style.Subtle, isDark)
+		tint = style.Subtle
 	}
+	r.pri.Color = rgba(tint)
+	r.priDot.FillColor = rgba(tint)
+	r.priDot.Refresh()
+	setShown(r.priDot, tray && r.t.Priority != "" && !finished)
 	setShown(r.pri, tray)
 
-	// A finished row keeps none of its colour (103b): the mark is what says done, and
-	// a template announces that it makes more of itself.
+	// A finished row keeps none of its colour (103b): the mark is what says done.
 	r.text.Text = r.t.Text
-	r.text.Color = theme.Color(theme.ColorNameForeground)
-	switch {
-	case finished:
-		r.text.Text = "✓ " + r.t.Text
-		r.text.Color = style.RGBA(style.Subtle, isDark)
-	case r.t.Recur != "":
-		r.text.Text = "↻ " + r.t.Text
+	r.text.Color = rgba(style.Ink)
+	if finished {
+		r.text.Color = rgba(style.Subtle)
 	}
 	r.text.Refresh()
 
-	var tags []string
+	r.chips.Objects = nil
 	for _, g := range r.t.Tags {
-		tags = append(tags, "#"+g) // the screen draws #, the wire keeps + (101)
+		r.chips.Add(chip("#" + g)) // the screen draws #, the wire keeps + (101)
 	}
-	r.tags.Text = strings.Join(tags, " ")
-	setShown(r.tags, len(tags) > 0)
+	r.chips.Refresh()
 
 	// A date is the one thing about a row that is about today: on you now, or later.
+	// A template says how often it makes more of itself; a waiting line says when.
 	r.when.Text = ""
-	r.when.Color = style.RGBA(style.Later, isDark)
+	r.when.Color = rgba(style.Later)
 	switch {
 	case r.t.Recur != "":
-		r.when.Text = r.t.Recur
+		r.when.Text = "every " + strings.TrimSuffix(r.t.Recur, "ly")
+		if r.t.Recur == "daily" {
+			r.when.Text = "every day"
+		}
 	case tray && r.t.Due != "":
 		r.when.Text = core.Day(r.t.Due)
 		if d, ok := core.Date(r.t.Due); ok && !d.After(store.Today()) && !finished {
-			r.when.Color = style.RGBA(style.Now, isDark)
+			r.when.Color = rgba(style.Now)
 		}
 	case !tray && r.t.Wait != "":
 		r.when.Text = "waits " + core.Day(r.t.Wait)
@@ -287,10 +345,19 @@ func (r *row) Refresh() {
 
 	// Restore is for a finished row and nothing else (80): the only sane thing to say
 	// about a record is that it isn't one.
-	for key, b := range r.verbs {
-		setShown(b, contains(r.l.verbs, key) && (key != "R" || finished))
+	for key, a := range r.verbs {
+		setShown(a, contains(r.l.verbs, key) && (key != "R" || finished))
 	}
-	setShown(r.actions, r.hovered || (r.l.focus && r.l.cur == r.idx))
+	up := r.hovered || (r.l.focus && cursor)
+	if up && !r.acting {
+		for _, a := range r.verbs {
+			if a.Visible() {
+				a.appear()
+			}
+		}
+	}
+	r.acting = up
+	setShown(r.actions, up)
 	r.BaseWidget.Refresh()
 }
 
@@ -302,6 +369,47 @@ func (r *row) MouseOut()                      { r.hovered = false; r.Refresh() }
 func (r *row) Tapped(*fyne.PointEvent) {
 	r.l.pick(r.idx)
 	r.l.u.focusList()
+}
+
+// markDot is the selection mark: a hollow circle that fills with the accent when the row
+// is marked, and carries a check when the row is finished.
+type markDot struct {
+	widget.BaseWidget
+	circle *canvas.Circle
+	check  *glyph
+	onTap  func()
+}
+
+func newMarkDot(tap func()) *markDot {
+	m := &markDot{onTap: tap}
+	m.circle = dot(14, color.Transparent, rgba(style.Line), 1.5)
+	m.check = newGlyph(glyphCheck, rgba(style.Subtle))
+	m.ExtendBaseWidget(m)
+	return m
+}
+
+func (m *markDot) CreateRenderer() fyne.WidgetRenderer {
+	return widget.NewSimpleRenderer(container.NewCenter(container.NewStack(fixed(m.circle, 14, 14), fixed(m.check, 14, 14))))
+}
+
+func (m *markDot) MinSize() fyne.Size { return fyne.NewSize(20, 20) }
+
+func (m *markDot) set(marked, finished bool) {
+	switch {
+	case marked:
+		m.circle.FillColor, m.circle.StrokeColor = rgba(style.Accent), rgba(style.Accent)
+	default:
+		m.circle.FillColor, m.circle.StrokeColor = color.Transparent, rgba(style.Line)
+	}
+	m.circle.Refresh()
+	setShown(m.check, finished && !marked)
+	m.Refresh()
+}
+
+func (m *markDot) Tapped(*fyne.PointEvent) {
+	if m.onTap != nil {
+		m.onTap()
+	}
 }
 
 func setShown(o fyne.CanvasObject, on bool) {

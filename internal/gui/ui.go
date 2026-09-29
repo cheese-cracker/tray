@@ -6,6 +6,7 @@ package gui
 
 import (
 	"fmt"
+	"image/color"
 	"sort"
 	"strings"
 	"time"
@@ -13,7 +14,6 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
@@ -45,7 +45,7 @@ type ui struct {
 	mode mode
 
 	garage, tray *taskList
-	tabs         *container.AppTabs
+	tabs         *tabs
 	home         *screen
 	rv, sw       *screen // review and the sweep, built on entering
 	search       *escEntry
@@ -53,17 +53,19 @@ type ui struct {
 	top          *fyne.Container
 	capture      *escEntry
 	status       *widget.Label
-	notice       *widget.Button
+	notice       *link
 	bottom       *fyne.Container
 	details      *details
 	root         fyne.CanvasObject
 
-	filter string
-	marks  map[int64]bool
-	pop    *widget.PopUp
-	form   *form // the open form, so a test can fill it in
-	closed bool
-	flash  string // one line about the last action, shown until the next
+	filter   string
+	marks    map[int64]bool
+	pop      *widget.PopUp
+	form     *form // the open form, so a test can fill it in
+	closed   bool
+	flash    string // one line about the last action, shown until the next
+	flashNew bool   // the next save is a capture: light its row on the way in
+	flashID  int64
 
 	pending  []sync.Result // what plugins reported at launch, waiting for a review
 	syncedAt string
@@ -89,15 +91,15 @@ func newUI(s *store.Store, w fyne.Window) *ui {
 		u.capture.SetText("")
 	}
 
-	add := lowButton("add", func() { u.do("a", u.tray) })
-	sweep := lowButton("carry forward…", u.openSweep)
-	unload := lowButton("hand the tray back…", u.openUnload)
+	add := newLink("+ add", func() { u.do("a", u.tray) })
+	sweep := newLink("carry forward…", u.openSweep).hush()
+	unload := newLink("hand the tray back…", u.openUnload).hush()
 
-	u.tabs = container.NewAppTabs(
+	u.tabs = newTabs(
 		container.NewTabItem("garage · "+store.ThisMonth(),
-			container.NewBorder(nil, container.NewBorder(nil, nil, nil, sweep, u.capture), nil, nil, u.garage)),
+			container.NewBorder(nil, container.NewPadded(container.NewBorder(nil, nil, nil, sweep, u.capture)), nil, nil, u.garage.view())),
 		container.NewTabItem("tray",
-			container.NewBorder(nil, container.NewHBox(add, layout.NewSpacer(), unload), nil, nil, u.tray)),
+			container.NewBorder(nil, container.NewPadded(container.NewBorder(nil, nil, add, unload)), nil, nil, u.tray.view())),
 	)
 	u.tabs.OnSelected = u.tabChanged
 	u.home = &screen{tabs: u.tabs, lists: []*taskList{u.garage, u.tray}, load: loadHome}
@@ -111,22 +113,33 @@ func newUI(s *store.Store, w fyne.Window) *ui {
 		u.filter = text
 		u.refilter()
 	}
-	u.hidden = grey("")
+	u.hidden = caption("", style.Subtle)
 	u.status = widget.NewLabel("")
-	u.notice = lowButton("", u.openPending)
+	u.status.SizeName = theme.SizeNameCaptionText
+	u.status.Importance = widget.LowImportance
+	u.notice = newLink("", u.openPending)
 	u.notice.Hide()
-	u.bottom = container.NewHBox(u.status, u.notice)
+	u.bottom = container.NewPadded(container.NewBorder(nil, nil, nil, u.notice, u.status))
 
-	u.top = container.NewBorder(nil, nil, nil, u.hidden, u.search)
-	u.root = container.NewBorder(u.top, u.bottom, nil, nil, u.split(u.tabs))
+	u.top = container.NewPadded(container.NewBorder(nil, nil, nil, container.NewCenter(u.hidden), u.search))
+	u.root = u.frame(container.NewBorder(u.top, u.bottom, nil, nil, u.split(u.tabs)))
 	u.reload()
 	return u
 }
 
-// split is the list beside the pane; every screen with a list gets the same pair.
+// frame is the window's floor: the paper, and a size it never shrinks under.
+func (u *ui) frame(content fyne.CanvasObject) fyne.CanvasObject {
+	floor := canvas.NewRectangle(color.Transparent)
+	floor.SetMinSize(fyne.NewSize(800, 520))
+	return container.NewStack(floor, content)
+}
+
+// split is the list beside the pane; every screen with a list gets the same pair. The
+// pane sits on card, one step up from the paper, so the ladder reads as its own place.
 func (u *ui) split(lists fyne.CanvasObject) fyne.CanvasObject {
-	sp := container.NewHSplit(lists, container.NewVScroll(u.details.box))
-	sp.Offset = 0.6
+	pane := container.NewStack(rounded(style.Card, 0), container.NewVScroll(container.NewPadded(u.details.box)))
+	sp := container.NewHSplit(lists, pane)
+	sp.Offset = 0.62
 	return sp
 }
 
@@ -416,6 +429,10 @@ func (u *ui) save(tasks []core.Task) {
 		u.fail(err)
 		return
 	}
+	if u.flashNew && len(tasks) > 0 {
+		u.flashID = tasks[0].ID
+	}
+	u.flashNew = false
 	u.marks = map[int64]bool{}
 	u.reload()
 }
@@ -477,6 +494,7 @@ func (u *ui) dump(text string) {
 	}
 	t := core.New(strings.Join(tail, " "), tags)
 	t.Month = month
+	u.flashNew = true
 	u.save([]core.Task{t})
 }
 
@@ -525,30 +543,4 @@ func (u *ui) hide() {
 func (u *ui) quit() {
 	u.closed = true
 	u.win.Close()
-}
-
-func lowButton(label string, tap func()) *widget.Button {
-	b := widget.NewButton(label, tap)
-	b.Importance = widget.LowImportance
-	return b
-}
-
-// grey is a line that informs without asking to be read first.
-func grey(text string) *canvas.Text {
-	t := canvas.NewText(text, style.RGBA(style.Subtle, dark()))
-	t.TextSize = theme.TextSize()
-	return t
-}
-
-func plain(text string) *canvas.Text {
-	t := canvas.NewText(text, theme.Color(theme.ColorNameForeground))
-	t.TextSize = theme.TextSize()
-	return t
-}
-
-// warn is the one line allowed to shout: a plugin that failed or stopped to ask.
-func warn(text string) *canvas.Text {
-	t := canvas.NewText(text, style.RGBA(style.High, dark()))
-	t.TextSize = theme.TextSize()
-	return t
 }

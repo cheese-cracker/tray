@@ -2,6 +2,7 @@ package gui
 
 import (
 	"fmt"
+	"image/color"
 	"os"
 	"path/filepath"
 	"sort"
@@ -11,6 +12,7 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/cheese-cracker/tray/internal/plugin"
@@ -124,7 +126,7 @@ type syncView struct {
 
 type syncCard struct {
 	r     sync.Result
-	box   *widget.Card
+	box   fyne.CanvasObject
 	state *widget.Label
 	apply *widget.Button
 	done  bool
@@ -139,12 +141,11 @@ func (u *ui) openSyncReview(results []sync.Result) {
 		box.Add(c.box)
 	}
 	if len(results) == 0 {
-		box.Add(widget.NewLabel("no plugin keeps a garage — nothing to review"))
+		box.Add(container.NewPadded(grey("No plugin keeps a garage — nothing to review.")))
 	}
-	accent := style.RGBA(style.Accent, dark())
 	p := newPage(container.NewBorder(
-		banner("sync review — y applies the next plan whole · esc leaves and lands nothing", accent),
-		u.bottom, nil, nil, container.NewVScroll(box)))
+		banner("sync review", "y applies the next plan whole · esc leaves and lands nothing", style.AccentSoft, style.Accent),
+		u.bottom, nil, nil, container.NewVScroll(container.NewPadded(box))))
 	p.onKey = func(k *fyne.KeyEvent) {
 		if k.Name == fyne.KeyEscape {
 			u.leave()
@@ -164,40 +165,69 @@ func (u *ui) openSyncReview(results []sync.Result) {
 	u.enter(modeSyncReview, p)
 }
 
+// card is one plugin's plan on a card: a status dot and its message up top, then what it
+// would add, change, push back and no longer sees — each as a section with its count —
+// its evidence at the right, and the two buttons that decide it.
 func (v *syncView) card(r sync.Result) *syncCard {
 	c := &syncCard{r: r}
 	lines := container.NewVBox()
+	section := func(name string, n int, rows ...fyne.CanvasObject) {
+		if n == 0 {
+			return
+		}
+		head := caption(fmt.Sprintf("%s · %d", strings.ToUpper(name), n), style.Ink2)
+		head.TextStyle.Bold = true
+		lines.Add(container.NewVBox(append([]fyne.CanvasObject{head}, rows...)...))
+	}
+	state := style.Low
 	switch {
 	case r.NeedsYou():
-		lines.Add(warn("needs you — " + r.Message))
+		state = style.Review
+		lines.Add(text("needs you — "+r.Message, style.Review))
 	case r.Err != nil:
+		state = style.High
 		lines.Add(warn("failed — " + r.Message))
 	default:
+		var adds, ups, pushes, gone []fyne.CanvasObject
 		for _, row := range r.Diff.Adds {
-			lines.Add(plain("+ " + row.Text + tagsOf(row.Tags)))
+			line := container.NewHBox(plain("+ " + row.Text))
+			for _, g := range row.Tags {
+				line.Add(chip("#" + g))
+			}
+			adds = append(adds, line)
 		}
 		for _, up := range r.Diff.Updates {
-			lines.Add(plain(fmt.Sprintf("~ %s: %s", up.Old.Text, changesOf(up))))
+			ups = append(ups, plain(fmt.Sprintf("%s: %s", up.Old.Text, changesOf(up))))
 		}
 		for _, p := range r.Push {
-			lines.Add(plain("push " + p.Key + " " + setOf(p.Set)))
+			pushes = append(pushes, plain(p.Key+"  "+setOf(p.Set)))
 		}
 		for _, g := range r.Diff.Gone {
-			lines.Add(grey("gone from source: " + g.Text + " (kept)"))
+			gone = append(gone, grey(g.Text+" — kept"))
 		}
-		if img := evidence(r); img != nil {
-			lines.Add(img)
-		}
+		section("adds", len(adds), adds...)
+		section("updates", len(ups), ups...)
+		section("pushes", len(pushes), pushes...)
+		section("gone from source", len(gone), gone...)
 	}
 	c.state = widget.NewLabel("")
-	c.apply = widget.NewButton("apply all", func() { v.apply(c) })
-	discard := lowButton("discard", func() { v.discard(c) })
+	c.state.SizeName = theme.SizeNameCaptionText
+	c.apply = primary("Apply all", func() { v.apply(c) })
+	discard := lowButton("Discard", func() { v.discard(c) })
 	if r.Err != nil || (r.Diff.Empty() && len(r.Push) == 0) {
 		c.done = true // nothing to land
 		c.apply.Disable()
 	}
 	lines.Add(container.NewHBox(c.apply, discard, c.state))
-	c.box = widget.NewCard(r.Plugin, r.Message, lines)
+
+	head := container.NewHBox(fixed(dot(8, rgba(state), color.Transparent, 0), 8, 8),
+		container.NewCenter(semibold(r.Plugin, style.Ink)), container.NewCenter(caption(r.Message, style.Ink2)))
+	body := container.NewVBox(head, lines)
+	var content fyne.CanvasObject = body
+	if img := evidence(r); img != nil {
+		content = container.NewBorder(nil, nil, nil, img, body)
+	}
+	c.box = container.NewPadded(container.NewStack(rounded(style.Card, 8), container.NewPadded(content)))
 	return c
 }
 
@@ -258,7 +288,7 @@ func evidence(r sync.Result) fyne.CanvasObject {
 	}
 	img := canvas.NewImageFromFile(path)
 	img.FillMode = canvas.ImageFillContain
-	img.SetMinSize(fyne.NewSize(360, 200))
+	img.SetMinSize(fyne.NewSize(160, 120))
 	return img
 }
 
@@ -278,7 +308,7 @@ func changesOf(up sync.Update) string {
 		case "due":
 			new = up.New.Due
 		}
-		parts = append(parts, fmt.Sprintf("%s %s -> %s", f, old, new)) // the bundled font has no arrow
+		parts = append(parts, fmt.Sprintf("%s %s → %s", f, old, new))
 	}
 	return strings.Join(parts, ", ")
 }
