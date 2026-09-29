@@ -1,4 +1,5 @@
-// Package store knows where things live and how to write them, never what they mean.
+// Package store knows where the database lives and how to read and write it, never
+// what a task means. It is the only package that speaks SQL.
 package store
 
 import (
@@ -6,30 +7,33 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
 )
 
 const (
-	DefaultHome = "tray"
-	TrayHeader  = "# tray"
 	Someday     = "someday"
 	monthLayout = "2006-01"
 )
 
-var monthName = regexp.MustCompile(`^\d{4}-\d{2}\.md$`)
+var monthRe = regexp.MustCompile(`^\d{4}-\d{2}$`)
 
+// Home is $TRAY_HOME, else the XDG data directory. Hidden rather than in `~`, by 53's
+// own rule: the convention splits on ownership, and nobody is meant to open a sqlite
+// file by hand.
 func Home() string {
 	if set := os.Getenv("TRAY_HOME"); set != "" {
 		return expand(set)
 	}
+	if xdg := os.Getenv("XDG_DATA_HOME"); xdg != "" {
+		return filepath.Join(xdg, "tray")
+	}
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return DefaultHome
+		return "tray"
 	}
-	return filepath.Join(home, DefaultHome)
+	return filepath.Join(home, ".local", "share", "tray")
 }
 
 func expand(path string) string {
@@ -56,6 +60,9 @@ func Today() time.Time {
 
 func ThisMonth() string { return Today().Format(monthLayout) }
 
+// IsMonth tells a calendar month apart from someday and a plugin's garage.
+func IsMonth(name string) bool { return monthRe.MatchString(name) }
+
 func NextMonth(month string) string { return shiftMonth(month, 1) }
 func PrevMonth(month string) string { return shiftMonth(month, -1) }
 
@@ -81,34 +88,4 @@ func splitMonth(month string) (int, int, error) {
 		return 0, 0, err
 	}
 	return year, mon, nil
-}
-
-func TrayPath() string { return filepath.Join(Home(), "tray.md") }
-
-func MonthPath(month string) string {
-	if month == "" {
-		month = ThisMonth()
-	}
-	if month == Someday {
-		return filepath.Join(Home(), Someday+".md")
-	}
-	return filepath.Join(Home(), month+".md")
-}
-
-func MonthHeader(month string) string { return "# " + month }
-
-// Months lists the month files present, oldest first.
-func Months() []string {
-	entries, err := os.ReadDir(Home())
-	if err != nil {
-		return nil
-	}
-	var found []string
-	for _, e := range entries {
-		if !e.IsDir() && monthName.MatchString(e.Name()) {
-			found = append(found, strings.TrimSuffix(e.Name(), ".md"))
-		}
-	}
-	sort.Strings(found)
-	return found
 }

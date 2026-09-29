@@ -2,34 +2,23 @@ package cli
 
 import (
 	"fmt"
-	"os"
-	"os/exec"
-	"path/filepath"
+	"sort"
 	"strings"
-	"time"
 
 	"github.com/cheese-cracker/tray/internal/core"
 	"github.com/cheese-cracker/tray/internal/plugin"
 	"github.com/cheese-cracker/tray/internal/store"
-	"github.com/cheese-cracker/tray/internal/ui"
+	"github.com/cheese-cracker/tray/internal/wire"
 )
 
+// init is a receipt: opening the store already made the home and the database, so
+// what it uniquely gives is a line saying where the data lives (97b).
 func cmdInit() (string, error) {
-	if err := store.Ensure(store.TrayPath(), store.TrayHeader); err != nil {
-		return "", err
-	}
-	month := store.ThisMonth()
-	if err := store.Ensure(store.MonthPath(month), store.MonthHeader(month)); err != nil {
-		return "", err
-	}
-	if err := store.Ensure(store.MonthPath(store.Someday), "# "+store.Someday); err != nil {
-		return "", err
-	}
 	return "ready: " + store.Home(), nil
 }
 
-// cmdDump is capture. Only a leading to: and +tag are read; the rest is literal.
-func cmdDump(req request) (string, error) {
+// cmdDump is capture. Only a leading to:, --note and +tag are read; the rest is literal.
+func cmdDump(s *store.Store, req request) (string, error) {
 	tail := req.tail
 	month, tags := "", []string{}
 	note := req.opts.note
@@ -59,23 +48,18 @@ func cmdDump(req request) (string, error) {
 	if text == "" {
 		return "nothing to dump", nil
 	}
-	doc, err := store.Garage(month)
-	if err != nil {
-		return "", err
-	}
-	task := core.New(text, tags)
-	task.Note = note
-	doc.Add(task)
-	if err := doc.Save(); err != nil {
-		return "", err
-	}
 	if month == "" {
 		month = store.ThisMonth()
+	}
+	task := core.New(text, tags)
+	task.Month, task.Note = month, note
+	if err := s.Put(&task); err != nil {
+		return "", err
 	}
 	return "→ " + month, nil
 }
 
-func cmdAdd(req request) (string, error) {
+func cmdAdd(s *store.Store, req request) (string, error) {
 	mods := core.SplitMods(req.tail)
 	delete(mods.Attrs, "to")
 	text := strings.Join(mods.Words, " ")
@@ -85,17 +69,18 @@ func cmdAdd(req request) (string, error) {
 	task := core.New(text, mods.AddTags)
 	task.Note = req.opts.note
 	core.ApplyMods(&task, core.Mods{Attrs: mods.Attrs})
-	if task.Attrs["entry"] == "" {
-		task.Attrs["entry"] = store.Today().Format(core.DateLayout)
+	// A waiting task lies in the garage of its day until sync lifts it, so adding one
+	// is a dump with a date rather than a tray task you cannot see.
+	if d, ok := core.Date(task.Wait); ok {
+		task.Layer, task.Month = core.LayerGarage, d.Format("2006-01")
+	} else {
+		task.Layer = core.LayerTray
 	}
-
-	doc, err := store.Tray()
-	if err != nil {
+	if err := s.Put(&task); err != nil {
 		return "", err
 	}
-	doc.Add(task)
-	if err := doc.Save(); err != nil {
-		return "", err
+	if task.Layer == core.LayerGarage {
+		return fmt.Sprintf("added: %s → %s, waiting until %s", text, task.Month, core.Day(task.Wait)), nil
 	}
 	return "added: " + text + missing(task), nil
 }
@@ -104,128 +89,152 @@ func cmdAdd(req request) (string, error) {
 // is the layer where structure is the point.
 func missing(t core.Task) string {
 	var wants []string
-	if t.Priority() == "" {
+	if t.Priority == "" {
 		wants = append(wants, "pri:H")
 	}
-	if t.Attrs["due"] == "" {
+	if t.Due == "" {
 		wants = append(wants, "due:2026-08-20")
 	}
 	if len(wants) == 0 {
 		return ""
 	}
-	return " — no " + strings.Join(wants, " or ") + "; add with `tray 1 rewrite " +
-		strings.Join(wants, " ") + "`"
+	return fmt.Sprintf(" — no %s; add with `tray %d rewrite %s`",
+		strings.Join(wants, " or "), t.ID, strings.Join(wants, " "))
 }
 
-// cmdTake is the structuring step: garage → tray, source annotated, never twice.
-func cmdTake(req request) (string, error) {
-	garage, items, err := view(request{scope: "garage", opts: req.opts}, false)
+// cmdTake is the structuring step: garage → tray. Nothing is copied and nothing is
+// taken twice — a row already on the tray is left where it is.
+func cmdTake(s *store.Store, req request) (string, error) {
+	if req.ids == "" {
+		return "which one? `tray garage list` for the ids, then `tray 12 take`", nil
+	}
+	picked, err := pick(s, req)
 	if err != nil {
 		return "", err
 	}
-	if req.ids == "" {
-		return "which one? `tray garage list` for the ids, then `tray 3 take`", nil
-	}
-	picked := store.Resolve(items, req.ids)
 	if len(picked) == 0 {
 		return "no match — `tray garage list` for the ids", nil
 	}
-
-	tray, err := store.Tray()
+	mods := core.SplitMods(req.tail)
+	took, last := 0, core.Task{}
+	err = s.Update(func(tx *store.Store) error {
+		for _, t := range picked {
+			if t.Layer == core.LayerTray {
+				continue
+			}
+			core.Move(&t, core.LayerTray, "")
+			t.Wait = "" // you took it; its day is now
+			if len(mods.Words) > 0 {
+				t.Text = strings.Join(mods.Words, " ")
+			}
+			core.ApplyMods(&t, mods)
+			if err := tx.Put(&t); err != nil {
+				return err
+			}
+			took, last = took+1, t
+		}
+		return nil
+	})
 	if err != nil {
 		return "", err
 	}
-	month := req.opts.month
-	if month == "" {
-		month = store.ThisMonth()
-	}
-	mods := core.SplitMods(req.tail)
-	for _, t := range picked {
-		fresh := core.Arrive(t, month, store.Today())
-		if len(mods.Words) > 0 {
-			fresh.Text = strings.Join(mods.Words, " ")
-		}
-		core.ApplyMods(&fresh, mods)
-		tray.Add(fresh)
-
-		core.Depart(&t, core.DestTray)
-		garage.Set(t)
-	}
-	if err := tray.Save(); err != nil {
-		return "", err
-	}
-	if err := garage.Save(); err != nil {
-		return "", err
+	if took == 0 {
+		return "already on the tray", nil
 	}
 	note := ""
-	if len(picked) == 1 {
-		note = missing(core.Arrive(picked[0], month, store.Today()))
+	if took == 1 {
+		note = missing(last)
 	}
-	return fmt.Sprintf("took %d", len(picked)) + note, nil
+	return fmt.Sprintf("took %d", took) + note, nil
 }
 
-func cmdFinish(req request, as string) (string, error) {
-	doc, items, err := view(req, false)
+func cmdFinish(s *store.Store, req request) (string, error) {
+	picked, err := pick(s, req)
 	if err != nil {
 		return "", err
 	}
-	picked := store.Resolve(items, req.ids)
 	if len(picked) == 0 {
 		return "no match", nil
 	}
+	today := store.Today()
 	var names []string
-	for _, t := range picked {
-		core.Finish(&t, as, store.Today())
-		doc.Set(t)
-		names = append(names, t.Text)
-	}
-	if err := doc.Save(); err != nil {
+	err = s.Update(func(tx *store.Store) error {
+		for _, t := range picked {
+			core.Finish(&t, today)
+			if err := tx.Put(&t); err != nil {
+				return err
+			}
+			names = append(names, t.Text)
+		}
+		return nil
+	})
+	if err != nil {
 		return "", err
 	}
-	return as + ": " + strings.Join(names, " · "), nil
+	return "done: " + strings.Join(names, " · "), nil
 }
 
-// restore resolves ids against the same rows `list --all` prints, in the same order.
-// Numbering the finished ones separately would have been tidier to implement and a
-// trap to use: you read "2✓" off the screen and 2 would have meant something else.
-func cmdRestore(req request) (string, error) {
-	doc, items, err := view(req, true)
+func cmdRestore(s *store.Store, req request) (string, error) {
+	picked, err := pick(s, req)
 	if err != nil {
 		return "", err
 	}
 	var names []string
-	for _, t := range store.Resolve(items, req.ids) {
-		if !t.Terminal() {
-			continue // already open; restoring it would be a no-op worth not claiming
+	err = s.Update(func(tx *store.Store) error {
+		for _, t := range picked {
+			if !t.Terminal() {
+				continue // already open; restoring it would be a no-op worth not claiming
+			}
+			core.Restore(&t)
+			if err := tx.Put(&t); err != nil {
+				return err
+			}
+			names = append(names, t.Text)
 		}
-		core.Restore(&t)
-		doc.Set(t)
-		names = append(names, t.Text)
+		return nil
+	})
+	if err != nil {
+		return "", err
 	}
 	if len(names) == 0 {
 		return "nothing finished at those ids — tray list --all", nil
 	}
-	if err := doc.Save(); err != nil {
-		return "", err
-	}
 	return "restored: " + strings.Join(names, " · "), nil
 }
 
-// erase is the one thing here that removes a line. Everything else marks: `done`
-// strikes through in place, `unload` and `carryover` leave an arrow behind. This is
-// for a line that should not have been written — a typo, a duplicate — and there was
-// no way to remove one from the interface at all before.
-// note sets the indented lines under a task, or prints them when given nothing to
-// set. One note per task, replaced whole: a bag of tasks keeps no history of one.
-//
-// Live ids, like rewrite and edit — only restore and erase read the --all space (93b),
-// because only they have to reach a finished line.
-func cmdNote(req request) (string, error) {
-	doc, items, err := view(req, false)
+// erase is the one verb that removes a row. Everything else marks. This is for a line
+// that should not have been written — a typo, a duplicate.
+func cmdErase(s *store.Store, req request) (string, error) {
+	picked, err := pick(s, req)
 	if err != nil {
 		return "", err
 	}
-	picked := store.Resolve(items, req.ids)
+	if len(picked) == 0 {
+		return "no match", nil
+	}
+	var names []string
+	err = s.Update(func(tx *store.Store) error {
+		for _, t := range picked {
+			if err := tx.Delete(t.ID); err != nil {
+				return err
+			}
+			names = append(names, t.Text)
+		}
+		return nil
+	})
+	if err != nil {
+		return "", err
+	}
+	return "erased: " + strings.Join(names, " · "), nil
+}
+
+// note sets the lines under a task, or prints them when given nothing to set. One
+// note per task, replaced whole: a bag of tasks keeps no history of one (104).
+func cmdNote(s *store.Store, req request) (string, error) {
+	picked, err := pick(s, req)
+	if err != nil {
+		return "", err
+	}
 	if len(picked) == 0 {
 		return "no match", nil
 	}
@@ -241,169 +250,135 @@ func cmdNote(req request) (string, error) {
 		}
 		return strings.Join(out, "\n"), nil
 	}
-	for _, t := range picked {
-		t.Note = text
-		doc.Set(t)
-	}
-	if err := doc.Save(); err != nil {
+	err = s.Update(func(tx *store.Store) error {
+		for _, t := range picked {
+			t.Note = text
+			if err := tx.Put(&t); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
 		return "", err
 	}
 	return fmt.Sprintf("noted %d", len(picked)), nil
 }
 
-func cmdErase(req request) (string, error) {
-	doc, items, err := view(req, true)
+func cmdRewrite(s *store.Store, req request) (string, error) {
+	picked, err := pick(s, req)
 	if err != nil {
 		return "", err
 	}
-	picked := store.Resolve(items, req.ids)
-	if len(picked) == 0 {
-		return "no match", nil
-	}
-	var names []string
-	for _, t := range picked {
-		doc.Remove(t)
-		names = append(names, t.Text)
-	}
-	if err := doc.Save(); err != nil {
-		return "", err
-	}
-	return "erased: " + strings.Join(names, " · "), nil
-}
-
-func cmdRewrite(req request) (string, error) {
-	doc, items, err := view(req, false)
-	if err != nil {
-		return "", err
-	}
-	picked := store.Resolve(items, req.ids)
 	if len(picked) == 0 {
 		return "no match", nil
 	}
 	if len(req.tail) == 0 {
-		return "the pickers land with the TUI — for now: tray N rewrite pri:M due:2026-08-20", nil
+		return "nothing to change — tray 12 rewrite pri:M due:2026-08-20 +tag", nil
 	}
 	mods := core.SplitMods(req.tail)
-	for _, t := range picked {
-		core.ApplyMods(&t, mods)
-		if len(mods.Words) > 0 {
-			t.Text = strings.Join(mods.Words, " ")
+	err = s.Update(func(tx *store.Store) error {
+		for _, t := range picked {
+			core.ApplyMods(&t, mods)
+			if len(mods.Words) > 0 {
+				t.Text = strings.Join(mods.Words, " ")
+			}
+			if err := tx.Put(&t); err != nil {
+				return err
+			}
 		}
-		doc.Set(t)
-	}
-	if err := doc.Save(); err != nil {
+		return nil
+	})
+	if err != nil {
 		return "", err
 	}
 	return fmt.Sprintf("rewrote %d", len(picked)), nil
 }
 
-// cmdEdit hands the file to your editor — Hand B, made explicit.
-func cmdEdit(req request) (string, error) {
+// edit is the words alone, attributes untouched. There is no file to hand to an editor
+// any more, so a bare edit says so rather than guessing what you meant.
+func cmdEdit(s *store.Store, req request) (string, error) {
 	if req.ids == "" {
-		path := store.TrayPath()
-		if req.scope == "garage" {
-			path = store.MonthPath(req.opts.month)
-		}
-		return "", openEditor(path)
+		return "", fmt.Errorf("there is no file to open — tray <id> edit <new text>")
 	}
 	if len(req.tail) == 0 {
 		return "nothing to write", nil
 	}
-	return cmdRewrite(req)
-}
-
-func openEditor(path string) error {
-	editor := os.Getenv("VISUAL")
-	if editor == "" {
-		editor = os.Getenv("EDITOR")
+	picked, err := pick(s, req)
+	if err != nil {
+		return "", err
 	}
-	if editor == "" {
-		editor = "vi"
+	if len(picked) == 0 {
+		return "no match", nil
 	}
-	parts := strings.Fields(editor)
-	cmd := exec.Command(parts[0], append(parts[1:], path)...)
-	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
-	return cmd.Run()
+	text := strings.Join(req.tail, " ")
+	err = s.Update(func(tx *store.Store) error {
+		for _, t := range picked {
+			t.Text = text
+			if err := tx.Put(&t); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("edited %d", len(picked)), nil
 }
 
 // Emptying the whole tray is the largest single action here, so where it lands is
-// never guessed. On a terminal that means asking; piped, it means saying so and
-// stopping, because the agent surface must not start a conversation.
-func cmdUnload(req request) (string, error) {
+// never guessed (72): one task knows the month it came from; the whole tray needs --to.
+func cmdUnload(s *store.Store, req request) (string, error) {
 	to := req.opts.to
-	if to == "" {
-		if !interactive() {
+	var picked []core.Task
+	var err error
+	if req.ids != "" {
+		picked, err = pick(s, req)
+	} else {
+		if to == "" {
 			return "", fmt.Errorf("unload needs a month — tray unload --to %s", store.ThisMonth())
 		}
-		chosen, err := ui.PickMonth()
-		if err != nil {
-			return "", err
-		}
-		if chosen == "" {
-			return "cancelled", nil
-		}
-		to = chosen
+		picked, err = s.Tasks(store.Filter{Layer: core.LayerTray, All: true})
 	}
-	tray, items, err := view(request{scope: "tray"}, true)
 	if err != nil {
 		return "", err
 	}
-	picked := items
-	if req.ids != "" {
-		picked = store.Resolve(items, req.ids)
+	moved := 0
+	err = s.Update(func(tx *store.Store) error {
+		for _, t := range picked {
+			if t.Layer != core.LayerTray || t.Recur != "" {
+				continue // a template is the tray's own furniture, not work to hand back
+			}
+			if to == "" && t.FromMonth == "" {
+				return fmt.Errorf("%d never came from a month — tray %d unload --to %s", t.ID, t.ID, store.ThisMonth())
+			}
+			core.Move(&t, core.LayerGarage, to)
+			if err := tx.Put(&t); err != nil {
+				return err
+			}
+			moved++
+		}
+		return nil
+	})
+	if err != nil {
+		return "", err
 	}
-	return unload(tray, picked, to)
-}
-
-func unload(tray *store.Doc, picked []core.Task, to string) (string, error) {
-	if len(picked) == 0 {
+	if moved == 0 {
 		return "tray empty", nil
 	}
-	month := to
-	if month == "" {
-		month = store.ThisMonth()
+	if to == "" {
+		return fmt.Sprintf("%d → home", moved), nil
 	}
-	garage, err := store.Garage(month)
-	if err != nil {
-		return "", err
-	}
-	seen := garage.LiveTexts()
-	moved := 0
-	for _, t := range picked {
-		switch {
-		case t.Text == "" || seen[t.Text]: // already there: a second run is a no-op
-		case garage.Reclaim(t): // it came from here, so bring that line home as it is
-			seen[t.Text] = true
-			moved++
-		default:
-			garage.Add(t.Copy())
-			seen[t.Text] = true
-			moved++
-		}
-		tray.Remove(t) // the tray always releases, whatever the garage did
-	}
-	if err := garage.Save(); err != nil {
-		return "", err
-	}
-	if err := tray.Save(); err != nil {
-		return "", err
-	}
-	return fmt.Sprintf("%d → %s", moved, month), nil
+	return fmt.Sprintf("%d → %s", moved, to), nil
 }
 
-// carryover is month → month and nothing else. It used to drain the whole tray into
-// the closing month first, which is how running it mid-August emptied the tray into a
-// July that never existed. Unload is its own ritual now, run first and by name.
-//
-// The source is never inferred: "the closing month" is not a fact about the calendar.
-// Sweeping August into September is the same job whether you do it on the 30th, when
-// August is the current month, or on the 10th, when it is the previous one.
-func cmdCarryover(req request) (string, error) {
-	if !req.opts.run && !req.opts.draft {
-		if interactive() {
-			return "", ui.RunSweep(req.opts.month)
-		}
-		return "", fmt.Errorf("not a terminal — tray carryover --run --month %s",
+// carryover is month → month and nothing else (71). The source is never inferred (69,
+// 70): sweeping August into September is the same job on the 30th, when August is the
+// current month, and on the 10th, when it is the previous one.
+func cmdCarryover(s *store.Store, req request) (string, error) {
+	if !req.opts.run {
+		return "", fmt.Errorf("carryover is headless — tray carryover --run --month %s",
 			store.PrevMonth(store.ThisMonth()))
 	}
 	source := req.opts.month
@@ -412,92 +387,80 @@ func cmdCarryover(req request) (string, error) {
 			store.PrevMonth(store.ThisMonth()))
 	}
 	target := store.NextMonth(source)
-
-	src, err := store.Garage(source)
+	live, err := s.Tasks(store.Filter{Layer: core.LayerGarage, Month: source})
 	if err != nil {
 		return "", err
-	}
-	var live []core.Task
-	for _, t := range src.Live() {
-		if t.Parsed() {
-			live = append(live, t)
-		}
 	}
 	if len(live) == 0 {
 		return source + ": nothing to carry", nil
 	}
-	dst, err := store.Garage(target)
+	today := store.Today()
+	err = s.Update(func(tx *store.Store) error {
+		for _, t := range live {
+			// Carrying a line forward is admitting the date did not hold; keeping it
+			// means every re-take starts overdue with a junk urgency (75).
+			if due, ok := core.Date(t.Due); ok && due.Before(today) {
+				t.Due = ""
+			}
+			core.Move(&t, core.LayerGarage, target)
+			if err := tx.Put(&t); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 	if err != nil {
 		return "", err
 	}
-	seen := dst.Texts()
-	for _, t := range live {
-		if !seen[t.Text] {
-			dst.Add(carried(t, store.Today()))
-			seen[t.Text] = true
-		}
-		core.Depart(&t, target)
-		src.Set(t)
-	}
-	if err := dst.Save(); err != nil {
-		return "", err
-	}
-	if err := src.Save(); err != nil {
-		return "", err
-	}
-	note := fmt.Sprintf("%d %s → %s", len(live), source, target)
-	if req.opts.draft {
-		note += "\nediting " + dst.Path + " — delete a line to drop it"
-		_ = openEditor(dst.Path)
-	}
-	return note, nil
+	return fmt.Sprintf("%d %s → %s", len(live), source, target), nil
 }
 
-// carried is the copy that goes forward. A due date that has already passed does not:
-// carrying a line forward is admitting the date did not hold, and keeping it means
-// every re-take starts overdue with a junk urgency. The source keeps the original, so
-// the record is still there.
-func carried(t core.Task, today time.Time) core.Task {
-	forward := t.Copy()
-	if due, ok := core.Date(forward.Attrs["due"]); ok && due.Before(today) {
-		delete(forward.Attrs, "due")
+func cmdStatus(s *store.Store) (string, error) {
+	months, err := s.Months()
+	if err != nil {
+		return "", err
 	}
-	return forward
-}
-
-func cmdStatus(req request) (string, error) {
-	var stale []string
-	for _, month := range store.Months() {
+	var lines []string
+	for _, month := range months {
 		if month >= store.ThisMonth() {
 			continue
 		}
-		doc, err := store.Garage(month)
+		live, err := s.Tasks(store.Filter{Layer: core.LayerGarage, Month: month})
 		if err != nil {
-			continue
+			return "", err
 		}
-		live := 0
-		for _, t := range doc.Live() {
-			if t.Parsed() {
-				live++
-			}
-		}
-		if live > 0 {
-			stale = append(stale, fmt.Sprintf(
-				"%s unresolved: %d items — tray carryover --run --month %s", month, live, month))
+		if len(live) > 0 {
+			lines = append(lines, fmt.Sprintf(
+				"%s unresolved: %d items — tray carryover --run --month %s", month, len(live), month))
 		}
 	}
-	_, items, err := view(request{scope: "tray"}, false)
+	tray, err := s.Tasks(store.Filter{Layer: core.LayerTray})
 	if err != nil {
 		return "", err
 	}
-	line := fmt.Sprintf("tray: %d live · garage: %s", len(items), store.ThisMonth())
-	return strings.Join(append(stale, line), "\n"), nil
+	all, err := s.Tasks(store.Filter{All: true})
+	if err != nil {
+		return "", err
+	}
+	today := store.Today()
+	waiting, templates := 0, 0
+	for _, t := range all {
+		if t.Layer == core.LayerGarage && t.Waiting(today) {
+			waiting++
+		}
+		if until, ended := core.Date(t.Until); t.Recur != "" && !(ended && until.Before(today)) {
+			templates++
+		}
+	}
+	lines = append(lines, fmt.Sprintf("tray: %d live · waiting %d · templates %d · garage %s",
+		len(tray), waiting, templates, store.ThisMonth()))
+	return strings.Join(lines, "\n"), nil
 }
 
 // cmdPlugin lists what is installed, and that is deliberately all it does. A verb
 // that pulls on demand is the shape --nag was deleted for (76): the sync belongs to
 // opening the tab in the sweep, so there is one sync point and you cannot forget it.
-func cmdPlugin(req request) (string, error) {
+func cmdPlugin(s *store.Store, req request) (string, error) {
 	if len(req.tail) > 0 && req.tail[0] != "list" {
 		return "", fmt.Errorf("tray plugin lists what is installed — syncing happens in `tray carryover`")
 	}
@@ -508,34 +471,80 @@ func cmdPlugin(req request) (string, error) {
 	}
 	var rows []string
 	for _, p := range found {
-		rows = append(rows, fmt.Sprintf("%-12s %s", p.Name, describe(p)))
+		desc, err := describe(s, p)
+		if err != nil {
+			return "", err
+		}
+		rows = append(rows, fmt.Sprintf("%-12s %s", p.Name, desc))
 	}
 	return strings.Join(rows, "\n"), nil
 }
 
-// describe says what a plugin is doing here: the verbs it puts in the menu, and the
-// garage it keeps. A plugin with verbs and no garage file is not "never pulled" — it
-// has nothing to pull — so the garage column appears once the file does.
-func describe(p plugin.Plugin) string {
-	garage := fmt.Sprintf("%-14s %s", filepath.Base(p.Path()), pulled(p.Path()))
-	if len(p.Verbs) == 0 {
-		return garage
+// describe says what a plugin is doing here: the garage it keeps, as rows in the
+// store, and the verbs it puts in the menu. A plugin with verbs and no runner keeps no
+// garage, so none is claimed for it.
+func describe(s *store.Store, p plugin.Plugin) (string, error) {
+	var parts []string
+	if p.Run != "" {
+		rows, err := s.Tasks(store.Filter{Layer: core.LayerGarage, Month: p.Garage(), All: true})
+		if err != nil {
+			return "", err
+		}
+		parts = append(parts, "garage "+count(len(rows), "row"))
 	}
-	verbs := "enter → " + strings.Join(p.Verbs, ", ")
-	if _, err := os.Stat(p.Path()); err != nil {
-		return verbs
+	if len(p.Verbs) > 0 {
+		parts = append(parts, "enter → "+strings.Join(p.Verbs, ", "))
 	}
-	return garage + " · " + verbs
+	return strings.Join(parts, " · "), nil
 }
 
-// pulled reads the garage file's mtime, because that is when the plugin last wrote
-// it. Storing a timestamp would be a second copy of something the filesystem keeps.
-func pulled(path string) string {
-	info, err := os.Stat(path)
-	if err != nil {
-		return "never pulled"
+func count(n int, noun string) string {
+	switch n {
+	case 0:
+		return "empty"
+	case 1:
+		return "1 " + noun
 	}
-	return "pulled " + info.ModTime().Format("2006-01-02 15:04")
+	return fmt.Sprintf("%d %ss", n, noun)
+}
+
+// find is search across every layer and every month. The finished are out unless you
+// ask, as everywhere else.
+func cmdFind(s *store.Store, req request) (string, error) {
+	needle := strings.Join(req.tail, " ")
+	if needle == "" {
+		return "nothing to find", nil
+	}
+	hits, err := s.Tasks(store.Filter{Text: needle, All: req.opts.all})
+	if err != nil {
+		return "", err
+	}
+	if len(hits) == 0 {
+		return "no match", nil
+	}
+	sort.SliceStable(hits, func(i, j int) bool { return where(hits[i]) < where(hits[j]) })
+	var rows [][]string
+	for _, t := range hits {
+		rows = append(rows, []string{where(t), strings.TrimPrefix(core.Line(t, false), "- ")})
+	}
+	return table(rows, []string{"WHERE", "LINE"}), nil
+}
+
+func where(t core.Task) string {
+	if t.Layer == core.LayerTray {
+		return "tray"
+	}
+	return t.Month
+}
+
+func cmdImport(s *store.Store, req request) (string, error) {
+	if req.opts.format != "md" {
+		return "", fmt.Errorf("import needs a format — tray import --format md <dir>")
+	}
+	if len(req.tail) == 0 {
+		return "", fmt.Errorf("import needs a path — tray import --format md ~/tray")
+	}
+	return wire.ImportMarkdown(s, req.tail[0], store.Today())
 }
 
 func tagName(token string) (string, bool) {

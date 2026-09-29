@@ -72,9 +72,9 @@ func TestListSkipsAFolderWithNoRunner(t *testing.T) {
 	}
 }
 
-// The folder name is the whole manifest: it names the plugin and the garage it owns,
-// so a plugin called notion reads and writes notion.md and nothing declares that.
-func TestGarageAndPathComeFromTheFolderName(t *testing.T) {
+// The folder name is the whole manifest: it names the plugin and the garage month its
+// rows sit in, and nothing declares that.
+func TestGarageComesFromTheFolderName(t *testing.T) {
 	sandbox(t)
 	install(t, "notion", 0o755)
 
@@ -84,9 +84,6 @@ func TestGarageAndPathComeFromTheFolderName(t *testing.T) {
 	}
 	if p.Garage() != "notion" {
 		t.Errorf("Garage() = %s, want notion", p.Garage())
-	}
-	if want := filepath.Join(os.Getenv("TRAY_HOME"), "notion.md"); p.Path() != want {
-		t.Errorf("Path() = %s, want %s", p.Path(), want)
 	}
 }
 

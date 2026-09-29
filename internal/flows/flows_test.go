@@ -18,12 +18,12 @@ import (
 const (
 	flowsDoc  = "../../FLOWS.md"
 	shellFile = "../../scripts/check-tray.sh"
-	uiFlows   = "../ui/flows_test.go"
+	uiFlows   = "../gui/flows_test.go"
 )
 
 // A row is `| F1 | what must keep working | ` + "`held by`" + ` |`.
 var (
-	rowRe   = regexp.MustCompile("(?m)^\\|\\s*([FT]\\d+)\\s*\\|.*\\|\\s*`([^`]+)`\\s*\\|\\s*$")
+	rowRe   = regexp.MustCompile("(?m)^\\|\\s*([FG]\\d+)\\s*\\|.*\\|\\s*`([^`]+)`\\s*\\|\\s*$")
 	headRe  = regexp.MustCompile(`(?m)^head_ "([^"]+)"`)
 	testPre = "TestFlow"
 )
@@ -62,10 +62,14 @@ func shellFlows(t *testing.T) []string {
 	return out
 }
 
-// goFlows are the TestFlow… functions in the teatest suite. Parsed rather than
-// grepped, so a name inside a comment or a string can't satisfy a row.
+// goFlows are the TestFlow… functions in the app's suite. Parsed rather than grepped,
+// so a name inside a comment or a string can't satisfy a row. No file is no rows: the
+// suite arrives with the app, and until then the G half of the table is empty.
 func goFlows(t *testing.T) []string {
 	t.Helper()
+	if _, err := os.Stat(uiFlows); os.IsNotExist(err) {
+		return nil
+	}
 	file, err := parser.ParseFile(token.NewFileSet(), uiFlows, nil, 0)
 	if err != nil {
 		t.Fatal(err)
@@ -110,7 +114,7 @@ func TestEveryFlowTestHasARow(t *testing.T) {
 	}
 }
 
-// F rows must be held by the shell suite and T rows by the Go suite, or the table's
+// F rows must be held by the shell suite and G rows by the Go suite, or the table's
 // two halves stop meaning anything.
 func TestFlowIdsMatchTheirSuite(t *testing.T) {
 	shell := map[string]bool{}
@@ -122,8 +126,8 @@ func TestFlowIdsMatchTheirSuite(t *testing.T) {
 		switch {
 		case strings.HasPrefix(id, "F") && !shell[rows[id]]:
 			t.Errorf("%s is an F row but %q is not a check-tray.sh flow", id, rows[id])
-		case strings.HasPrefix(id, "T") && !strings.HasPrefix(rows[id], testPre):
-			t.Errorf("%s is a T row but %q is not a %s… function", id, rows[id], testPre)
+		case strings.HasPrefix(id, "G") && !strings.HasPrefix(rows[id], testPre):
+			t.Errorf("%s is a G row but %q is not a %s… function", id, rows[id], testPre)
 		}
 	}
 }

@@ -2,50 +2,36 @@ package core
 
 import "time"
 
-// Take, hand back and carry forward are one operation: the source line stays with
-// an arrow to where its live copy went, and a copy travels. Nothing moves twice.
-
-const DestTray = "tray"
-
-// Depart annotates the source. The line stays exactly where it is.
-func Depart(src *Task, dest string) {
-	src.Moved = dest
-}
-
-// Arrive is the copy that travels, stamped with where it came from and when.
-func Arrive(src Task, from string, today time.Time) Task {
-	fresh := src.Copy()
-	if from != "" {
-		setDefault(fresh.Attrs, "from", from)
+// Move is take, hand back and carry forward in one (7): a row changes layer or month
+// and nothing is copied. Leaving the garage remembers the month, so an unload with no
+// destination can bring the task home; arriving back forgets it, since it lives there
+// again.
+func Move(t *Task, layer, month string) {
+	if layer == LayerTray {
+		if t.Layer == LayerGarage && t.FromMonth == "" {
+			t.FromMonth = t.Month
+		}
+		t.Layer, t.Month = LayerTray, ""
+		return
 	}
-	setDefault(fresh.Attrs, "entry", today.Format(DateLayout))
-	return fresh
+	if month == "" {
+		month = t.FromMonth
+	}
+	t.Layer, t.Month, t.FromMonth = LayerGarage, month, ""
 }
 
-// Finish marks a task terminal in place — done, or abandoned. Nothing is removed.
-func Finish(t *Task, as string, today time.Time) {
-	if t.Attrs == nil {
-		t.Attrs = map[string]string{}
+// Finish marks a task done in place, dated. A template cannot be finished, only
+// stopped: done on one ends the recurrence today and leaves its children alone.
+func Finish(t *Task, today time.Time) {
+	when := today.Format(DateLayout)
+	if t.Recur != "" {
+		t.Until = when
+		return
 	}
-	t.Attrs[as] = today.Format(DateLayout)
-	t.Done = as == "done"
+	t.Done = when
 }
 
-// Restore is the inverse of Finish: the line stops being struck through and reads as
-// open again. Decision 5 is about never deleting a *line* — this deletes nothing, it
-// just says the thing was not finished after all.
-//
-// No trace is kept. The overwhelming reason to reach for this is a mis-key, and a
-// line stamped with every time you fumbled is worse than one that is simply correct.
-func Restore(t *Task) {
-	if t.Attrs != nil {
-		delete(t.Attrs, "done")
-	}
-	t.Done = false
-}
-
-func setDefault(attrs map[string]string, key, value string) {
-	if attrs[key] == "" {
-		attrs[key] = value
-	}
-}
+// Restore is the inverse of Finish. No trace is kept: the overwhelming reason to reach
+// for this is a mis-key, and a row stamped with every fumble is worse than one that is
+// simply correct.
+func Restore(t *Task) { t.Done = "" }

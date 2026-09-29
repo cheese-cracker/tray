@@ -9,7 +9,7 @@ import (
 func TestParseGarageProseIsVerbatim(t *testing.T) {
 	// The jottpad has to hold a sentence. A colon mid-prose is not an attribute.
 	raw := "- ?? the billing page feels slow — worth a look: probably"
-	got, ok := Parse(raw, 0)
+	got, ok := Parse(raw, day("2026-08-07"))
 	if !ok {
 		t.Fatal("a bullet must parse")
 	}
@@ -17,28 +17,25 @@ func TestParseGarageProseIsVerbatim(t *testing.T) {
 	if got.Text != want {
 		t.Errorf("text = %q, want %q", got.Text, want)
 	}
-	if len(got.Attrs) != 0 {
-		t.Errorf("attrs = %v, want none", got.Attrs)
+	if got.Priority != "" || got.Due != "" || got.Done != "" {
+		t.Errorf("fields = %+v, want none set", got)
 	}
 }
 
 func TestParseTrayLine(t *testing.T) {
 	raw := "- [ ] Rotate the api keys priority:H due:2026-08-12 project:alpha entry:2026-08-07 +infra"
-	got, _ := Parse(raw, 3)
+	got, _ := Parse(raw, day("2026-08-07"))
 	if got.Text != "Rotate the api keys" {
-		t.Errorf("text = %q", got.Text)
+		t.Errorf("text = %q — project: must be consumed, not kept as words (9)", got.Text)
 	}
-	if got.Attrs["priority"] != "H" || got.Attrs["due"] != "2026-08-12" {
-		t.Errorf("attrs = %v", got.Attrs)
+	if got.Priority != "H" || got.Due != "2026-08-12" || got.Entry != "2026-08-07" {
+		t.Errorf("fields = %+v", got)
 	}
 	if !reflect.DeepEqual(got.Tags, []string{"infra"}) {
 		t.Errorf("tags = %v", got.Tags)
 	}
-	if got.Done || !got.Live() {
+	if got.Terminal() || !got.Live() {
 		t.Error("should be live")
-	}
-	if got.Index != 3 {
-		t.Errorf("index = %d, want 3", got.Index)
 	}
 }
 
@@ -48,16 +45,19 @@ func TestRoundTrip(t *testing.T) {
 		line     string
 		checkbox bool
 	}{
-		{"tray open", "- [ ] Rotate the api keys priority:H due:2026-08-12 project:alpha", true},
+		{"tray open", "- [ ] Rotate the api keys priority:H due:2026-08-12", true},
 		{"tray done", "- [x] ~~Renew the TLS certificate~~ priority:H done:2026-08-06", true},
+		{"tray waiting", "- [ ] Call mom priority:H wait:2027-03-13", true},
+		{"template", "- [ ] Weekly review priority:M due:2026-10-03 recur:weekly until:2027-01-01", true},
 		{"garage plain", "- add metrics to the worker +infra", false},
 		{"garage moved", "- add retries to the sync job → 2026-09", false},
 		{"garage taken", "- Fix alerts priority:H → tray", false},
 		{"garage done", "- ~~the notes script~~ done:2026-08-07", false},
+		{"garage from", "- [ ] Fix alerts priority:H from:2026-06", true},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			parsed, ok := Parse(c.line, 0)
+			parsed, ok := Parse(c.line, day("2026-08-07"))
 			if !ok {
 				t.Fatalf("did not parse: %q", c.line)
 			}
@@ -68,15 +68,14 @@ func TestRoundTrip(t *testing.T) {
 	}
 }
 
-// Both spellings are read; the file is written Taskwarrior-style, because 4 aligns the
-// field names with Taskwarrior and `tray export | task import` rests on that. The
-// interface draws `#`, which is a rendering choice and lives in the ui package.
+// Both spellings are read; the wire is written Taskwarrior-style, because 4 aligns the
+// field names with Taskwarrior and `tray export | task import` rests on that.
 func TestATagIsReadEitherWayAndWrittenAsTaskwarrior(t *testing.T) {
 	for _, line := range []string{
 		"- add metrics to the worker +infra",
 		"- add metrics to the worker #infra",
 	} {
-		parsed, ok := Parse(line, 0)
+		parsed, ok := Parse(line, day("2026-08-07"))
 		if !ok {
 			t.Fatalf("did not parse: %q", line)
 		}
@@ -84,28 +83,30 @@ func TestATagIsReadEitherWayAndWrittenAsTaskwarrior(t *testing.T) {
 			t.Errorf("%q gave tags %v", line, parsed.Tags)
 		}
 		if got := Line(parsed, false); got != "- add metrics to the worker +infra" {
-			t.Errorf("%q wrote back as %q, want the file spelling", line, got)
+			t.Errorf("%q wrote back as %q, want the wire spelling", line, got)
 		}
 	}
 }
 
 func TestTerminalStates(t *testing.T) {
-	done, _ := Parse("- [x] ~~Ship it~~ done:2026-08-06", 0)
-	if !done.Done || done.Live() {
-		t.Error("done: want done and not live")
+	today := day("2026-08-07")
+	done, _ := Parse("- [x] ~~Ship it~~ done:2026-08-06", today)
+	if done.Done != "2026-08-06" || done.Live() {
+		t.Errorf("done: want finished on the 6th and not live, got %+v", done)
 	}
 	// A strike with no date is still finished — someone edited it by hand, and
-	// strikethrough is what that means to a reader with no tray in the loop.
-	struck, _ := Parse("- ~~gave up on this~~", 0)
-	if !struck.Done || struck.Live() {
-		t.Error("a bare strike is finished")
+	// strikethrough is what that means to a reader with no tray in the loop. The
+	// importer has no better date than today.
+	struck, _ := Parse("- ~~gave up on this~~", today)
+	if struck.Done != "2026-08-07" || struck.Live() {
+		t.Errorf("a bare strike is finished today, got %+v", struck)
 	}
 	// `dropped:` was a third terminal state, removed. A file written by an older
 	// build has to read as done rather than have the attribute swallowed into the
 	// task's own text.
-	legacy, _ := Parse("- ~~Dead idea~~ dropped:2026-08-07", 0)
-	if !legacy.Done {
-		t.Error("a legacy dropped line should read as done")
+	legacy, _ := Parse("- ~~Dead idea~~ dropped:2026-08-07", today)
+	if legacy.Done != "2026-08-07" {
+		t.Errorf("a legacy dropped line should read as done, got %+v", legacy)
 	}
 	if legacy.Text != "Dead idea" {
 		t.Errorf("text = %q, want the attribute consumed", legacy.Text)
@@ -113,27 +114,31 @@ func TestTerminalStates(t *testing.T) {
 	if got := Line(legacy, false); got != "- ~~Dead idea~~ done:2026-08-07" {
 		t.Errorf("it should converge to done: on the next write, got %q", got)
 	}
+	moved, _ := Parse("- Fix alerts → tray", today)
+	if moved.Live() || moved.Moved != "tray" {
+		t.Errorf("a moved line is history, not live: %+v", moved)
+	}
 }
 
 func TestProseIsNotATask(t *testing.T) {
 	for _, raw := range []string{"## notes to self", "this is a paragraph", "", "   "} {
-		if _, ok := Parse(raw, 0); ok {
+		if _, ok := Parse(raw, day("2026-08-07")); ok {
 			t.Errorf("%q must not parse as a task", raw)
 		}
 	}
 	// A star bullet is a task, because Obsidian writes them.
-	if _, ok := Parse("* a star bullet", 0); !ok {
+	if _, ok := Parse("* a star bullet", day("2026-08-07")); !ok {
 		t.Error("star bullets are bullets")
 	}
 }
 
 func TestSplitMods(t *testing.T) {
-	got := SplitMods([]string{"Fix", "alerts", "pri:h", "due:2026-08-12", "+infra", "-old", "wat:xx"})
+	got := SplitMods([]string{"Fix", "alerts", "pri:h", "due:2026-08-12", "wait:2026-09-01", "+infra", "-old", "wat:xx"})
 	if got.Attrs["priority"] != "H" {
 		t.Errorf("pri alias + uppercase failed: %v", got.Attrs)
 	}
-	if got.Attrs["due"] != "2026-08-12" {
-		t.Errorf("due = %v", got.Attrs)
+	if got.Attrs["due"] != "2026-08-12" || got.Attrs["wait"] != "2026-09-01" {
+		t.Errorf("attrs = %v", got.Attrs)
 	}
 	if !reflect.DeepEqual(got.AddTags, []string{"infra"}) {
 		t.Errorf("add = %v", got.AddTags)
@@ -148,41 +153,16 @@ func TestSplitMods(t *testing.T) {
 }
 
 func TestApplyModsEmptyValueRemoves(t *testing.T) {
-	task, _ := Parse("- [ ] Something priority:H +infra +old", 0)
-	ApplyMods(&task, SplitMods([]string{"priority:", "-old", "+new"}))
-	if _, still := task.Attrs["priority"]; still {
+	task, _ := Parse("- [ ] Something priority:H +infra +old", day("2026-08-07"))
+	ApplyMods(&task, SplitMods([]string{"priority:", "-old", "+new", "to:2026-09"}))
+	if task.Priority != "" {
 		t.Error("empty value must remove the attribute")
 	}
 	if !reflect.DeepEqual(task.Tags, []string{"infra", "new"}) {
 		t.Errorf("tags = %v", task.Tags)
 	}
-}
-
-func TestCopyIsDetached(t *testing.T) {
-	src, _ := Parse("- Fix alerts priority:H +infra → tray", 0)
-	fresh := src.Copy()
-	fresh.Attrs["priority"] = "L"
-	fresh.Tags = append(fresh.Tags, "extra")
-	if src.Attrs["priority"] != "H" {
-		t.Error("copy shares its attrs map with the source")
-	}
-	if len(src.Tags) != 1 {
-		t.Error("copy shares its tag slice with the source")
-	}
-	if fresh.Moved != "" || fresh.Index != -1 {
-		t.Error("a travelling copy carries no arrow and no line")
-	}
-}
-
-// Handing a finished task back to the garage must arrive struck through, not open.
-func TestCopyKeepsTerminalState(t *testing.T) {
-	done, _ := Parse("- [x] ~~Renew the TLS certificate~~ priority:H done:2026-08-06", 0)
-	if got := Line(done.Copy(), false); got != "- ~~Renew the TLS certificate~~ priority:H done:2026-08-06" {
-		t.Errorf("done copy = %q", got)
-	}
-	struck, _ := Parse("- ~~gave up on this~~", 0)
-	if !struck.Copy().Done {
-		t.Error("a finished copy is still finished")
+	if task.Month != "" {
+		t.Error("to: is the CLI's, not a field")
 	}
 }
 
@@ -200,17 +180,14 @@ func TestANoteIsTheIndentedLinesUnderATask(t *testing.T) {
 		"  prose after a blank line belongs to nobody",
 		"- [ ] no note at all",
 	}
-	tasks := Tasks(lines)
+	tasks := Tasks(lines, day("2026-08-07"))
 	if len(tasks) != 4 {
 		t.Fatalf("parsed %d tasks, want 4: %+v", len(tasks), tasks)
 	}
 	if got := tasks[0].Note; got != "The old keys expire on the 12th.\nRotate staging first." {
 		t.Errorf("note = %q", got)
 	}
-	if tasks[0].Span != 3 {
-		t.Errorf("span = %d, want the bullet and two note lines", tasks[0].Span)
-	}
-	if tasks[1].Note != "" || tasks[1].Span != 1 {
+	if tasks[1].Note != "" {
 		t.Errorf("an indented bullet must not become a note: %+v", tasks[1])
 	}
 	if tasks[2].Text != "an indented bullet is a task, not a note" {

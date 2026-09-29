@@ -1,7 +1,7 @@
 // Package plugin finds the third-party plugins installed under the tray home. It
 // knows where they are, whether they look runnable, and which verbs they offer; it
-// never runs one itself, and it never reads a garage — a plugin garage is an ordinary
-// markdown file, so that stays store's job and this package stays free of the
+// never runs one itself, and it never reads a garage — a plugin garage is ordinary
+// rows in the store, so that stays store's job and this package stays free of the
 // grammar (16).
 package plugin
 
@@ -41,14 +41,10 @@ type Action struct {
 	Path   string
 }
 
-// Garage is the layer this plugin keeps. It equals Name, spelled out because the two
-// being the same string is a decision and not a coincidence.
+// Garage is the month this plugin's rows sit in. It equals Name, spelled out because
+// the two being the same string is a decision and not a coincidence — `someday` is the
+// precedent for a month that is not a month.
 func (p Plugin) Garage() string { return p.Name }
-
-// Path is the markdown file the plugin writes and tray reads. MonthPath already
-// serves a name that is not a month — `someday` is the precedent — so a plugin
-// garage needs no new path rule.
-func (p Plugin) Path() string { return store.MonthPath(p.Name) }
 
 // Dir is where plugins live: beside the garage files they keep, not under a dot
 // directory, for the reason 53 gives about the data itself.

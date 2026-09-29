@@ -19,9 +19,6 @@ var priorityWeight = map[string]float64{"H": 1.0, "M": 0.65, "L": 0.3}
 // Two layouts, never one. DateLayout has to round-trip, so it keeps the year and the
 // machine ordering. DayLayout only has to be glanceable, so it drops the year — you do
 // not have tasks due next year, and DueRamp is flat past four weeks anyway.
-// Two layouts, never one. DateLayout has to round-trip, so it keeps the year and the
-// machine ordering. DayLayout only has to be glanceable, so it drops the year — you do
-// not have tasks due next year, and DueRamp is flat past four weeks anyway.
 const (
 	DateLayout = "2006-01-02" // what a file holds
 	DayLayout  = "Mon Jan 2"  // what a person reads
@@ -95,10 +92,10 @@ func tagDamp(n int) float64 {
 }
 
 func Urgency(t Task, today time.Time) float64 {
-	score := coefPriority * priorityWeight[t.Priority()]
-	score += coefDue * DueRamp(t.Attrs["due"], today)
+	score := coefPriority * priorityWeight[t.Priority]
+	score += coefDue * DueRamp(t.Due, today)
 	score += coefTags * tagDamp(len(t.Tags))
-	if entry, ok := Date(t.Attrs["entry"]); ok {
+	if entry, ok := Date(t.Entry); ok {
 		age := math.Min(float64(daysBetween(entry, today)), maxAgeDays)
 		score -= coefAge * age / maxAgeDays
 	}
@@ -107,13 +104,12 @@ func Urgency(t Task, today time.Time) float64 {
 
 // IsUrgent is due inside a week; no due date is never urgent.
 func IsUrgent(t Task, today time.Time) bool {
-	d, ok := Date(t.Attrs["due"])
+	d, ok := Date(t.Due)
 	return ok && daysBetween(today, d) <= 7
 }
 
 func IsImportant(t Task) bool {
-	p := t.Priority()
-	return p == "H" || p == "M"
+	return t.Priority == "H" || t.Priority == "M"
 }
 
 func Quadrant(t Task, today time.Time) string {

@@ -9,25 +9,22 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/charmbracelet/x/term"
-
 	"github.com/cheese-cracker/tray/internal/core"
 	"github.com/cheese-cracker/tray/internal/plugin"
 	"github.com/cheese-cracker/tray/internal/store"
-	"github.com/cheese-cracker/tray/internal/ui"
 )
 
-const Version = "0.2.0"
+const Version = "0.3.0"
 
 var verbs = []string{
 	"init", "dump", "add", "take", "rewrite", "edit", "note", "done", "erase",
-	"unload", "carryover", "list", "head", "find", "print", "export", "status",
+	"unload", "carryover", "list", "head", "find", "print", "export", "import", "status",
 	"restore", "plugin", "help",
 }
 
 var idSpec = regexp.MustCompile(`^\d+([,-]\d+)*$`)
 
-const usage = `tray — two layers of markdown. Dump to the garage, take onto the tray.
+const usage = `tray — two layers, one database. Dump to the garage, take onto the tray.
 
   tray                              the tray, grouped by tag, ids on the left
   tray list                         the dense table: urgency, priority, due
@@ -35,30 +32,30 @@ const usage = `tray — two layers of markdown. Dump to the garage, take onto th
   tray dump <text>                  → this month's garage; the tail is literal
   tray dump to:2026-11 +infra <text>
   tray add <desc> pri:H due:2026-08-12
-  tray 3 take [pri:H due:...]        garage → tray, the structuring step
-  tray 1 done  ·  tray 2,5-7 done  ·  tray 3 erase   erase removes the line
-  tray 2 note <text>                 the indented lines under a task; --note on dump/add
-  tray --all list  ·  tray 4 restore       see the finished; say one wasn't
-  tray 2 rewrite pri:M               what the TUI runs on r
-  tray 2 edit <new text>  ·  tray edit      one line, or the file in $EDITOR
+  tray add <desc> wait:2027-03-13   → the garage of that month, until that day
+  tray 12 take [pri:H due:...]       garage → tray, the structuring step
+  tray 12 done  ·  tray 12,15-17 done  ·  tray 12 erase   erase removes the row
+  tray 12 note <text>                a few lines of context under a task; --note on dump/add
+  tray --all list  ·  tray 12 restore      see the finished; say one wasn't
+  tray 12 rewrite pri:M              every field — recur: wait: until: too
+  tray 12 edit <new text>            the words alone
   tray unload --to 2026-09           hand the tray back to a month, whole
-  tray unload                        ... picks the month on a terminal
-  tray carryover                     the sweep: prev · this · next · someday
-  tray carryover --run --month 2026-08     ... headless; the month is required
-  tray carryover --draft --month 2026-08   ... then hand-edit the target
+  tray 12 unload                     one task, back to the month it came from
+  tray carryover --run --month 2026-08     that month's leftovers move to the next
   tray garage list  ·  tray +infra list  ·  tray list --all (with the finished)
-  tray find <text>                   every layer, every month — repeats are rot
+  tray find <text>                   every layer, every month
   tray print  ·  tray export  ·  tray status
+  tray import --format md ~/tray     bring a markdown home into the database
 
-Filters: bare ids (3, 2,5-7), +tag, and ` + "`garage`" + ` to switch layer.`
+Ids are permanent. Filters: ids (12, 2,5-7), +tag, key:value, and ` + "`garage`" + ` to switch layer.`
 
 type options struct {
-	json, all, run, draft, help, version bool
-	month, to, note                      string
-	unknown                              []string // rejected, not ignored
+	json, all, run, help, version bool
+	month, to, note, format       string
+	unknown                       []string // rejected, not ignored
 }
 
-var valueFlags = map[string]bool{"--month": true, "--to": true, "--note": true}
+var valueFlags = map[string]bool{"--month": true, "--to": true, "--note": true, "--format": true}
 
 func takeFlags(args []string) (options, []string) {
 	var opts options
@@ -72,8 +69,6 @@ func takeFlags(args []string) (options, []string) {
 			opts.all = true
 		case arg == "--run":
 			opts.run = true
-		case arg == "--draft":
-			opts.draft = true
 		case arg == "--help" || arg == "-h":
 			opts.help = true
 		case arg == "--version":
@@ -88,6 +83,8 @@ func takeFlags(args []string) (options, []string) {
 				opts.to = args[i+1]
 			case "--note":
 				opts.note = args[i+1]
+			case "--format":
+				opts.format = args[i+1]
 			}
 			i++
 		case strings.HasPrefix(arg, "--"):
@@ -150,11 +147,13 @@ func merge(into *options, from options) {
 	if from.note != "" {
 		into.note = from.note
 	}
+	if from.format != "" {
+		into.format = from.format
+	}
 	into.json = into.json || from.json
 	into.all = into.all || from.all
 	into.run = into.run || from.run
 	into.unknown = append(into.unknown, from.unknown...)
-	into.draft = into.draft || from.draft
 	into.help = into.help || from.help
 	into.version = into.version || from.version
 	if from.month != "" {
@@ -192,7 +191,14 @@ func Run(args []string) int {
 		return 2
 	}
 
-	out, err := dispatch(req)
+	s, err := store.Open(store.Home())
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "tray: "+err.Error())
+		return 2
+	}
+	defer s.Close()
+
+	out, err := dispatch(s, req)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "tray: "+err.Error())
 		return 2
@@ -203,109 +209,107 @@ func Run(args []string) int {
 	return 0
 }
 
-func dispatch(req request) (string, error) {
+func dispatch(s *store.Store, req request) (string, error) {
 	switch req.verb {
 	case "init":
 		return cmdInit()
 	case "dump":
-		return cmdDump(req)
+		return cmdDump(s, req)
 	case "add":
-		return cmdAdd(req)
+		return cmdAdd(s, req)
 	case "take":
-		return cmdTake(req)
+		return cmdTake(s, req)
 	case "done":
-		return cmdFinish(req, "done")
+		return cmdFinish(s, req)
 	case "restore":
-		return cmdRestore(req)
+		return cmdRestore(s, req)
 	case "erase":
-		return cmdErase(req)
+		return cmdErase(s, req)
 	case "note":
-		return cmdNote(req)
+		return cmdNote(s, req)
 	case "rewrite":
-		return cmdRewrite(req)
+		return cmdRewrite(s, req)
 	case "edit":
-		return cmdEdit(req)
+		return cmdEdit(s, req)
 	case "unload":
-		return cmdUnload(req)
+		return cmdUnload(s, req)
 	case "carryover":
-		return cmdCarryover(req)
+		return cmdCarryover(s, req)
 	case "find":
-		return cmdFind(req)
+		return cmdFind(s, req)
 	case "print":
-		return cmdPrint(req)
+		return cmdPrint(s, req)
 	case "export":
 		req.opts.json = true
-		return cmdReport(req, true)
+		return cmdReport(s, req, true)
+	case "import":
+		return cmdImport(s, req)
 	case "status":
-		return cmdStatus(req)
+		return cmdStatus(s)
 	case "plugin":
-		return cmdPlugin(req)
+		return cmdPlugin(s, req)
 	case "list":
-		return cmdReport(req, true)
+		return cmdReport(s, req, true)
 	case "head":
-		return cmdHead(req)
+		return cmdHead(s, req)
 	default:
-		// Bare tray on a terminal is the interface; piped, it stays text so an
-		// agent can never be handed a UI.
-		if req.verb == "" && req.ids == "" && len(req.filters) == 0 && interactive() {
-			return "", ui.Run()
-		}
-		return cmdReport(req, false)
+		// Bare tray is the report until the app arrives; piped it stays text either
+		// way, so an agent can never be handed a UI (20).
+		return cmdReport(s, req, false)
 	}
 }
 
-// view returns the document and the canonical order every id indexes into.
-func view(req request, everything bool) (*store.Doc, []core.Task, error) {
+// view is the rows a report shows: the layer the request names, live unless asked for
+// everything, narrowed by its filters. The tray reads in urgency order, live rows above
+// finished ones; a garage reads oldest first.
+func view(s *store.Store, req request, everything bool) ([]core.Task, error) {
+	f := store.Filter{Layer: core.LayerTray, All: everything}
 	if req.scope == "garage" {
-		doc, err := store.Garage(req.opts.month)
-		if err != nil {
-			return nil, nil, err
+		f.Layer, f.Month = core.LayerGarage, req.opts.month
+		if f.Month == "" {
+			f.Month = store.ThisMonth()
 		}
-		var items []core.Task
-		for _, t := range doc.Tasks() {
-			if t.Parsed() && (everything || t.Live()) && matches(t, req.filters) {
-				items = append(items, t)
+	}
+	var words []string
+	for _, tok := range req.filters {
+		switch {
+		case strings.HasPrefix(tok, "+"), strings.HasPrefix(tok, "#"):
+			f.Tags = append(f.Tags, tok[1:])
+		case strings.Contains(tok, ":"):
+			key, val, _ := strings.Cut(tok, ":")
+			if f.Attrs == nil {
+				f.Attrs = map[string]string{}
 			}
+			f.Attrs[key] = val
+		default:
+			words = append(words, tok)
 		}
-		return doc, items, nil
 	}
+	f.Text = strings.Join(words, " ")
 
-	doc, err := store.Tray()
-	if err != nil {
-		return nil, nil, err
-	}
-	var items []core.Task
-	for _, t := range doc.Tasks() {
-		if (everything || t.Live()) && matches(t, req.filters) {
-			items = append(items, t)
-		}
+	items, err := s.Tasks(f)
+	if err != nil || req.scope == "garage" {
+		return items, err
 	}
 	today := store.Today()
 	sort.SliceStable(items, func(i, j int) bool {
+		if items[i].Terminal() != items[j].Terminal() {
+			return !items[i].Terminal()
+		}
 		return core.Urgency(items[i], today) > core.Urgency(items[j], today)
 	})
-	return doc, items, nil
+	return items, nil
 }
 
-func matches(t core.Task, filters []string) bool {
-	for _, f := range filters {
-		switch {
-		case strings.HasPrefix(f, "+"), strings.HasPrefix(f, "#"):
-			if !contains(t.Tags, f[1:]) {
-				return false
-			}
-		case strings.Contains(f, ":"):
-			key, val, _ := strings.Cut(f, ":")
-			if !strings.EqualFold(t.Attrs[key], val) {
-				return false
-			}
-		default:
-			if !strings.Contains(strings.ToLower(t.Text), strings.ToLower(f)) {
-				return false
-			}
-		}
+// pick resolves the request's ids against every row, whatever its layer or state. An
+// id is permanent, so there is no report to index into and no second id space for the
+// finished — 82 and 93b went with positional ids.
+func pick(s *store.Store, req request) ([]core.Task, error) {
+	ids := store.ParseIDs(req.ids)
+	if len(ids) == 0 {
+		return nil, nil
 	}
-	return true
+	return s.Tasks(store.Filter{IDs: ids, All: true})
 }
 
 func contains(haystack []string, needle string) bool {
@@ -315,10 +319,4 @@ func contains(haystack []string, needle string) bool {
 		}
 	}
 	return false
-}
-
-// interactive is both ends. Stat-and-check-chardevice is not enough: /dev/null is
-// a character device too, so redirected output would have looked like a terminal.
-func interactive() bool {
-	return term.IsTerminal(os.Stdin.Fd()) && term.IsTerminal(os.Stdout.Fd())
 }
