@@ -136,21 +136,17 @@ grammar you knew from the files is now the CLI's and the exports': `+tag` and
 ### The config file
 
 `~/.config/tray/config.yaml` (`$XDG_CONFIG_HOME/tray/config.yaml`, or `$TRAY_CONFIG`).
-`tray init` writes it with every key empty, and tray without it is tray as before —
-nothing here is needed to install or use it:
+`tray init` writes it, and tray without it is tray as before. Nothing live is in it yet —
+it exists so the first preference tray itself needs has somewhere to go:
 
 ```yaml
-openrouter:
-  api_key: ""        # or OPENROUTER_API_KEY. Not needed to install tray — plugins read it
-  model: ""          # or OPENROUTER_MODEL
 dates:
   format: ""         # reserved; parsed, unused for now
 ```
 
-`tray config` prints the path and the effective values, secrets cut to their last four
-characters, and says which came from the environment (`OPENROUTER_API_KEY` and
-`OPENROUTER_MODEL` override the file). Plugins see the keys as `TRAY_OPENROUTER_API_KEY`
-and `TRAY_OPENROUTER_MODEL`; they never read the file.
+`tray config` prints the path and what the file holds. Nothing in it is a secret: a
+plugin keeps the keys it needs — a calendar's credentials, a database token, a model
+provider's key — in its own `settings.json`, and tray hands nothing of its own across.
 
 Where the data lives is not a config matter. The store is `$TRAY_HOME/tray.db`, full
 stop, and a save never waits on anything but this disk. A copy of it somewhere else — a
@@ -260,7 +256,7 @@ with the tool.
 | `tray sync` | The event, by hand: materializes due recurrences, lifts waiting rows whose day has come, reads `garage.md` back, then asks every plugin for its plan and prints them — adds, changes, pushes, evidence. **Nothing from a plugin lands here.** |
 | `tray sync --apply` | Lands every plan, each one whole or not at all, and hands the confirmed pushes back to its plugin. |
 | `tray sync --plugin <name>` · `--json` · `--timeout 10m` | One plugin; the same as JSON; how long a plugin may take. |
-| `tray plugin` · `tray plugin check [name]` | The health view: state, hooks, settings, last run — external folders and core plugins alike. `check` runs each `health` probe first. `--json` for agents. |
+| `tray plugin` · `tray plugin check [name]` | The health view: one row per installed folder — state, hooks, settings, last run. `check` runs each `health` probe first. `--json` for agents. |
 | `tray plugin run <name>` | One plugin's plan, printed, landing nothing. |
 | `tray plugin set <name> key=value…` | Writes its `settings.json` — only keys its `settings.example.json` names, when it has one. |
 
@@ -301,10 +297,10 @@ it. Executables under `actions/` become rows in the `enter` menu and get the ter
 while they run. `settings.example.json` names what it needs; an `on-launch` file means
 it also runs when the interface opens; an `all-rows` file means it reads the whole store,
 the way a replica must. A `health` executable is the probe `tray plugin check` runs; `tray
-plugin` is the health view — every folder with its state, the hooks it joins and its last
-run, beside the **core plugins** tray ships with, off until the config file turns them on
-(`openrouter` is the first: no key, no agent, and tray is whole without either). The
-contract is [`plugins/README.md`](plugins/README.md).
+plugin` is the health view — every installed folder with its state, the hooks it joins and
+its last run. Whatever a plugin needs — credentials, a token, a model provider's key — it
+keeps in its own `settings.json`; tray knows no provider, and is whole with no plugin at
+all. The contract is [`plugins/README.md`](plugins/README.md).
 
 Whatever a plugin brings back lands the same way: as a plan you review, with the local
 row winning. That is what keeps tray offline-first — the store is this disk, and a copy

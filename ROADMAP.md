@@ -36,10 +36,9 @@ decision, not a feature.
 - [ ] `[plugin]` **Claude conversations** — an `actions/attach` that compacts a transcript
   into the task's note, replaced whole (104). Needs one input, the session; how a verb asks
   for one is decided when this is built.
-- [ ] `[shape]` **A plugin asks for the keys it needs** — `config` hands
-  `TRAY_OPENROUTER_*` to every folder that runs, so one agent plugin arms a scraper too.
-  Consent is a marker file everywhere else here (`on-launch`, `all-rows`); these should
-  ride the same thing, and `actions/` verbs currently get nothing at all.
+- [ ] `[plugin]` **agent** — a plugin in `tray-plugins` holding an OpenRouter key in its own
+  `settings.json` (T40): compacts a Claude conversation into a task's note, drafts a
+  rewrite, names the tags a line wants. Verbs under `actions/`; tray knows no provider.
 - [ ] `[shape]` **Which fields cross the plugin boundary** — `asRows` sends layer, month,
   wait, recur, until and the note; `compare` diffs five and `Apply` writes five, so the
   rest of a pulled row is dropped and cannot come back. Decide the set, then make both
