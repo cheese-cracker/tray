@@ -120,7 +120,8 @@ A plugin with nothing to push is never asked to apply.
 one line to stderr saying what (`token expired`, `not signed in`). Exit **1**: failed.
 `tray plugin check [name]` runs each probe with a ten-second limit and remembers the
 verdict apart from the last sync run, so neither hides the other. A plugin without a
-probe is reported as `no probe`, which is not a failure.
+probe is reported as `no probe`, which is not a failure. The reference plugins — `gcal`
+and `turso`, each with a probe — live in the `tray-plugins` repo, one folder each.
 
 `tray plugin` is the health view, one row per folder and one per core plugin:
 

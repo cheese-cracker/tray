@@ -308,9 +308,9 @@ contract is [`plugins/README.md`](plugins/README.md).
 
 Whatever a plugin brings back lands the same way: as a plan you review, with the local
 row winning. That is what keeps tray offline-first — the store is this disk, and a copy
-of it anywhere else is a plugin's concern. Plugins live in their own repos: `tray-gcal`
-(a verb that books a time), `tray-turso` (a replica of your tasks on Turso, local wins).
-Next in line: a web garage (a URL and a ruleset, a browser does the rest), voice, a
+of it anywhere else is a plugin's concern. The reference plugins live in one repo,
+`tray-plugins`, a folder each: `gcal` (a verb that books a time), `turso` (a replica of
+your tasks on Turso, local wins); each carries a `health` probe. Next in line: a web garage (a URL and a ruleset, a browser does the rest), voice, a
 board's API, and Claude conversations compacted into a task's note.
 
 ## 🎯 What it's for
