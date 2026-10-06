@@ -813,7 +813,8 @@ tray plugin --json | jq -e 'type=="array"' >/dev/null && pass "--json is an arra
 [ "$(row halfway .state)" = "half-installed" ] && pass "a folder with no exec bit is half-installed" || bad "halfway: $(row halfway .state)"
 [ "$(row gcal '.hooks|join(" ")')" = "verbs: schedule" ] && pass "a verb-only plugin joins the menu and nothing else" || bad "gcal hooks: $(row gcal '.hooks|join(" ")')"
 [ "$(row allrows '.hooks|join(" ")')" = "manual all-rows" ] && pass "hooks name manual and all-rows" || bad "allrows hooks: $(row allrows '.hooks|join(" ")')"
-[ "$(tray plugin --json | jq 'map(select(.name=="openrouter")) | length')" = "0" ] && pass "nothing is listed that is not a folder: no core plugin" || bad "a core plugin row appeared"
+ghosts=$(tray plugin --json | jq -r '.[].name' | while read -r n; do [ -d "$TRAY_HOME/plugins/$n" ] || echo "$n"; done)
+[ -z "$ghosts" ] && pass "every row is a folder, and nothing else is listed" || bad "listed without a folder: $ghosts"
 tray plugin run echo >/dev/null
 out=$(tray plugin check)
 case $out in *echo*"no probe"*) pass "a plugin without a probe says so" ;; *) bad "got: $out" ;; esac

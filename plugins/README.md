@@ -4,6 +4,9 @@ A plugin is a folder under `$TRAY_HOME/plugins/`. The folder is the manifest: ea
 below is a fact the plugin states by having it. Nothing is declared and nothing is
 parsed. You run `sync`; the plugin does the rest.
 
+There is no second kind. tray ships no plugins and knows no provider: a plugin is a
+folder someone copied in, keys and all, or it is not there.
+
 ```
 $TRAY_HOME/plugins/<name>/
   sync                    executable. `sync plan` and `sync apply` (below). Present ⇒ the plugin keeps a garage

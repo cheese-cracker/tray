@@ -299,8 +299,9 @@ it also runs when the interface opens; an `all-rows` file means it reads the who
 the way a replica must. A `health` executable is the probe `tray plugin check` runs; `tray
 plugin` is the health view — every installed folder with its state, the hooks it joins and
 its last run. Whatever a plugin needs — credentials, a token, a model provider's key — it
-keeps in its own `settings.json`; tray knows no provider, and is whole with no plugin at
-all. The contract is [`plugins/README.md`](plugins/README.md).
+keeps in its own `settings.json`. **A plugin is a folder, and there is no second kind**:
+tray ships none, knows no provider, and is whole with none installed at all. The contract
+is [`plugins/README.md`](plugins/README.md).
 
 Whatever a plugin brings back lands the same way: as a plan you review, with the local
 row winning. That is what keeps tray offline-first — the store is this disk, and a copy
