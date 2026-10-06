@@ -36,6 +36,17 @@ decision, not a feature.
 - [ ] `[plugin]` **Claude conversations** — an `actions/attach` that compacts a transcript
   into the task's note, replaced whole (104). Needs one input, the session; how a verb asks
   for one is decided when this is built.
+- [ ] `[shape]` **A plugin asks for the keys it needs** — `config` hands
+  `TRAY_OPENROUTER_*` to every folder that runs, so one agent plugin arms a scraper too.
+  Consent is a marker file everywhere else here (`on-launch`, `all-rows`); these should
+  ride the same thing, and `actions/` verbs currently get nothing at all.
+- [ ] `[shape]` **Which fields cross the plugin boundary** — `asRows` sends layer, month,
+  wait, recur, until and the note; `compare` diffs five and `Apply` writes five, so the
+  rest of a pulled row is dropped and cannot come back. Decide the set, then make both
+  ends agree on it.
+- [ ] **`--json` says what T39 says** — `state` and `hooks` carry free prose
+  (`"failed — boom"`), so `select(.state=="failed")` matches nothing. A bare state from
+  the documented vocabulary with the prose in its own `message` is what an agent can read.
 - [ ] **A sync review in the TUI** — `S` runs the built-in hooks; a plugin's plan still needs
   `tray sync --apply`, because the interface has no screen for the diff yet.
 - [ ] **The mirror in a vault** — `tray.md` and `garage.md` are written beside the database;

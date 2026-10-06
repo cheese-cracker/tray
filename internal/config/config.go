@@ -1,8 +1,8 @@
-// Package config is the one file tray reads about itself: the keys plugins need, and
-// room for a preference or two. Everything in it is optional — tray with no file at all
-// is the tray of every earlier release. Where the data lives is not a config matter: the
-// store is $TRAY_HOME/tray.db, and anything that mirrors it elsewhere is a plugin. Tags
-// and the row format stay out of it too (18): those live in the data, not beside it.
+// Package config is the one file tray reads about itself. Nothing live is in it yet: the
+// store is $TRAY_HOME/tray.db and not a setting, a plugin keeps its own keys in its own
+// settings.json, and tags and the row format stay in the data (18). What remains is room
+// for a preference — `dates.format` is reserved — so the file, the path and `tray config`
+// exist before the first key that tray itself needs does.
 package config
 
 import (
@@ -15,26 +15,16 @@ import (
 )
 
 type Config struct {
-	OpenRouter struct {
-		APIKey string `yaml:"api_key"`
-		Model  string `yaml:"model"`
-	} `yaml:"openrouter"`
 	Dates struct {
 		Format string `yaml:"format"`
 	} `yaml:"dates"`
-
-	// FromEnv names the keys an environment variable supplied, so `tray config` can
-	// say where a value came from without the file having to be re-read.
-	FromEnv []string `yaml:"-"`
 }
 
 // Template is what `tray init` writes when there is no file: every key present, every
 // value empty, the comment saying what fills it.
 const Template = `# tray — every key is optional; delete this file and tray behaves as before.
-# The database is $TRAY_HOME/tray.db and is not a setting; a copy elsewhere is a plugin.
-openrouter:
-  api_key: ""        # or OPENROUTER_API_KEY. Not needed to install tray — plugins read it
-  model: ""          # or OPENROUTER_MODEL
+# The database is $TRAY_HOME/tray.db and is not a setting; a copy elsewhere is a plugin,
+# and a plugin keeps the keys it needs in its own settings.json.
 dates:
   format: ""         # reserved; parsed, unused for now
 `
@@ -55,9 +45,9 @@ func Path() string {
 	return filepath.Join(home, ".config", "tray", "config.yaml")
 }
 
-// Load reads the file, then lets the environment override it. A missing file is the
-// default; a file that does not parse is an error that names it, because a silently
-// ignored typo is how a key ends up in the wrong place.
+// Load reads the file. A missing file is the default; a file that does not parse is an
+// error that names it, because a silently ignored typo is how a key ends up in the wrong
+// place. Keys the struct does not name are ignored, so an older file is not an error.
 func Load() (Config, error) {
 	var c Config
 	raw, err := os.ReadFile(Path())
@@ -68,19 +58,6 @@ func Load() (Config, error) {
 	default:
 		if err := yaml.Unmarshal(raw, &c); err != nil {
 			return c, fmt.Errorf("%s: %w", Path(), err)
-		}
-	}
-	for _, o := range []struct {
-		env string
-		dst *string
-		key string
-	}{
-		{"OPENROUTER_API_KEY", &c.OpenRouter.APIKey, "openrouter.api_key"},
-		{"OPENROUTER_MODEL", &c.OpenRouter.Model, "openrouter.model"},
-	} {
-		if v := os.Getenv(o.env); v != "" {
-			*o.dst = v
-			c.FromEnv = append(c.FromEnv, o.key)
 		}
 	}
 	return c, nil
@@ -95,29 +72,4 @@ func WriteTemplate() (created bool, err error) {
 		return false, err
 	}
 	return true, os.WriteFile(Path(), []byte(Template), 0o600)
-}
-
-// Mask keeps the last four characters of a secret, which is enough to tell two apart
-// and not enough to use.
-func Mask(s string) string {
-	switch {
-	case s == "":
-		return "(unset)"
-	case len(s) <= 4:
-		return "****"
-	default:
-		return "…" + s[len(s)-4:]
-	}
-}
-
-// PluginEnv is what a plugin may read of this: the keys, under tray's own names.
-func (c Config) PluginEnv() []string {
-	var env []string
-	if c.OpenRouter.APIKey != "" {
-		env = append(env, "TRAY_OPENROUTER_API_KEY="+c.OpenRouter.APIKey)
-	}
-	if c.OpenRouter.Model != "" {
-		env = append(env, "TRAY_OPENROUTER_MODEL="+c.OpenRouter.Model)
-	}
-	return env
 }

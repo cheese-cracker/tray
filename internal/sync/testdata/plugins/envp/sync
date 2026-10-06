@@ -1,6 +1,7 @@
 #!/bin/sh
-# A fixture plugin: its plan says what tray handed it from the config, so a flow can see
-# that the keys crossed the process boundary.
+# A fixture plugin: its plan says what it found of a provider's key in its environment, so
+# a flow can see that nothing of tray's crosses the process boundary — a plugin's keys live
+# in its own settings.json, never in tray's config or environment.
 case "$1" in
   plan)  printf '{"pull":[{"key":"cfg","text":"model=%s key=%s","done":""}],"push":[]}\n' "${TRAY_OPENROUTER_MODEL:-unset}" "${TRAY_OPENROUTER_API_KEY:+set}" ;;
   apply) echo '{"ok":[],"failed":[]}' ;;
