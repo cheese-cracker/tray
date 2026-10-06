@@ -1,12 +1,14 @@
 package cli
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
 	"time"
 
+	"github.com/cheese-cracker/tray/internal/config"
 	"github.com/cheese-cracker/tray/internal/core"
 	"github.com/cheese-cracker/tray/internal/plugin"
 	"github.com/cheese-cracker/tray/internal/store"
@@ -235,7 +237,16 @@ func cmdPlugin(s *store.Store, req request) (string, error) {
 	}
 	switch sub {
 	case "list":
-		return listPlugins(s)
+		return pluginView(s, req.opts.json)
+	case "check":
+		only := ""
+		if len(req.tail) > 1 {
+			only = req.tail[1]
+		}
+		if err := checkPlugins(s, only); err != nil {
+			return "", err
+		}
+		return pluginView(s, req.opts.json)
 	case "run":
 		if len(req.tail) < 2 {
 			return "", fmt.Errorf("which one? tray plugin run <name>")
@@ -270,7 +281,164 @@ func cmdPlugin(s *store.Store, req request) (string, error) {
 		}
 		return fmt.Sprintf("set %s for %s", strings.Join(setKeys(values), ", "), p.Name), nil
 	}
-	return "", fmt.Errorf("tray plugin [list | run <name> | set <name> key=value …]")
+	return "", fmt.Errorf("tray plugin [list | check [name] | run <name> | set <name> key=value …]")
+}
+
+// checkPlugins runs every probe — or one plugin's — and remembers each verdict apart
+// from the last sync run. A plugin without a probe is noted as such, not failed.
+func checkPlugins(s *store.Store, only string) error {
+	found := false
+	for _, f := range plugin.Folders() {
+		if only != "" && f.Name != only {
+			continue
+		}
+		found = true
+		if f.Half {
+			continue
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		ok, message, _ := plugin.Check(ctx, f.Plugin)
+		cancel()
+		if err := s.RecordCheck(store.Run{Name: f.Name, Event: "check", At: now(), OK: ok, Message: message}); err != nil {
+			return err
+		}
+	}
+	if only != "" && !found {
+		return fmt.Errorf("no plugin named %s — tray plugin", only)
+	}
+	return nil
+}
+
+func now() string { return time.Now().Format("2006-01-02 15:04") }
+
+// A pluginRow is one line of the health view: what a plugin is, how it is, what it
+// joins, whether it has been told what it asked for, and the last thing it did.
+type pluginRow struct {
+	Name     string     `json:"name"`
+	Kind     string     `json:"kind"`
+	State    string     `json:"state"`
+	Hooks    []string   `json:"hooks"`
+	Settings string     `json:"settings"`
+	Sync     *store.Run `json:"sync,omitempty"`
+	Check    *store.Run `json:"check,omitempty"`
+	Last     string     `json:"last"`
+}
+
+func pluginRows(s *store.Store) ([]pluginRow, error) {
+	runs, err := s.Runs()
+	if err != nil {
+		return nil, err
+	}
+	checks, err := s.Checks()
+	if err != nil {
+		return nil, err
+	}
+	var rows []pluginRow
+	for _, f := range plugin.Folders() {
+		row := pluginRow{Name: f.Name, Kind: "external", Hooks: hooksOf(f.Plugin), Settings: "—"}
+		if f.AsksForSettings() {
+			row.Settings = "ok"
+			if !f.Configured() {
+				row.Settings = "missing"
+			}
+		}
+		if r, ok := runs[f.Name]; ok {
+			r := r
+			row.Sync = &r
+		}
+		if c, ok := checks[f.Name]; ok {
+			c := c
+			row.Check = &c
+		}
+		row.State = stateOf(f, row.Sync, row.Check)
+		row.Last = lastOf(row.Sync, row.Check)
+		rows = append(rows, row)
+	}
+	cfg, _ := config.Load()
+	for _, c := range plugin.Cores {
+		row := pluginRow{Name: c.Name, Kind: "core", State: "off — " + c.TurnOn, Hooks: []string{c.Provides}, Settings: "—", Last: "—"}
+		if c.Enabled(cfg) {
+			row.State = "on"
+		}
+		rows = append(rows, row)
+	}
+	return rows, nil
+}
+
+// stateOf reads the folder before the history: an install you have not finished, or a
+// form you have not filled, is the state, whatever the last run said.
+func stateOf(f plugin.Folder, sync, check *store.Run) string {
+	switch {
+	case f.Half:
+		return "half-installed"
+	case !f.Configured():
+		return "unconfigured"
+	case check != nil && check.Message != plugin.NoProbe:
+		return check.Message
+	case sync == nil:
+		return "never run"
+	case sync.OK:
+		return "ok"
+	default:
+		return "failed — " + sync.Message
+	}
+}
+
+func hooksOf(p plugin.Plugin) []string {
+	var hooks []string
+	if p.OnLaunch {
+		hooks = append(hooks, "launch")
+	}
+	if p.Sync != "" {
+		hooks = append(hooks, "manual")
+	}
+	if len(p.Verbs) > 0 {
+		hooks = append(hooks, "verbs: "+strings.Join(p.Verbs, ","))
+	}
+	if p.AllRows {
+		hooks = append(hooks, "all-rows")
+	}
+	return hooks
+}
+
+// lastOf is the newer of the last sync run and the last probe; the timestamps sort as
+// text because they are written to sort as text. Within the same minute the probe wins:
+// it is the one you just asked for.
+func lastOf(sync, check *store.Run) string {
+	newest := sync
+	if check != nil && (newest == nil || check.At >= newest.At) {
+		newest = check
+	}
+	if newest == nil {
+		return "—"
+	}
+	return fmt.Sprintf("%s %s — %s", newest.Event, newest.At, newest.Message)
+}
+
+// pluginView is the health view: one row per folder and per core plugin.
+func pluginView(s *store.Store, asJSON bool) (string, error) {
+	rows, err := pluginRows(s)
+	if err != nil {
+		return "", err
+	}
+	if asJSON {
+		blob, err := json.MarshalIndent(rows, "", "  ")
+		return string(blob), err
+	}
+	var cells [][]string
+	for _, r := range rows {
+		hooks := "—"
+		if len(r.Hooks) > 0 {
+			hooks = strings.Join(r.Hooks, " · ")
+		}
+		cells = append(cells, []string{r.Name, r.Kind, clip(r.State, 36), clip(hooks, 40), r.Settings, clip(r.Last, 48)})
+	}
+	out := table(cells, []string{"NAME", "KIND", "STATE", "HOOKS", "SETTINGS", "LAST"})
+	if len(plugin.Folders()) == 0 {
+		out += "\n\nno plugins installed — one is a folder in " + plugin.Dir() +
+			" holding an executable `" + plugin.SyncFile + "` or a verb under `" + plugin.ActionsDir + "/`"
+	}
+	return out, nil
 }
 
 func setKeys(values map[string]string) []string {
@@ -280,56 +448,4 @@ func setKeys(values map[string]string) []string {
 	}
 	sort.Strings(keys)
 	return keys
-}
-
-func listPlugins(s *store.Store) (string, error) {
-	found := plugin.List()
-	if len(found) == 0 {
-		return "no plugins — one is a folder in " + plugin.Dir() +
-			" holding an executable `" + plugin.SyncFile + "` or a verb under `" + plugin.ActionsDir + "/`", nil
-	}
-	runs, err := s.Runs()
-	if err != nil {
-		return "", err
-	}
-	var rows []string
-	for _, p := range found {
-		desc, err := describe(s, p, runs[p.Name])
-		if err != nil {
-			return "", err
-		}
-		rows = append(rows, fmt.Sprintf("%-12s %s", p.Name, desc))
-	}
-	return strings.Join(rows, "\n"), nil
-}
-
-// describe says what a plugin is doing here: the garage it keeps, as rows in the
-// store, the verbs it puts in the menu, whether it runs at launch, and how its last
-// run went. A plugin with verbs and no sync keeps no garage, so none is claimed.
-func describe(s *store.Store, p plugin.Plugin, last store.Run) (string, error) {
-	var parts []string
-	if p.Sync != "" {
-		rows, err := s.Tasks(store.Filter{Layer: core.LayerGarage, Month: p.Garage(), All: true})
-		if err != nil {
-			return "", err
-		}
-		parts = append(parts, "garage "+count(len(rows), "row"))
-	}
-	if len(p.Verbs) > 0 {
-		parts = append(parts, "enter → "+strings.Join(p.Verbs, ", "))
-	}
-	if p.OnLaunch {
-		parts = append(parts, "on-launch")
-	}
-	if p.Sync != "" {
-		switch {
-		case last.Name == "":
-			parts = append(parts, "never run")
-		case last.OK:
-			parts = append(parts, fmt.Sprintf("last %s %s ok — %s", last.Event, last.At, last.Message))
-		default:
-			parts = append(parts, fmt.Sprintf("last %s %s failed — %s", last.Event, last.At, last.Message))
-		}
-	}
-	return strings.Join(parts, " · "), nil
 }

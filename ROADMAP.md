@@ -25,8 +25,12 @@ decision, not a feature.
 - [ ] `[plugin]` **Voice** — a trashtalk successor: `sync plan` records, one model call
   splits the transcript into rows under a ruleset, no push. Manual only; the review is
   the filtering.
-- [ ] `[plugin]` **Google Calendar** — `tray-gcal` is verb-only and already fits: copy the
-  folder into the new home. Nothing to port.
+- [x] `[plugin]` **Google Calendar** — `tray-plugins/gcal`: verb-only, on the contract, with a
+  `health` probe that asks Google whether the credentials still answer.
+- [x] `[plugin]` **Turso** — `tray-plugins/turso`: an `all-rows` plugin that keeps a
+  copy of every task in a Turso database and merges three ways against the rows it last
+  pushed, local winning every conflict; a row typed on another device comes back as a
+  garage line for review (T37). Python, stdlib only, the HTTP pipeline API.
 - [ ] `[plugin]` **A board's API** — Linear or Jira over `sync plan|apply`; the board's
   project is a tag (9).
 - [ ] `[plugin]` **Claude conversations** — an `actions/attach` that compacts a transcript

@@ -11,6 +11,8 @@ $TRAY_HOME/plugins/<name>/
   settings.example.json   {"url": "", "rules": "…"} — the keys the plugin wants filled; the app renders them as a form
   settings.json           written by the form or `tray plugin set`; tray never reads it
   on-launch               marker: run `sync plan` when the app opens too. Absent ⇒ manual only
+  all-rows                marker: `sync plan` reads the whole store, not only your rows (below)
+  health                  executable, optional: the probe `tray plugin check` runs (below)
   evidence/               plugin-written; the newest file is shown beside the plan
   log                     tray-written: stderr of the last run
 ```
@@ -18,6 +20,11 @@ $TRAY_HOME/plugins/<name>/
 The plugin's garage is the month named after it: rows it pulls land in
 `layer=garage, month=<name>` with `source=<name>:<key>`, and climb like any other line.
 A row you have already taken stays where it is and is updated in place.
+
+**Local is the source of truth.** Whatever you bring back — a remote replica, a phone, a
+board — lands through the reviewed diff and never overwrites a local row silently; your
+pushes carry local state outward. Offline is therefore the normal case, not a failure:
+tray keeps working, and your plan waits for the next sync that can reach you.
 
 ## Events and hooks
 
@@ -80,6 +87,23 @@ on exactly the fields you reported differently, a key you stopped reporting is n
 gone and left alone. Nothing lands until the user applies your plan, and then it lands
 whole or not at all.
 
+### Every row
+
+A replica has to see everything to know what changed. Leave an `all-rows` file in your
+folder and stdin carries the whole store — every layer, month and state, finished rows
+too — each task keyed by its **id** and carrying every column:
+
+```json
+{"tasks": [{"key": "k79l", "id": "k79l", "layer": "tray", "text": "…", "done": "", "tags": ["work"],
+            "priority": "H", "due": "2026-10-01", "wait": "", "recur": "", "until": "", "entry": "2026-09-28",
+            "from_month": "2026-09", "note": "", "source": ""}]}
+```
+
+Your pushes may then name any task by its id; tray does nothing with a push but hand the
+confirmed list back to you on `apply`. A pulled row keyed by an id tray holds is an
+update of that row (reviewed, only the fields you report); any other key is a new line in
+your garage with `source=<name>:<key>`. Nothing is ever *gone* for you — you own no rows.
+
 ## `sync apply`
 
 stdin is the confirmed pushes: `{"push": [...]}`. Do them and answer:
@@ -89,6 +113,34 @@ stdin is the confirmed pushes: `{"push": [...]}`. Do them and answer:
 ```
 
 A plugin with nothing to push is never asked to apply.
+
+## `health`, and what `tray plugin` shows
+
+`health` is optional and takes no input. Exit **0**: well. Exit **2**: it needs you — write
+one line to stderr saying what (`token expired`, `not signed in`). Exit **1**: failed.
+`tray plugin check [name]` runs each probe with a ten-second limit and remembers the
+verdict apart from the last sync run, so neither hides the other. A plugin without a
+probe is reported as `no probe`, which is not a failure. The reference plugins — `gcal`
+and `turso`, each with a probe — live in the `tray-plugins` repo, one folder each.
+
+`tray plugin` is the health view, one row per folder and one per core plugin:
+
+```
+NAME        KIND      STATE                          HOOKS                    SETTINGS  LAST
+turso       external  ok                             manual · all-rows        ok        check 2026-09-29 12:01 — ok
+gcal        external  never run                      verbs: schedule          —         —
+web-linear  external  unconfigured                   launch · manual          missing   —
+halfdone    external  half-installed                 —                        —         —
+openrouter  core      off — set openrouter.api_key   TRAY_OPENROUTER_* to plugins  —    —
+```
+
+`state` reads the folder before the history: a folder none of whose files carries the
+exec bit is `half-installed`; an example settings file with no `settings.json` beside it
+is `unconfigured`; otherwise the last probe, else the last sync run, else `never run`.
+`hooks` is what the plugin joins — `launch`, `manual`, `verbs: …`, `all-rows`. A **core
+plugin** is a capability shipped inside tray and switched on by the config file; it is
+listed either way so its absence has a name, never runs as a process, and tray is whole
+without it. `--json` gives the same rows to an agent.
 
 ## Environment and limits
 

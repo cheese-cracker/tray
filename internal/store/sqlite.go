@@ -13,6 +13,9 @@ import (
 	"github.com/cheese-cracker/tray/internal/core"
 )
 
+// File is the store: one SQLite file in the home, and never anywhere else (T36). A save
+// waits on this disk and nothing more; a copy of the rows on some server is a plugin's
+// job, and it arrives through the reviewed plan like anything from outside (T37).
 const File = "tray.db"
 
 // Ids are four random base36 characters (core.NewID), checked against the table on the
@@ -41,8 +44,10 @@ CREATE INDEX IF NOT EXISTS task_source ON task (source);
 CREATE TABLE IF NOT EXISTS plugin_run (
   name TEXT PRIMARY KEY, hook TEXT, at TEXT, ok INTEGER, message TEXT
 );
+CREATE TABLE IF NOT EXISTS plugin_check (
+  name TEXT PRIMARY KEY, at TEXT, ok INTEGER, message TEXT
+);
 CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
-PRAGMA user_version = 1;
 `
 
 const columns = "id, layer, month, text, priority, due, wait, recur, until, entry, done, from_month, tags, note, source"
@@ -60,20 +65,22 @@ type Store struct {
 	q  querier
 }
 
-// Open creates the home and the database if either is missing.
+// Open creates the home and opens its database, making the schema if this is the first
+// time.
 func Open(dir string) (*Store, error) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return nil, err
 	}
-	db, err := sql.Open("sqlite", filepath.Join(dir, File))
+	path := filepath.Join(dir, File)
+	db, err := sql.Open("sqlite", path)
 	if err != nil {
 		return nil, err
 	}
 	db.SetMaxOpenConns(1) // one process, one writer; WAL readers never wait on it
-	for _, stmt := range []string{"PRAGMA journal_mode = WAL", "PRAGMA busy_timeout = 5000", schema} {
+	for _, stmt := range []string{"PRAGMA journal_mode = WAL", "PRAGMA busy_timeout = 5000", schema, "PRAGMA user_version = 1"} {
 		if _, err := db.Exec(stmt); err != nil {
 			db.Close()
-			return nil, fmt.Errorf("%s: %w", dir, err)
+			return nil, fmt.Errorf("%s: %w", path, err)
 		}
 	}
 	return &Store{db: db, q: db}, nil
@@ -265,9 +272,11 @@ func (s *Store) Months() ([]string, error) {
 // A Run is the last thing a plugin did: one row per plugin, because the plugins pane
 // and `status` ask "how did it go last time", never for a history.
 type Run struct {
-	Name, Event, At string
-	OK              bool
-	Message         string
+	Name    string `json:"name"`
+	Event   string `json:"hook"`
+	At      string `json:"at"`
+	OK      bool   `json:"ok"`
+	Message string `json:"message"`
 }
 
 func (s *Store) RecordRun(r Run) error {
@@ -287,6 +296,32 @@ func (s *Store) Runs() (map[string]Run, error) {
 	for rows.Next() {
 		var r Run
 		if err := rows.Scan(&r.Name, &r.Event, &r.At, &r.OK, &r.Message); err != nil {
+			return nil, err
+		}
+		out[r.Name] = r
+	}
+	return out, rows.Err()
+}
+
+// RecordCheck keeps a probe's verdict in its own table, so `plugin check` can never paper
+// over how the last sync went, nor a sync over what the probe found.
+func (s *Store) RecordCheck(r Run) error {
+	_, err := s.q.Exec(`INSERT OR REPLACE INTO plugin_check (name, at, ok, message) VALUES (?, ?, ?, ?)`,
+		r.Name, r.At, r.OK, r.Message)
+	return err
+}
+
+// Checks is every plugin's last probe, by name.
+func (s *Store) Checks() (map[string]Run, error) {
+	rows, err := s.q.Query("SELECT name, at, ok, message FROM plugin_check")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]Run{}
+	for rows.Next() {
+		r := Run{Event: "check"}
+		if err := rows.Scan(&r.Name, &r.At, &r.OK, &r.Message); err != nil {
 			return nil, err
 		}
 		out[r.Name] = r

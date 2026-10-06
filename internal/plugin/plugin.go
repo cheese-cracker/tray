@@ -18,19 +18,23 @@ import (
 	"strings"
 	"time"
 
+	"github.com/cheese-cracker/tray/internal/config"
 	"github.com/cheese-cracker/tray/internal/store"
 )
 
 // The folder is the manifest. Each name here is a fact a plugin states by having the
 // file: `sync` says it keeps a garage, a file under actions/ is a menu verb, the
-// example settings are the form it wants filled, and the on-launch marker is its
-// consent to run when the app opens. Nothing is declared and nothing is parsed (18).
+// example settings are the form it wants filled, the on-launch marker is its consent
+// to run when the app opens, and the all-rows marker asks to see the whole store rather
+// than its own rows (T38). Nothing is declared and nothing is parsed (18).
 const (
 	SyncFile        = "sync"
 	ActionsDir      = "actions"
 	SettingsExample = "settings.example.json"
 	SettingsFile    = "settings.json"
 	OnLaunchMarker  = "on-launch"
+	AllRowsMarker   = "all-rows"
+	HealthFile      = "health"
 	LogFile         = "log"
 	EvidenceDir     = "evidence"
 )
@@ -41,8 +45,10 @@ type Plugin struct {
 	Name     string
 	Dir      string
 	Sync     string   // "" when the plugin keeps no garage
+	Health   string   // "" when the plugin has no probe
 	Verbs    []string // the executables under ActionsDir, in name order
 	OnLaunch bool     // run at launch too, not only on a manual sync
+	AllRows  bool     // `sync plan` reads every row, not only the ones it keyed
 }
 
 // An Action is one verb the interface can offer. tray hands the executable the picked
@@ -120,19 +126,31 @@ func List() []Plugin {
 		if !e.IsDir() {
 			continue
 		}
-		dir := filepath.Join(Dir(), e.Name())
-		p := Plugin{Name: e.Name(), Dir: dir, Verbs: verbs(dir)}
-		if sync := filepath.Join(dir, SyncFile); runnable(sync) {
-			p.Sync = sync
-		}
+		p := read(e.Name())
 		if p.Sync == "" && len(p.Verbs) == 0 {
 			continue
 		}
-		_, err := os.Stat(filepath.Join(dir, OnLaunchMarker))
-		p.OnLaunch = err == nil
 		found = append(found, p)
 	}
 	return found
+}
+
+// read is the folder as a Plugin, runnable parts only: a file without the exec bit is
+// simply not there yet.
+func read(name string) Plugin {
+	dir := filepath.Join(Dir(), name)
+	p := Plugin{Name: name, Dir: dir, Verbs: verbs(dir)}
+	if sync := filepath.Join(dir, SyncFile); runnable(sync) {
+		p.Sync = sync
+	}
+	if health := filepath.Join(dir, HealthFile); runnable(health) {
+		p.Health = health
+	}
+	_, err := os.Stat(filepath.Join(dir, OnLaunchMarker))
+	p.OnLaunch = err == nil
+	_, err = os.Stat(filepath.Join(dir, AllRowsMarker))
+	p.AllRows = err == nil
+	return p
 }
 
 func Find(name string) (Plugin, bool) {
@@ -218,6 +236,10 @@ func Run(ctx context.Context, e Exec) ([]byte, error) {
 	cmd := exec.CommandContext(ctx, e.Path, e.Args...)
 	cmd.Dir = e.Dir
 	cmd.Env = append(os.Environ(), "TRAY_HOME="+store.Home(), "TRAY_PLUGIN_DIR="+e.Dir)
+	// The keys from the config file, under tray's names — a plugin never reads the file.
+	if cfg, err := config.Load(); err == nil {
+		cmd.Env = append(cmd.Env, cfg.PluginEnv()...)
+	}
 	cmd.Env = append(cmd.Env, e.Env...)
 	cmd.Stdin = bytes.NewReader(e.Stdin)
 	var out, errs bytes.Buffer

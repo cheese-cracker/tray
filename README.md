@@ -133,6 +133,30 @@ for more rows.
 grammar you knew from the files is now the CLI's and the exports': `+tag` and
 `key:value` on the way in, markdown, todo.txt or Taskwarrior JSON on the way out.
 
+### The config file
+
+`~/.config/tray/config.yaml` (`$XDG_CONFIG_HOME/tray/config.yaml`, or `$TRAY_CONFIG`).
+`tray init` writes it with every key empty, and tray without it is tray as before —
+nothing here is needed to install or use it:
+
+```yaml
+openrouter:
+  api_key: ""        # or OPENROUTER_API_KEY. Not needed to install tray — plugins read it
+  model: ""          # or OPENROUTER_MODEL
+dates:
+  format: ""         # reserved; parsed, unused for now
+```
+
+`tray config` prints the path and the effective values, secrets cut to their last four
+characters, and says which came from the environment (`OPENROUTER_API_KEY` and
+`OPENROUTER_MODEL` override the file). Plugins see the keys as `TRAY_OPENROUTER_API_KEY`
+and `TRAY_OPENROUTER_MODEL`; they never read the file.
+
+Where the data lives is not a config matter. The store is `$TRAY_HOME/tray.db`, full
+stop, and a save never waits on anything but this disk. A copy of it somewhere else — a
+Turso database, a phone — is a plugin's job, and it arrives the way everything from
+outside does: as a plan you review, with the local row winning.
+
 The two `.md` files are the **mirror**: the lightest view of your tasks there is, and the
 reason the folder can sit inside an Obsidian vault. Every write rewrites them. On the next
 `sync`, a bullet you added to `garage.md` with no id becomes a new line in the month it
@@ -236,7 +260,7 @@ with the tool.
 | `tray sync` | The event, by hand: materializes due recurrences, lifts waiting rows whose day has come, reads `garage.md` back, then asks every plugin for its plan and prints them — adds, changes, pushes, evidence. **Nothing from a plugin lands here.** |
 | `tray sync --apply` | Lands every plan, each one whole or not at all, and hands the confirmed pushes back to its plugin. |
 | `tray sync --plugin <name>` · `--json` · `--timeout 10m` | One plugin; the same as JSON; how long a plugin may take. |
-| `tray plugin` | What is installed: its garage, how many rows, how the last run went. |
+| `tray plugin` · `tray plugin check [name]` | The health view: state, hooks, settings, last run — external folders and core plugins alike. `check` runs each `health` probe first. `--json` for agents. |
 | `tray plugin run <name>` | One plugin's plan, printed, landing nothing. |
 | `tray plugin set <name> key=value…` | Writes its `settings.json` — only keys its `settings.example.json` names, when it has one. |
 
@@ -275,12 +299,19 @@ executable makes it a garage that fills itself: `sync plan` prints what it sees 
 it would push back, tray shows you the diff, and `sync apply` runs only after you land
 it. Executables under `actions/` become rows in the `enter` menu and get the terminal
 while they run. `settings.example.json` names what it needs; an `on-launch` file means
-it also runs when the interface opens. The contract is
-[`plugins/README.md`](plugins/README.md).
+it also runs when the interface opens; an `all-rows` file means it reads the whole store,
+the way a replica must. A `health` executable is the probe `tray plugin check` runs; `tray
+plugin` is the health view — every folder with its state, the hooks it joins and its last
+run, beside the **core plugins** tray ships with, off until the config file turns them on
+(`openrouter` is the first: no key, no agent, and tray is whole without either). The
+contract is [`plugins/README.md`](plugins/README.md).
 
-No plugin ships on this branch yet. The order they will: a web garage (a URL and a
-ruleset, a browser does the rest), voice, the calendar verb, a board's API, and Claude
-conversations compacted into a task's note.
+Whatever a plugin brings back lands the same way: as a plan you review, with the local
+row winning. That is what keeps tray offline-first — the store is this disk, and a copy
+of it anywhere else is a plugin's concern. The reference plugins live in one repo,
+`tray-plugins`, a folder each: `gcal` (a verb that books a time), `turso` (a replica of
+your tasks on Turso, local wins); each carries a `health` probe. Next in line: a web garage (a URL and a ruleset, a browser does the rest), voice, a
+board's API, and Claude conversations compacted into a task's note.
 
 ## 🎯 What it's for
 

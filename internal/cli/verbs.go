@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/cheese-cracker/tray/internal/config"
 	"github.com/cheese-cracker/tray/internal/core"
 	"github.com/cheese-cracker/tray/internal/store"
 	"github.com/cheese-cracker/tray/internal/ui"
@@ -17,7 +18,40 @@ import (
 // init is a receipt: opening the store already made the home and the database, so
 // what it uniquely gives is a line saying where the data lives (97b).
 func cmdInit() (string, error) {
-	return "ready: " + store.Home(), nil
+	created, err := config.WriteTemplate()
+	if err != nil {
+		return "", err
+	}
+	line := "ready: " + store.Home() + "\nconfig: " + config.Path()
+	if created {
+		line += " (written — every key optional)"
+	}
+	return line, nil
+}
+
+// cmdConfig says where each value comes from. Secrets keep their last four characters:
+// enough to tell two tokens apart, not enough to use one.
+func cmdConfig(c config.Config) string {
+	from := func(key string) string {
+		for _, k := range c.FromEnv {
+			if k == key {
+				return "  (env)"
+			}
+		}
+		return ""
+	}
+	show := func(v string) string {
+		if v == "" {
+			return "(unset)"
+		}
+		return v
+	}
+	return strings.Join([]string{
+		config.Path(),
+		"openrouter.api_key " + config.Mask(c.OpenRouter.APIKey) + from("openrouter.api_key"),
+		"openrouter.model   " + show(c.OpenRouter.Model) + from("openrouter.model"),
+		"dates.format       " + show(c.Dates.Format),
+	}, "\n")
 }
 
 // cmdDump is capture. Only a leading to:, --note and +tag are read; the rest is literal.
