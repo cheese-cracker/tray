@@ -5,8 +5,6 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
-
-	"github.com/cheese-cracker/tray/internal/config"
 )
 
 // A Folder is any directory under plugins/ that has the files of a plugin, runnable or
@@ -84,20 +82,3 @@ func Check(ctx context.Context, p Plugin) (ok bool, message string, probed bool)
 	}
 	return false, "failed — " + err.Error(), true
 }
-
-// A Core plugin is a capability shipped inside tray and gated by the config file. It is
-// listed whether or not it is on, so its absence is visible rather than silent, and it
-// never runs as a process.
-type Core struct {
-	Name     string
-	Enabled  func(config.Config) bool
-	Provides string
-	TurnOn   string
-}
-
-var Cores = []Core{{
-	Name:     "openrouter",
-	Enabled:  func(c config.Config) bool { return c.OpenRouter.APIKey != "" },
-	Provides: "TRAY_OPENROUTER_API_KEY / MODEL to plugins; agent verbs later",
-	TurnOn:   "set openrouter.api_key in config.yaml",
-}}

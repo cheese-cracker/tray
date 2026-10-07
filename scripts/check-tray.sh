@@ -752,23 +752,26 @@ grep -q "already here, renamed" "$TRAY_HOME/garage.md" && pass "and comes back i
 case $(tray sync) in *"garage.md +0 ~0"*) pass "a second sync finds nothing new" ;; *) bad "got: $(tray sync)" ;; esac
 teardown
 
-# --- F37 · the config file reaches the plugins ----------------------------------------------
-head_ "F37 · the config file's keys reach a plugin, tray config masks them, and the store is not a setting"
+# --- F37 · the config file ------------------------------------------------------------------
+# Nothing live is in the file yet, and nothing in it is a secret: a plugin's keys live in
+# that plugin's settings.json. So the promises are about the file itself — read, tolerant
+# of what older files held, honest when malformed — and about the one key that must never
+# cross into a plugin from here: a provider key in tray's own environment.
+head_ "F37 · the config file is read and tolerant, tray config names it, and no provider key crosses into a plugin"
 setup
 CFG="$TRAY_HOME/cfg.yaml"
-printf 'db:\n  url: "libsql://not-a-setting.example"\nopenrouter:\n  api_key: "sk-or-v1-abcdef9876"\n  model: "m/one"\n' > "$CFG"
+printf 'db:\n  url: "libsql://not-a-setting.example"\nopenrouter:\n  api_key: "sk-or-v1-abcdef9876"\ndates:\n  format: "2 Jan"\n' > "$CFG"
 install_plugin envp
 TRAY_CONFIG="$CFG" tray dump 'stays in the home' >/dev/null
 [ "$(garage_json 2026-08 | rows 'stays in the home')" = "1" ] && pass "a db.url in the file changes nothing: the row is in the home's tray.db" || bad "the row is not in the home"
-case $(TRAY_CONFIG="$CFG" tray plugin run envp) in *"model=m/one key=set"*) pass "the plugin saw the key and the model" ;; *) bad "got: $(TRAY_CONFIG="$CFG" tray plugin run envp)" ;; esac
-case $(tray plugin run envp) in *"model=unset key="*) pass "and nothing without the file" ;; *) bad "got: $(tray plugin run envp)" ;; esac
 out=$(TRAY_CONFIG="$CFG" tray config)
 case $out in *"$CFG"*) pass "config names the file" ;; *) bad "got: $out" ;; esac
-case $out in *"…9876"*) pass "the key keeps its last four characters" ;; *) bad "key not masked: $out" ;; esac
-case $out in *"abcdef9876"*) bad "a secret was printed whole" ;; *) pass "no secret printed whole" ;; esac
-case $out in *"db."*) bad "config still speaks of a db: $out" ;; *) pass "the store is not a setting" ;; esac
-case $(TRAY_CONFIG="$CFG" OPENROUTER_MODEL=m/env tray config) in *"m/env  (env)"*) pass "an env value wins and says so" ;; *) bad "env override not reported" ;; esac
-printf 'openrouter: [\n' > "$CFG"
+case $out in *"dates.format 2 Jan"*) pass "and reads the one key it has" ;; *) bad "got: $out" ;; esac
+case $out in *"abcdef9876"*|*openrouter*|*"db."*) bad "config speaks of keys that are not its own: $out" ;; *) pass "an older file's db and openrouter sections are ignored" ;; esac
+seen=$(TRAY_CONFIG="$CFG" OPENROUTER_API_KEY=k OPENROUTER_MODEL=m tray plugin run envp)
+# Anchored: `key=` is a prefix of `key=set`, so a glob would pass either way.
+printf '%s\n' "$seen" | grep -qx '  + model=unset key=' && pass "a provider key in tray's environment never reaches a plugin" || bad "got: $seen"
+printf 'dates: [\n' > "$CFG"
 TRAY_CONFIG="$CFG" tray status >/dev/null 2>"$TRAY_HOME/err" && bad "a malformed config was ignored" || pass "a malformed config is an error"
 grep -q "$CFG" "$TRAY_HOME/err" && pass "and the error names the file" || bad "error: $(cat "$TRAY_HOME/err")"
 teardown
@@ -810,8 +813,8 @@ tray plugin --json | jq -e 'type=="array"' >/dev/null && pass "--json is an arra
 [ "$(row halfway .state)" = "half-installed" ] && pass "a folder with no exec bit is half-installed" || bad "halfway: $(row halfway .state)"
 [ "$(row gcal '.hooks|join(" ")')" = "verbs: schedule" ] && pass "a verb-only plugin joins the menu and nothing else" || bad "gcal hooks: $(row gcal '.hooks|join(" ")')"
 [ "$(row allrows '.hooks|join(" ")')" = "manual all-rows" ] && pass "hooks name manual and all-rows" || bad "allrows hooks: $(row allrows '.hooks|join(" ")')"
-[ "$(row openrouter .kind)" = "core" ] && case $(row openrouter .state) in off*) pass "openrouter is a core plugin, off without a key" ;; *) bad "openrouter: $(row openrouter .state)" ;; esac
-[ "$(OPENROUTER_API_KEY=k tray plugin --json | jq -r '.[]|select(.name=="openrouter")|.state')" = "on" ] && pass "and on once a key is set" || bad "openrouter did not turn on"
+ghosts=$(tray plugin --json | jq -r '.[].name' | while read -r n; do [ -d "$TRAY_HOME/plugins/$n" ] || echo "$n"; done)
+[ -z "$ghosts" ] && pass "every row is a folder, and nothing else is listed" || bad "listed without a folder: $ghosts"
 tray plugin run echo >/dev/null
 out=$(tray plugin check)
 case $out in *echo*"no probe"*) pass "a plugin without a probe says so" ;; *) bad "got: $out" ;; esac

@@ -29,17 +29,9 @@ func cmdInit() (string, error) {
 	return line, nil
 }
 
-// cmdConfig says where each value comes from. Secrets keep their last four characters:
-// enough to tell two tokens apart, not enough to use one.
+// cmdConfig prints the path and what the file holds. Nothing in it is a secret: a
+// plugin's keys live in that plugin's settings.json, never here.
 func cmdConfig(c config.Config) string {
-	from := func(key string) string {
-		for _, k := range c.FromEnv {
-			if k == key {
-				return "  (env)"
-			}
-		}
-		return ""
-	}
 	show := func(v string) string {
 		if v == "" {
 			return "(unset)"
@@ -48,9 +40,7 @@ func cmdConfig(c config.Config) string {
 	}
 	return strings.Join([]string{
 		config.Path(),
-		"openrouter.api_key " + config.Mask(c.OpenRouter.APIKey) + from("openrouter.api_key"),
-		"openrouter.model   " + show(c.OpenRouter.Model) + from("openrouter.model"),
-		"dates.format       " + show(c.Dates.Format),
+		"dates.format " + show(c.Dates.Format),
 	}, "\n")
 }
 

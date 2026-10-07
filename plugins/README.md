@@ -4,6 +4,9 @@ A plugin is a folder under `$TRAY_HOME/plugins/`. The folder is the manifest: ea
 below is a fact the plugin states by having it. Nothing is declared and nothing is
 parsed. You run `sync`; the plugin does the rest.
 
+There is no second kind. tray ships no plugins and knows no provider: a plugin is a
+folder someone copied in, keys and all, or it is not there.
+
 ```
 $TRAY_HOME/plugins/<name>/
   sync                    executable. `sync plan` and `sync apply` (below). Present ⇒ the plugin keeps a garage
@@ -123,24 +126,24 @@ verdict apart from the last sync run, so neither hides the other. A plugin witho
 probe is reported as `no probe`, which is not a failure. The reference plugins — `gcal`
 and `turso`, each with a probe — live in the `tray-plugins` repo, one folder each.
 
-`tray plugin` is the health view, one row per folder and one per core plugin:
+`tray plugin` is the health view, one row per folder:
 
 ```
-NAME        KIND      STATE                          HOOKS                    SETTINGS  LAST
-turso       external  ok                             manual · all-rows        ok        check 2026-09-29 12:01 — ok
-gcal        external  never run                      verbs: schedule          —         —
-web-linear  external  unconfigured                   launch · manual          missing   —
-halfdone    external  half-installed                 —                        —         —
-openrouter  core      off — set openrouter.api_key   TRAY_OPENROUTER_* to plugins  —    —
+NAME        STATE                          HOOKS                    SETTINGS  LAST
+turso       ok                             manual · all-rows        ok        check 2026-09-29 12:01 — ok
+gcal        never run                      verbs: schedule          —         —
+web-linear  unconfigured                   launch · manual          missing   —
+halfdone    half-installed                 —                        —         —
 ```
 
 `state` reads the folder before the history: a folder none of whose files carries the
 exec bit is `half-installed`; an example settings file with no `settings.json` beside it
 is `unconfigured`; otherwise the last probe, else the last sync run, else `never run`.
-`hooks` is what the plugin joins — `launch`, `manual`, `verbs: …`, `all-rows`. A **core
-plugin** is a capability shipped inside tray and switched on by the config file; it is
-listed either way so its absence has a name, never runs as a process, and tray is whole
-without it. `--json` gives the same rows to an agent.
+`hooks` is what the plugin joins — `launch`, `manual`, `verbs: …`, `all-rows`. Nothing is
+listed that is not a folder. Whatever a plugin needs to run — credentials, a token, a
+model provider's key — lives in its own `settings.json`, named by its
+`settings.example.json`; tray's own environment and config file hand nothing across.
+`--json` gives the same rows to an agent.
 
 ## Environment and limits
 

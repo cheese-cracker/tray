@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cheese-cracker/tray/internal/config"
 	"github.com/cheese-cracker/tray/internal/core"
 	"github.com/cheese-cracker/tray/internal/plugin"
 	"github.com/cheese-cracker/tray/internal/store"
@@ -311,11 +310,10 @@ func checkPlugins(s *store.Store, only string) error {
 
 func now() string { return time.Now().Format("2006-01-02 15:04") }
 
-// A pluginRow is one line of the health view: what a plugin is, how it is, what it
-// joins, whether it has been told what it asked for, and the last thing it did.
+// A pluginRow is one line of the health view: how a plugin is, what it joins, whether it
+// has been told what it asked for, and the last thing it did.
 type pluginRow struct {
 	Name     string     `json:"name"`
-	Kind     string     `json:"kind"`
 	State    string     `json:"state"`
 	Hooks    []string   `json:"hooks"`
 	Settings string     `json:"settings"`
@@ -335,7 +333,7 @@ func pluginRows(s *store.Store) ([]pluginRow, error) {
 	}
 	var rows []pluginRow
 	for _, f := range plugin.Folders() {
-		row := pluginRow{Name: f.Name, Kind: "external", Hooks: hooksOf(f.Plugin), Settings: "—"}
+		row := pluginRow{Name: f.Name, Hooks: hooksOf(f.Plugin), Settings: "—"}
 		if f.AsksForSettings() {
 			row.Settings = "ok"
 			if !f.Configured() {
@@ -352,14 +350,6 @@ func pluginRows(s *store.Store) ([]pluginRow, error) {
 		}
 		row.State = stateOf(f, row.Sync, row.Check)
 		row.Last = lastOf(row.Sync, row.Check)
-		rows = append(rows, row)
-	}
-	cfg, _ := config.Load()
-	for _, c := range plugin.Cores {
-		row := pluginRow{Name: c.Name, Kind: "core", State: "off — " + c.TurnOn, Hooks: []string{c.Provides}, Settings: "—", Last: "—"}
-		if c.Enabled(cfg) {
-			row.State = "on"
-		}
 		rows = append(rows, row)
 	}
 	return rows, nil
@@ -415,7 +405,7 @@ func lastOf(sync, check *store.Run) string {
 	return fmt.Sprintf("%s %s — %s", newest.Event, newest.At, newest.Message)
 }
 
-// pluginView is the health view: one row per folder and per core plugin.
+// pluginView is the health view: one row per folder.
 func pluginView(s *store.Store, asJSON bool) (string, error) {
 	rows, err := pluginRows(s)
 	if err != nil {
@@ -431,9 +421,9 @@ func pluginView(s *store.Store, asJSON bool) (string, error) {
 		if len(r.Hooks) > 0 {
 			hooks = strings.Join(r.Hooks, " · ")
 		}
-		cells = append(cells, []string{r.Name, r.Kind, clip(r.State, 36), clip(hooks, 40), r.Settings, clip(r.Last, 48)})
+		cells = append(cells, []string{r.Name, clip(r.State, 36), clip(hooks, 40), r.Settings, clip(r.Last, 48)})
 	}
-	out := table(cells, []string{"NAME", "KIND", "STATE", "HOOKS", "SETTINGS", "LAST"})
+	out := table(cells, []string{"NAME", "STATE", "HOOKS", "SETTINGS", "LAST"})
 	if len(plugin.Folders()) == 0 {
 		out += "\n\nno plugins installed — one is a folder in " + plugin.Dir() +
 			" holding an executable `" + plugin.SyncFile + "` or a verb under `" + plugin.ActionsDir + "/`"

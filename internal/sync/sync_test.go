@@ -17,6 +17,10 @@ func sandbox(t *testing.T, plugins ...string) *store.Store {
 	t.Helper()
 	home := t.TempDir()
 	t.Setenv("TRAY_HOME", home)
+	// These tests exec fixture plugins, and plugin.Run loads the config to hand keys
+	// to the child. Without this the suite ships the maintainer's real api key into
+	// those processes — AGENTS.md promises `go test ./...` never reads the real file.
+	t.Setenv("TRAY_CONFIG", filepath.Join(t.TempDir(), "none.yaml"))
 	t.Setenv("TRAY_TODAY", "2026-08-07")
 	if err := os.MkdirAll(filepath.Join(home, "plugins"), 0o755); err != nil {
 		t.Fatal(err)
