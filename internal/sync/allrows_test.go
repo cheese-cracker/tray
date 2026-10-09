@@ -53,10 +53,13 @@ func TestAllRowsPluginReadsEveryRowAndKeysByID(t *testing.T) {
 	}
 
 	open := ""
-	d := compare([]Row{{Key: tray.ID, Text: "a tray task, renamed", Done: &open}, {Key: "phone1", Text: "typed on a phone", Done: &open}},
-		rows(t, s, store.Filter{All: true}), "allrows", true)
-	if len(d.Updates) != 1 || d.Updates[0].Old.ID != tray.ID || len(d.Updates[0].Fields) != 1 || d.Updates[0].Fields[0] != "text" {
-		t.Fatalf("an id-keyed row should update that row's text: %+v", d.Updates)
+	d := compare([]Row{{Key: garage.ID, Text: "a garage line, renamed", Done: &open}, {Key: tray.ID, Text: "a tray task, renamed", Done: &open},
+		{Key: "phone1", Text: "typed on a phone", Done: &open}}, rows(t, s, store.Filter{All: true}), "allrows", true)
+	if len(d.Updates) != 1 || d.Updates[0].Old.ID != garage.ID || len(d.Updates[0].Fields) != 1 || d.Updates[0].Fields[0] != "text" {
+		t.Fatalf("an id-keyed garage row should update that row's text: %+v", d.Updates)
+	}
+	if len(d.OnTray) != 1 || d.OnTray[0].Old.ID != tray.ID {
+		t.Fatalf("the tray is manual: its row is kept, not updated (T42): %+v", d.OnTray)
 	}
 	if len(d.Adds) != 1 || d.Adds[0].Key != "phone1" {
 		t.Fatalf("an unknown key should be an add: %+v", d.Adds)

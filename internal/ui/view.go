@@ -121,6 +121,8 @@ func (m Model) rowRoom() int {
 		chrome += len(m.offered()) + 2
 	case sending:
 		chrome += len(m.dests) + 2
+	case reviewing:
+		chrome += lipgloss.Height(m.renderReview()) + 2
 	}
 	return max(1, m.height-chrome)
 }
@@ -216,6 +218,8 @@ func (m Model) renderBody() string {
 		b.WriteString("\n\n" + m.renderMenu())
 	case sending:
 		b.WriteString("\n\n" + m.renderDestinations())
+	case reviewing:
+		b.WriteString("\n\n" + m.renderReview())
 	}
 	return b.String()
 }

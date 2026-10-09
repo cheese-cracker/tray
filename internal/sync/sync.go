@@ -58,6 +58,9 @@ type Plan struct {
 	Evidence string `json:"evidence"`
 }
 
+// DefaultTimeout is how long a plugin may take unless a caller says otherwise.
+const DefaultTimeout = 10 * time.Minute
+
 // An Update is one row the plugin reports differently from how tray holds it.
 type Update struct {
 	Old    core.Task
@@ -65,10 +68,48 @@ type Update struct {
 	Fields []string
 }
 
+// String names each field as old → new, the one line a review reads.
+func (u Update) String() string {
+	var parts []string
+	for _, f := range u.Fields {
+		old, new := u.Old.Attr(f), ""
+		switch f {
+		case "text":
+			old, new = u.Old.Text, u.New.Text
+		case "done":
+			old, new = orOpen(u.Old.Done), orOpen(*u.New.Done)
+		case "tags":
+			old, new = strings.Join(u.Old.Tags, " "), strings.Join(u.New.Tags, " ")
+		case "priority":
+			new = u.New.Priority
+		case "due":
+			new = u.New.Due
+		}
+		parts = append(parts, fmt.Sprintf("%s %s → %s", f, old, new))
+	}
+	return strings.Join(parts, ", ")
+}
+
+func orOpen(done string) string {
+	if done == "" {
+		return "open"
+	}
+	return "done " + done
+}
+
+// TagSuffix is how a row's tags trail its text on screen.
+func TagSuffix(tags []string) string {
+	if len(tags) == 0 {
+		return ""
+	}
+	return "  " + core.TagMark + strings.Join(tags, " "+core.TagMark)
+}
+
 type Diff struct {
 	Adds    []Row
 	Updates []Update
 	Gone    []core.Task // keys the plugin no longer reports; kept, never deleted
+	OnTray  []Update    // changes aimed at a tray row; noted, never applied — the tray is manual (T42)
 }
 
 func (d Diff) Empty() bool { return len(d.Adds) == 0 && len(d.Updates) == 0 }
@@ -232,7 +273,11 @@ func compare(pull []Row, rows []core.Task, name string, all bool) Diff {
 		if row.Due != "" && row.Due != old.Due {
 			fields = append(fields, "due")
 		}
-		if len(fields) > 0 {
+		switch {
+		case len(fields) == 0:
+		case old.Layer == core.LayerTray:
+			d.OnTray = append(d.OnTray, Update{Old: old, New: row, Fields: fields})
+		default:
 			d.Updates = append(d.Updates, Update{Old: old, New: row, Fields: fields})
 		}
 	}
@@ -249,7 +294,7 @@ func compare(pull []Row, rows []core.Task, name string, all bool) Diff {
 }
 
 func summarize(r Result) string {
-	if r.Diff.Empty() && len(r.Push) == 0 && len(r.Diff.Gone) == 0 {
+	if r.Diff.Empty() && len(r.Push) == 0 && len(r.Diff.Gone) == 0 && len(r.Diff.OnTray) == 0 {
 		return "nothing new"
 	}
 	parts := []string{
@@ -257,6 +302,9 @@ func summarize(r Result) string {
 	}
 	if n := len(r.Diff.Gone); n > 0 {
 		parts = append(parts, fmt.Sprintf("%d gone", n))
+	}
+	if n := len(r.Diff.OnTray); n > 0 {
+		parts = append(parts, fmt.Sprintf("%d on the tray, kept", n))
 	}
 	return strings.Join(parts, " · ")
 }

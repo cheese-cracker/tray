@@ -8,13 +8,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cheese-cracker/tray/internal/core"
 	"github.com/cheese-cracker/tray/internal/plugin"
 	"github.com/cheese-cracker/tray/internal/store"
 	"github.com/cheese-cracker/tray/internal/sync"
 )
 
-const defaultTimeout = 10 * time.Minute
+const defaultTimeout = sync.DefaultTimeout
 
 func timeoutOf(opts options) (time.Duration, error) {
 	if opts.timeout == "" {
@@ -85,16 +84,19 @@ func renderPlans(results []sync.Result, applied map[string]sync.Applied) []strin
 		}
 		out = append(out, fmt.Sprintf("%s: %s", r.Plugin, r.Message))
 		for _, row := range r.Diff.Adds {
-			out = append(out, "  + "+row.Text+tagsOf(row.Tags))
+			out = append(out, "  + "+row.Text+sync.TagSuffix(row.Tags))
 		}
 		for _, u := range r.Diff.Updates {
-			out = append(out, fmt.Sprintf("  ~ %s %s: %s", u.Old.ID, u.Old.Text, changes(u)))
+			out = append(out, fmt.Sprintf("  ~ %s %s: %s", u.Old.ID, u.Old.Text, u))
 		}
 		for _, p := range r.Push {
 			out = append(out, "  ↑ "+p.Key+" "+setOf(p.Set))
 		}
 		for _, g := range r.Diff.Gone {
 			out = append(out, fmt.Sprintf("  gone from source: %s %s (kept)", g.ID, g.Text))
+		}
+		for _, u := range r.Diff.OnTray {
+			out = append(out, fmt.Sprintf("  on the tray, kept: %s %s: %s", u.Old.ID, u.Old.Text, u))
 		}
 		if r.Evidence != "" {
 			out = append(out, "  evidence: "+r.Evidence)
@@ -105,41 +107,6 @@ func renderPlans(results []sync.Result, applied map[string]sync.Applied) []strin
 		}
 	}
 	return out
-}
-
-func changes(u sync.Update) string {
-	var parts []string
-	for _, f := range u.Fields {
-		old, new := u.Old.Attr(f), ""
-		switch f {
-		case "text":
-			old, new = u.Old.Text, u.New.Text
-		case "done":
-			old, new = orOpen(u.Old.Done), orOpen(*u.New.Done)
-		case "tags":
-			old, new = strings.Join(u.Old.Tags, " "), strings.Join(u.New.Tags, " ")
-		case "priority":
-			new = u.New.Priority
-		case "due":
-			new = u.New.Due
-		}
-		parts = append(parts, fmt.Sprintf("%s %s → %s", f, old, new))
-	}
-	return strings.Join(parts, ", ")
-}
-
-func orOpen(done string) string {
-	if done == "" {
-		return "open"
-	}
-	return "done " + done
-}
-
-func tagsOf(tags []string) string {
-	if len(tags) == 0 {
-		return ""
-	}
-	return "  " + core.TagMark + strings.Join(tags, " "+core.TagMark)
 }
 
 func setOf(set map[string]string) string {
@@ -202,7 +169,7 @@ func syncJSON(sum sync.Summary, results []sync.Result, applied map[string]sync.A
 		}
 		for _, u := range r.Diff.Updates {
 			fields := map[string][2]string{}
-			for _, part := range strings.Split(changes(u), ", ") {
+			for _, part := range strings.Split(u.String(), ", ") {
 				name, rest, _ := strings.Cut(part, " ")
 				old, new, _ := strings.Cut(rest, " → ")
 				fields[name] = [2]string{old, new}

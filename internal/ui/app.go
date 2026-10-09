@@ -21,10 +21,11 @@ import (
 type mode int
 
 const (
-	browsing mode = iota
-	acting        // the enter menu
-	sending       // choosing where `>` moves things
-	editing       // the rewrite form
+	browsing  mode = iota
+	acting         // the enter menu
+	sending        // choosing where `>` moves things
+	editing        // the rewrite form
+	reviewing      // what a sync brought in, before it lands
 )
 
 // action is one row of the enter menu. Its key also works straight from the list.
@@ -63,8 +64,9 @@ type Model struct {
 	destAt int
 	form   *form
 
-	plugins []action // the verbs installed plugins add to the menu, read once
-	exec    tea.Cmd  // a plugin verb waiting for the terminal; run hands it over
+	plugins []action      // the verbs installed plugins add to the menu, read once
+	plans   []sync.Result // plugin plans with something coming in, held for review
+	exec    tea.Cmd       // a plugin verb waiting for the terminal; run hands it over
 
 	status  string
 	today   time.Time
@@ -358,6 +360,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.updateMenu(msg)
 		case sending:
 			return m.updateDestinations(msg)
+		case reviewing:
+			return m.updateReview(msg)
 		default:
 			return m.updateList(msg)
 		}
@@ -427,16 +431,9 @@ func (m Model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.resize()
 	case "v":
 		return m, m.toggleView()
-	// `S` is the sync event by hand: templates, waiting rows and garage.md land; a
-	// plugin's plan needs the CLI's review until this interface has a screen for it.
+	// `S` is the sync event by hand: the built-in hooks, then every plugin (T41).
 	case "S":
-		sum, err := sync.Fire(m.s, sync.Manual, m.today)
-		if err != nil {
-			m.status = err.Error()
-		} else {
-			m.status = "synced · " + sum.String()
-		}
-		return m, m.reload()
+		return m, m.runSync()
 	// tab is the only way across, ⇧tab the only way back, and ⇧tab is not
 	// advertised. ←→ and h l are all deliberately dead: ↑↓ move within a layer,
 	// and nothing here moves sideways.

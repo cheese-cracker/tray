@@ -149,6 +149,12 @@ func TestScreens(t *testing.T) {
 		frame(t, New(ts), "v", "j", "enter")
 	})
 
+	t.Run("sync_review", func(t *testing.T) {
+		sandbox(t, full...)
+		installSync(t, "phone", `{"pull":[{"key":"r1","text":"Call the landlord","done":"","tags":["home"]},{"key":"r2","text":"Buy a kettle","done":""}],"push":[]}`)
+		frame(t, New(ts), "S")
+	})
+
 	t.Run("month_picker", func(t *testing.T) {
 		sandbox(t)
 		shot(t, picker{months: pickable(), title: "unload the tray to", at: 1}.View())

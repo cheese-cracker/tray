@@ -37,6 +37,10 @@ func (m Model) keys() keyMap {
 		picking := []key.Binding{bind("↑↓", "choose"), bind("enter", "apply"), bind("esc", "back")}
 		return keyMap{short: picking, full: [][]key.Binding{picking}}
 	}
+	if m.mode == reviewing {
+		landing := []key.Binding{bind("enter", "land"), bind("esc", "keep local")}
+		return keyMap{short: landing, full: [][]key.Binding{landing}}
+	}
 
 	// Review mode has its own two verbs and none of the others, so it gets its own
 	// footer rather than a shared one with half the keys greyed out. `E` appears here
