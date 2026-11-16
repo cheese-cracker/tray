@@ -28,6 +28,7 @@ type Row struct {
 	Tags     []string `json:"tags"`
 	Priority string   `json:"priority,omitempty"`
 	Due      string   `json:"due,omitempty"`
+	Note     string   `json:"note,omitempty"` // replaces the row's note when reported (T44)
 	Evidence string   `json:"evidence,omitempty"`
 
 	// The rest travels only to a plugin that asked for every row (all-rows): the whole
@@ -40,7 +41,6 @@ type Row struct {
 	Until     string `json:"until,omitempty"`
 	Entry     string `json:"entry,omitempty"`
 	FromMonth string `json:"from_month,omitempty"`
-	Note      string `json:"note,omitempty"`
 	Source    string `json:"source,omitempty"`
 }
 
@@ -72,22 +72,41 @@ type Update struct {
 func (u Update) String() string {
 	var parts []string
 	for _, f := range u.Fields {
-		old, new := u.Old.Attr(f), ""
-		switch f {
-		case "text":
-			old, new = u.Old.Text, u.New.Text
-		case "done":
-			old, new = orOpen(u.Old.Done), orOpen(*u.New.Done)
-		case "tags":
-			old, new = strings.Join(u.Old.Tags, " "), strings.Join(u.New.Tags, " ")
-		case "priority":
-			new = u.New.Priority
-		case "due":
-			new = u.New.Due
+		old, new := u.Values(f)
+		if f == "note" {
+			old, new = Clip(old), Clip(new)
 		}
 		parts = append(parts, fmt.Sprintf("%s %s → %s", f, old, new))
 	}
 	return strings.Join(parts, ", ")
+}
+
+// Values is one field's old and new value as text, whole.
+func (u Update) Values(f string) (string, string) {
+	switch f {
+	case "text":
+		return u.Old.Text, u.New.Text
+	case "done":
+		return orOpen(u.Old.Done), orOpen(*u.New.Done)
+	case "tags":
+		return strings.Join(u.Old.Tags, " "), strings.Join(u.New.Tags, " ")
+	case "priority":
+		return u.Old.Attr(f), u.New.Priority
+	case "due":
+		return u.Old.Attr(f), u.New.Due
+	case "note":
+		return u.Old.Note, u.New.Note
+	}
+	return u.Old.Attr(f), ""
+}
+
+// Clip is a long value as one short line, for a review that has to fit a screen.
+func Clip(s string) string {
+	s = strings.Join(strings.Fields(s), " ")
+	if r := []rune(s); len(r) > 60 {
+		return string(r[:59]) + "…"
+	}
+	return s
 }
 
 func orOpen(done string) string {
@@ -273,6 +292,9 @@ func compare(pull []Row, rows []core.Task, name string, all bool) Diff {
 		if row.Due != "" && row.Due != old.Due {
 			fields = append(fields, "due")
 		}
+		if row.Note != "" && row.Note != old.Note {
+			fields = append(fields, "note")
+		}
 		switch {
 		case len(fields) == 0:
 		case old.Layer == core.LayerTray:
@@ -346,7 +368,7 @@ func Apply(s *store.Store, r Result, push []Push, timeout time.Duration) (Applie
 		for _, row := range r.Diff.Adds {
 			t := core.Task{
 				Layer: core.LayerGarage, Month: r.Plugin, Text: row.Text, Tags: row.Tags,
-				Priority: row.Priority, Due: row.Due, Entry: today, Source: r.Plugin + ":" + row.Key,
+				Priority: row.Priority, Due: row.Due, Note: row.Note, Entry: today, Source: r.Plugin + ":" + row.Key,
 			}
 			if row.Done != nil {
 				t.Done = *row.Done
@@ -373,6 +395,8 @@ func Apply(s *store.Store, r Result, push []Push, timeout time.Duration) (Applie
 					t.Priority = u.New.Priority
 				case "due":
 					t.Due = u.New.Due
+				case "note":
+					t.Note = u.New.Note
 				}
 			}
 			if err := tx.Put(&t); err != nil {

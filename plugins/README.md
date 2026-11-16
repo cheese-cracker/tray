@@ -69,15 +69,18 @@ stdout is your plan:
 
 ```json
 {"pull":  [{"key": "ABC-12", "text": "…", "done": null, "tags": ["work"], "due": "2026-10-01",
-            "evidence": "evidence/2026-09-28T10-00.png"}],
+            "note": "…", "evidence": "evidence/2026-09-28T10-00.png"}],
  "push":  [{"key": "ABC-9", "set": {"done": "2026-09-28"}}],
  "evidence": "evidence/2026-09-28T10-00.png"}
 ```
 
 - `key` is stable for the same item across runs, and every pulled row has one and a `text`.
 - A field you leave out is one you did not report: `"done": null`, no `tags`, an empty
-  `priority` or `due`. tray never clears what you could not see. `"done": ""` says open;
-  a date says finished.
+  `priority`, `due` or `note`. tray never clears what you could not see. `"done": ""` says
+  open; a date says finished.
+- `note` is optional: a few lines of context under the row, for a plugin that has some. It
+  lands with an add, and a different one you report later replaces it, reviewed like any
+  field. Never report it and nothing about notes changes; a row on the tray keeps its own.
 - `push` is what you would change on your side, read off tray's rows — a `done` tray
   has that the site does not. Nothing to push is `[]`.
 - Zero rows is a valid plan. Never guess.
