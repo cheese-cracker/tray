@@ -310,6 +310,7 @@ func TestFlowSweepOpensTheMonthsAsTabs(t *testing.T) {
 	sandbox(t, "- [ ] on the tray priority:M")
 	garage(t, "2026-07", "- left over from july")
 	garage(t, "2026-08", "- dumped this month")
+	garage(t, "claude", "- a claude session")
 
 	u := drive(t, NewSweep(ts, "2026-07")).waitFor("dumped this month")
 	m := u.press("q").final()
@@ -324,11 +325,18 @@ func TestFlowSweepOpensTheMonthsAsTabs(t *testing.T) {
 		}
 		months = append(months, tab.month)
 	}
-	want := []string{"2026-07", "2026-08", "2026-09", "someday"}
+	want := []string{"2026-07", "2026-08", "2026-09", "someday", "claude"}
 	if strings.Join(months, " ") != strings.Join(want, " ") {
 		t.Errorf("tabs = %v, want %v", months, want)
 	}
 	hasNot(t, m.View(), "on the tray")
+
+	// A plugin's garage is a tab like the months, and its lines are there to place.
+	plugin := keys(m, "tab", "tab", "tab").(Model)
+	if plugin.layer().month != "claude" {
+		t.Errorf("three tabs on should reach the plugin garage, got %q", plugin.layer().month)
+	}
+	has(t, plugin.View(), "a claude session")
 
 	// The closing month is one `h` away, and it is a real tab, not a destination.
 	back := keys(m, "shift+tab").(Model)

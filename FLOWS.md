@@ -50,6 +50,7 @@ suite rather than hanging it.
 | F22 | A note is the lines under a task: `--note` on `dump` and `add`, `tray <id> note <text>` replaces it whole, it exports as one Taskwarrior annotation | `F22 · note is the indented lines under a task` |
 | F23 | `plugin` lists what is installed — the hooks a plugin joins, the verbs under its `actions/`, the `on-launch` marker, how its last run went — shows a folder without the exec bit as half-installed and never runs it; `plugin run` prints one plan and lands nothing; `plugin set` writes only the keys the example names | `F23 · plugin lists what is installed` |
 | F40 | `plugin` is the health view: a `health` probe's exit code reads as ok · needs you · failed, `plugin check` records it beside — never over — the last sync run, a folder with no probe says so, an unfilled example is `unconfigured`, and nothing is listed that is not a folder; `--json` is the same rows | `F40 · plugin is the health view` |
+| F41 | A garage is reached by its name — a month as the interface titles it (july, jan: the nearest one), someday, or a plugin's garage, holding rows or only installed — in `garage <name>`, `to:` and `--month`; a word that names none still searches this month | `F41 · a garage is reached by its name` |
 | F24 | Ids are permanent: erasing or finishing a neighbour renumbers nothing, and an erased id is never handed out again | `F24 · ids are permanent` |
 | F25 | A task with `wait:` lies in the garage of its month, reads as waiting, and the first `sync` on or after its day lifts it onto the tray with what it carried — once | `F25 · a waiting task lies in the garage until its day` |
 | F26 | A template keeps one live child; `sync` materializes the next only once the last is done, due one period on, skipping missed periods; an unknown period is refused and `done` on a template ends it | `F26 · recurrence serves each period once` |
@@ -80,7 +81,7 @@ suite rather than hanging it.
 | T8 | Adding in a garage tab asks for the words and writes nothing else | `TestFlowGarageAddAsksOnlyForATitle` |
 | T9 | Adding on the tray takes the whole form: priority, due and tag all land | `TestFlowTrayAddTakesTheWholeForm` |
 | T10 | `esc` clears an applied filter **before** it quits the program | `TestFlowEscClearsTheFilterBeforeItQuits` |
-| T11 | `carryover` opens the months it is about — the named one, this one, a forward slot, someday — no tray tab, focused on this month, and `>` reaches every one of them | `TestFlowSweepOpensTheMonthsAsTabs` |
+| T11 | `carryover` opens the months it is about — the named one, this one, a forward slot, someday, then every plugin garage holding live lines — no tray tab, focused on this month, and `>` reaches every one of them | `TestFlowSweepOpensTheMonthsAsTabs` |
 | T12 | `?` opens and closes without disturbing the list underneath | `TestFlowHelpOverlayToggles` |
 | T13 | A pasted title lands whole, and a pasted newline collapses rather than splitting the words | `TestFlowPasteIntoTheTitle` |
 | T14 | A finished task is hidden until `v`, and `R` says it wasn't finished after all | `TestFlowViewDoneThenRestore` |

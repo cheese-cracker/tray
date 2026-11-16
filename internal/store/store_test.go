@@ -4,6 +4,7 @@ import (
 	"errors"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/cheese-cracker/tray/internal/core"
 )
@@ -203,6 +204,40 @@ func TestMonthsAreCalendarMonthsOnly(t *testing.T) {
 	}
 	if !reflect.DeepEqual(got, []string{"2026-07", "2026-08"}) {
 		t.Errorf("Months() = %v", got)
+	}
+}
+
+func TestGaragesArePluginMonthsOnly(t *testing.T) {
+	s := sandbox(t)
+	for _, m := range []string{"2026-08", Someday, "notion", "claude"} {
+		put(t, s, core.Task{Layer: core.LayerGarage, Month: m, Text: "in " + m})
+	}
+	got, err := s.Garages()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(got, []string{"claude", "notion"}) {
+		t.Errorf("Garages() = %v, want the plugin months and neither a calendar month nor someday", got)
+	}
+}
+
+func TestMonthNamed(t *testing.T) {
+	today := time.Date(2026, 8, 7, 0, 0, 0, 0, time.UTC)
+	cases := map[string]string{
+		"october": "2026-10", "Oct": "2026-10", "july": "2026-07", "may": "2026-05",
+		"jan":      "2027-01", // the nearest January from August is the next one
+		"february": "2026-02", // six months either way: a tie goes back
+		"2026-03":  "2026-03", "someday": Someday, "Someday": Someday,
+	}
+	for name, want := range cases {
+		if got, ok := MonthNamed(name, today); !ok || got != want {
+			t.Errorf("MonthNamed(%q) = %q, %v; want %q", name, got, ok, want)
+		}
+	}
+	for _, name := range []string{"claude", "octo", "", "13"} {
+		if got, ok := MonthNamed(name, today); ok {
+			t.Errorf("MonthNamed(%q) = %q; want no month", name, got)
+		}
 	}
 }
 
