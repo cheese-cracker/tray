@@ -84,7 +84,11 @@ func renderPlans(results []sync.Result, applied map[string]sync.Applied) []strin
 		}
 		out = append(out, fmt.Sprintf("%s: %s", r.Plugin, r.Message))
 		for _, row := range r.Diff.Adds {
-			out = append(out, "  + "+row.Text+sync.TagSuffix(row.Tags))
+			line := "  + " + row.Text + sync.TagSuffix(row.Tags)
+			if row.Note != "" {
+				line += "  · " + sync.Clip(row.Note)
+			}
+			out = append(out, line)
 		}
 		for _, u := range r.Diff.Updates {
 			out = append(out, fmt.Sprintf("  ~ %s %s: %s", u.Old.ID, u.Old.Text, u))
@@ -169,10 +173,9 @@ func syncJSON(sum sync.Summary, results []sync.Result, applied map[string]sync.A
 		}
 		for _, u := range r.Diff.Updates {
 			fields := map[string][2]string{}
-			for _, part := range strings.Split(u.String(), ", ") {
-				name, rest, _ := strings.Cut(part, " ")
-				old, new, _ := strings.Cut(rest, " → ")
-				fields[name] = [2]string{old, new}
+			for _, f := range u.Fields {
+				old, new := u.Values(f)
+				fields[f] = [2]string{old, new}
 			}
 			p.Updates = append(p.Updates, updateJSON{ID: u.Old.ID, Text: u.Old.Text, Fields: fields})
 		}

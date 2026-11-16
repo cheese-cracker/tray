@@ -625,12 +625,14 @@ out=$(tray sync)
 case $out in "materialized 0 · lifted 0"*) pass "the summary leads" ;; *) bad "got: $out" ;; esac
 case $out in *"echo: 2 adds · 0 updates · 1 push"*) pass "then each plugin's plan" ;; *) bad "got: $out" ;; esac
 case $out in *"+ Ship the notes  +work"*) pass "adds are listed with their tags" ;; *) bad "no add line: $out" ;; esac
+case $out in *"+ Ship the notes  +work  · drafted, reviewed, one thing open"*) pass "and their note" ;; *) bad "no note: $out" ;; esac
 case $out in *"↑ n0 done=2026-08-07"*) pass "and what the plugin would push" ;; *) bad "no push line: $out" ;; esac
 case $out in *"evidence: evidence/shot.png"*) pass "with the evidence it gathered" ;; *) bad "no evidence" ;; esac
 case $out in *"tray sync --apply"*) pass "and names the way to land it" ;; *) bad "no hint" ;; esac
 [ "$(garage_json echo | jq length)" = "0" ] && pass "nothing landed" || bad "rows landed: $(garage_json echo)"
 tray sync --json | valid_json && pass "--json is valid" || bad "--json broken"
 [ "$(tray sync --json | jq -r '.plugins[0].adds | length')" = "2" ] && pass "and carries the plan" || bad "json plan wrong"
+[ "$(tray sync --json | jq -r '.plugins[0].adds[0].note')" = "drafted, reviewed, one thing open" ] && pass "notes whole, commas and all" || bad "json note: $(tray sync --json | jq -c '.plugins[0].adds[0]')"
 teardown
 
 # --- F29 · apply ---------------------------------------------------------------------------
@@ -642,6 +644,8 @@ tray sync --apply | grep -q "applied: 2 adds" && pass "--apply lands it" || bad 
 [ "$(garage_json echo | field 'Renew the cert' status)" = "completed" ] \
   && [ "$(garage_json echo | field 'Renew the cert' priority)" = "H" ] \
   && pass "with what the plugin reported" || bad "fields lost: $(garage_json echo)"
+[ "$(garage_json echo | note_of 'Ship the notes')" = "drafted, reviewed, one thing open" ] \
+  && pass "and the note it carried" || bad "note lost: $(garage_json echo | note_of 'Ship the notes')"
 grep -q '"n0"' "$TRAY_HOME/plugins/echo/applied.json" && pass "the push reached the plugin" || bad "no applied.json"
 tray plugin | grep -q "echo.*apply .*applied" && pass "the listing remembers the apply" || bad "got: $(tray plugin)"
 case $(tray sync) in *"echo: 0 adds"*) pass "a second sync finds the rows it knows" ;; *) bad "got: $(tray sync)" ;; esac
