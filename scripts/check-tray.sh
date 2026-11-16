@@ -826,6 +826,25 @@ case $(row echo .last) in check*) pass "and the newest thing it did is the check
 tray plugin check nope >/dev/null 2>&1 && bad "checking an unknown plugin passed" || pass "an unknown plugin is an error"
 teardown
 
+# --- F41 · a garage by its name ------------------------------------------------
+head_ "F41 · a garage is reached by its name"
+setup
+tray dump to:july July leftover >/dev/null
+tray dump to:jan Next January >/dev/null
+tray dump to:someday Some day maybe >/dev/null
+tray dump to:notion From notion >/dev/null
+tray dump August thing >/dev/null
+mkdir -p "$TRAY_HOME/plugins/claude" && printf '#!/bin/sh\n' > "$TRAY_HOME/plugins/claude/sync" && chmod +x "$TRAY_HOME/plugins/claude/sync"
+[ "$(tray garage july list --json | rows 'July leftover')" = "1" ] && pass "july names this July" || bad "july: $(tray garage july list)"
+[ "$(garage_json 2027-01 | rows 'Next January')" = "1" ] && pass "a month name is the nearest one: jan in August is next January" || bad "jan landed elsewhere"
+[ "$(tray garage someday list --json | rows 'Some day maybe')" = "1" ] && pass "someday names someday" || bad "someday: $(tray garage someday list)"
+[ "$(tray garage notion list --json | rows 'From notion')" = "1" ] && pass "a plugin's garage by its name" || bad "notion: $(tray garage notion list)"
+case $(tray garage claude list) in claude*) pass "an installed plugin's garage by its name, before it holds a row" ;; *) bad "claude: $(tray garage claude list)" ;; esac
+[ "$(tray garage thing list --json | rows 'August thing')" = "1" ] && pass "a word that names no garage still searches this month" || bad "search broke"
+tray carryover --run --month july >/dev/null
+[ "$(garage_json 2026-08 | rows 'July leftover')" = "1" ] && pass "carryover takes a name too" || bad "carryover by name"
+teardown
+
 printf '\n'
 [ "$fail" = 0 ] && printf '\033[32mtray flows pass\033[0m\n' || printf '\033[31mtray flows FAILED\033[0m\n'
 exit "$fail"

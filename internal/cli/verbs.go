@@ -51,6 +51,9 @@ func cmdDump(s *store.Store, req request) (string, error) {
 	note := req.opts.note
 	for len(tail) > 0 {
 		if rest, ok := strings.CutPrefix(tail[0], "to:"); ok && rest != "" {
+			if g, ok := garageNamed(s, rest); ok {
+				rest = g
+			}
 			month = rest
 			tail = tail[1:]
 			continue

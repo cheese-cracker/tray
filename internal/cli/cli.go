@@ -49,7 +49,7 @@ const usage = `tray — two layers, one database. Dump to the garage, take onto 
   tray list                         the dense table: urgency, priority, due
   tray head [n]                     the top few, compactly. Silent when empty
   tray dump <text>                  → this month's garage; the tail is literal
-  tray dump to:2026-11 +infra <text>
+  tray dump to:november +infra <text>
   tray add <desc> pri:H due:2026-08-12
   tray add <desc> wait:2027-03-13   → the garage of that month, until that day
   tray k79l take [pri:H due:...]     garage → tray, the structuring step
@@ -58,10 +58,10 @@ const usage = `tray — two layers, one database. Dump to the garage, take onto 
   tray --all list  ·  tray k79l restore    see the finished; say one wasn't
   tray k79l rewrite pri:M            every field — recur: wait: until: too
   tray k79l edit <new text>          the words alone
-  tray unload --to 2026-09           hand the tray back to a month, whole
+  tray unload --to september         hand the tray back to a month, whole
   tray k79l unload                   one task, back to the month it came from
-  tray carryover --run --month 2026-08     that month's leftovers move to the next
-  tray garage list  ·  tray +infra list  ·  tray list --all (with the finished)
+  tray carryover --run --month august      that month's leftovers move to the next
+  tray garage list  ·  tray garage october list  ·  tray garage claude list  ·  tray +infra list
   tray find <text>                   every layer, every month
   tray print  ·  tray status
   tray config                        where the config file is and what it says, secrets masked
@@ -73,8 +73,10 @@ const usage = `tray — two layers, one database. Dump to the garage, take onto 
                                      garage.md is read back, plugin plans print — and land only under --apply
 
 Ids are permanent, four characters. Filters: ids (k79l, k79l,79ya), +tag, key:value, and
-` + "`garage`" + ` to switch layer. tray.md and garage.md beside the database mirror the open
-tasks; add a bullet to garage.md and the next sync brings it in.`
+` + "`garage`" + ` to switch layer, then a garage by its name: october or oct (the nearest one),
+someday, or a plugin's; 2026-10 works too. A name works wherever a month goes: to:, --to,
+--month. tray.md and garage.md beside the database mirror the open tasks; add a bullet to
+garage.md and the next sync brings it in.`
 
 type options struct {
 	json, all, run, apply, help, version     bool
@@ -133,6 +135,7 @@ func takeFlags(args []string) (options, []string) {
 
 type request struct {
 	scope   string // "tray" or "garage"
+	garage  string // the word after `garage`: a garage's name, or else a search word
 	ids     string
 	filters []string
 	verb    string
@@ -165,12 +168,14 @@ func parse(args []string) request {
 		merge(&req.opts, tailOpts)
 	}
 
-	for _, tok := range head {
+	for i, tok := range head {
 		switch {
 		case tok == "garage":
 			req.scope = "garage"
 		case isIDList(tok):
 			req.ids = tok
+		case i > 0 && head[i-1] == "garage" && !strings.HasPrefix(tok, "+") && !strings.HasPrefix(tok, "#") && !strings.Contains(tok, ":"):
+			req.garage = tok
 		default:
 			req.filters = append(req.filters, tok)
 		}
@@ -203,6 +208,43 @@ func merge(into *options, from options) {
 	}
 	if from.to != "" {
 		into.to = from.to
+	}
+}
+
+// garageNamed is a garage by the name the interface gives it: a month (october, oct,
+// 2026-10), someday, or a plugin's garage, holding rows or only installed (T43).
+func garageNamed(s *store.Store, name string) (string, bool) {
+	if m, ok := store.MonthNamed(name, store.Today()); ok {
+		return m, true
+	}
+	known, _ := s.Garages()
+	for _, p := range plugin.List() {
+		if p.Sync != "" {
+			known = append(known, p.Garage())
+		}
+	}
+	for _, g := range known {
+		if strings.EqualFold(g, name) {
+			return g, true
+		}
+	}
+	return "", false
+}
+
+// resolveGarages turns every garage name in a request into the month it is stored under.
+// A word after `garage` that names none is a search word, as it always was.
+func resolveGarages(s *store.Store, req *request) {
+	if req.garage != "" {
+		if g, ok := garageNamed(s, req.garage); ok {
+			req.opts.month = g
+		} else {
+			req.filters = append([]string{req.garage}, req.filters...)
+		}
+	}
+	for _, v := range []*string{&req.opts.month, &req.opts.to} {
+		if g, ok := garageNamed(s, *v); ok && *v != "" {
+			*v = g
+		}
 	}
 }
 
@@ -248,6 +290,7 @@ func Run(args []string) int {
 		return 2
 	}
 	defer s.Close()
+	resolveGarages(s, &req)
 
 	out, err := dispatch(s, req)
 	if err != nil {

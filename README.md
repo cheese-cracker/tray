@@ -185,7 +185,7 @@ it. Same tool, same database, in the half you never have to look at.
 | | |
 |---|---|
 | `tray dump <text>` | A line in this month's garage. **The tail is literal** — colons, dashes and half-sentences all survive. |
-| `tray dump to:2026-11 +infra <text>` | A leading `to:` and `+tag` are the only things parsed. |
+| `tray dump to:november +infra <text>` | A leading `to:` and `+tag` are the only things parsed. `to:` takes a garage's name, like every other place a month goes. |
 | `tray add <desc> pri:H due:2026-10-03 +infra` | Straight onto the tray, for something already live. Says what it still lacks. |
 | `tray add <desc> wait:2027-03-13` | Into the garage of that month; the first `sync` on or after the day lifts it onto the tray. |
 | `tray add <desc> recur:weekly due:2026-10-03` | A template. `sync` keeps one live child of it, due one period on, skipping periods you missed. `daily weekly monthly yearly`, or `2w`, `10d`. `until:` ends it; so does `done` on the template. |
@@ -200,9 +200,9 @@ it. Same tool, same database, in the half you never have to look at.
 |---|---|
 | `tray k79l take [pri:H +infra]` | Garage → tray. Where a jotted pointer becomes a real task. The row remembers the month it left. |
 | `tray k79l rewrite pri:M +blocked -infra` | Restructure a task — every field, `recur:` `wait:` `until:` too. Exact and scriptable; what agents use. |
-| `tray unload --to 2026-09` | Hand the whole tray back to a month. **The month is never guessed** — bare `tray unload` picks it on a terminal and errors when piped. |
+| `tray unload --to september` | Hand the whole tray back to a month. **The month is never guessed** — bare `tray unload` picks it on a terminal and errors when piped. |
 | `tray k79l unload` | One task, back to the month it came from. |
-| `tray carryover --run --month 2026-08` | That month's live leftovers move to the next month. A due date that has already passed is dropped on the way. `--month` is required, and `tray status` prints the line to run. On a terminal, bare `tray carryover` opens the months as tabs instead, with every plugin garage that holds lines after them. |
+| `tray carryover --run --month august` | That month's live leftovers move to the next month. A due date that has already passed is dropped on the way. `--month` is required, and `tray status` prints the line to run. On a terminal, bare `tray carryover` opens the months as tabs instead, with every plugin garage that holds lines after them. |
 
 ### Finishing
 
@@ -231,7 +231,7 @@ with the tool.
 |---|---|
 | `tray` | Grouped bullets by tag, ids on the left. |
 | `tray list` · `tray list --all` | The dense table with urgency; `--all` adds the finished `✓`, the waiting, and templates `↻`. |
-| `tray garage list` · `tray garage list --month 2026-11` | This month's jottpad, or another's. |
+| `tray garage list` · `tray garage october list` · `tray garage claude list` | This month's jottpad, or another garage by the name the interface gives it: a month (`october`, `oct`, the nearest one; `2026-10` works too), `someday`, or a plugin's. A word after `garage` that names no garage searches this month, as before. |
 | `tray +infra list` · `tray due:2026-10-03 list` | Filters. |
 | `tray find <text>` | Every layer, every month at once; finished rows under `--all`. |
 | `tray print` | Plain `- [ ]` bullets grouped by tag, for a journal. |

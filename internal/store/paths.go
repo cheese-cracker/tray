@@ -63,6 +63,30 @@ func ThisMonth() string { return Today().Format(monthLayout) }
 // IsMonth tells a calendar month apart from someday and a plugin's garage.
 func IsMonth(name string) bool { return monthRe.MatchString(name) }
 
+// MonthNamed reads a month the way the interface titles it: october or oct is the nearest
+// October, a tie going back, since a garage holds what was already dumped. someday and
+// YYYY-MM name themselves (T43).
+func MonthNamed(name string, today time.Time) (string, bool) {
+	n := strings.ToLower(strings.TrimSpace(name))
+	if IsMonth(n) || n == Someday {
+		return n, true
+	}
+	for m := time.January; m <= time.December; m++ {
+		full := strings.ToLower(m.String())
+		if n != full && n != full[:3] {
+			continue
+		}
+		by := int(m) - int(today.Month())
+		if by > 5 {
+			by -= 12
+		} else if by < -6 {
+			by += 12
+		}
+		return shiftMonth(today.Format(monthLayout), by), true
+	}
+	return "", false
+}
+
 func NextMonth(month string) string { return shiftMonth(month, 1) }
 func PrevMonth(month string) string { return shiftMonth(month, -1) }
 
