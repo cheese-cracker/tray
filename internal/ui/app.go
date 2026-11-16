@@ -71,10 +71,11 @@ type Model struct {
 	status  string
 	today   time.Time
 	err     error
-	viewing bool   // v: review mode — see below
-	sweep   bool   // the month-turn ritual: months get the tabs, not the tray
-	closing string // which month is being swept
-	width   int    // 0 until the terminal tells us, so the view must cope without
+	viewing bool     // v: review mode — see below
+	sweep   bool     // the month-turn ritual: months get the tabs, not the tray
+	closing string   // which month is being swept
+	garages []string // the plugin garages the sweep opened with (73g)
+	width   int      // 0 until the terminal tells us, so the view must cope without
 	height  int
 }
 
@@ -86,6 +87,7 @@ func New(s *store.Store) Model {
 func NewSweep(s *store.Store, closing string) Model {
 	return start(Model{
 		s: s, marked: map[string]bool{}, today: store.Today(), sweep: true, closing: closing,
+		garages: pluginGarages(s),
 	})
 }
 
@@ -162,7 +164,7 @@ func (m Model) layer() layer {
 // reload re-reads the layer from the store. It returns a command because a filter
 // that is still applied has to be re-run against the new rows, and that is async.
 func (m *Model) reload() tea.Cmd {
-	m.layers = layers(m.sweep, m.closing)
+	m.layers = layers(m.sweep, m.closing, m.garages)
 	if m.active >= len(m.layers) {
 		m.active = 0
 	}

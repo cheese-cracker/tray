@@ -72,6 +72,45 @@ func TestSweepTabsAreTheMonths(t *testing.T) {
 	}
 }
 
+// A plugin's garage climbs like any line, so the sweep opens it as a tab, after someday —
+// but only while it holds something live, and only the daily screen's two tabs stay put.
+func TestSweepOpensPluginGaragesWithLiveLines(t *testing.T) {
+	sandbox(t)
+	garage(t, "2026-08", "- dumped this month")
+	garage(t, "claude", "- a claude session")
+	garage(t, "notion", "- ~~already done~~ done:2026-08-01")
+
+	m := NewSweep(ts, "")
+	var got []string
+	for _, l := range m.layers {
+		got = append(got, l.month)
+	}
+	want := []string{"2026-07", "2026-08", "2026-09", "someday", "claude"}
+	if strings.Join(got, " ") != strings.Join(want, " ") {
+		t.Fatalf("sweep tabs = %v, want %v", got, want)
+	}
+	if m.layer().month != store.ThisMonth() {
+		t.Errorf("the sweep still opens on this month, got %q", m.layer().month)
+	}
+	if len(New(ts).layers) != 2 {
+		t.Errorf("day to day the tabs stay tray + this month, got %v", titles(New(ts)))
+	}
+
+	// Emptying a plugin garage mid-sweep keeps its tab, so nothing shifts under you.
+	rows, err := ts.Tasks(store.Filter{Layer: core.LayerGarage, Month: "claude"})
+	if err != nil || len(rows) != 1 {
+		t.Fatalf("claude rows = %v, %v", rows, err)
+	}
+	rows[0].Done = "2026-08-02"
+	if err := ts.Put(&rows[0]); err != nil {
+		t.Fatal(err)
+	}
+	m.reload()
+	if last := m.layers[len(m.layers)-1].month; last != "claude" {
+		t.Errorf("an emptied plugin tab should stay for the sweep, tabs = %v", titles(m))
+	}
+}
+
 func TestSweepHonoursAChosenMonth(t *testing.T) {
 	sandbox(t)
 	garage(t, "2026-05", "- ancient")

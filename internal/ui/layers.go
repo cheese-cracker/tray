@@ -36,7 +36,7 @@ func (l layer) filter(everything bool) store.Filter {
 // Two tabs is the whole day-to-day shape: what you're doing, and what you dumped.
 // Someday and other months are still reachable through `>`; they just don't earn
 // standing room. The sweep is the exception — that ritual is about months.
-func layers(sweep bool, closing string) []layer {
+func layers(sweep bool, closing string, garages []string) []layer {
 	this := store.ThisMonth()
 	if !sweep {
 		return []layer{
@@ -71,6 +71,27 @@ func layers(sweep bool, closing string) []layer {
 		}
 		seen[m] = true
 		out = append(out, layer{title: monthTitle(m), month: m})
+	}
+	// A plugin's lines climb like any line (T9), and the sweep is where lines are placed,
+	// so every plugin garage holding some is a tab too, after someday (73g).
+	for _, g := range garages {
+		out = append(out, layer{title: g, month: g})
+	}
+	return out
+}
+
+// pluginGarages are the plugin garages holding live lines, read once when a sweep opens
+// so that emptying one does not shift the tabs under you (73g).
+func pluginGarages(s *store.Store) []string {
+	names, err := s.Garages()
+	if err != nil {
+		return nil
+	}
+	var out []string
+	for _, n := range names {
+		if liveIn(s, n) > 0 {
+			out = append(out, n)
+		}
 	}
 	return out
 }

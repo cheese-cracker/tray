@@ -250,6 +250,16 @@ func (s *Store) Delete(id string) error {
 // Months is every calendar month a garage row sits in, oldest first. Someday and the
 // plugins' garages are not months.
 func (s *Store) Months() ([]string, error) {
+	return s.garageMonths(func(m string) bool { return IsMonth(m) })
+}
+
+// Garages are the plugin garages: the months no calendar names, someday aside. A
+// plugin's rows land in the month called after it (T9).
+func (s *Store) Garages() ([]string, error) {
+	return s.garageMonths(func(m string) bool { return !IsMonth(m) && m != Someday })
+}
+
+func (s *Store) garageMonths(keep func(string) bool) ([]string, error) {
 	rows, err := s.q.Query("SELECT DISTINCT month FROM task WHERE layer = ? AND month IS NOT NULL", core.LayerGarage)
 	if err != nil {
 		return nil, err
@@ -261,7 +271,7 @@ func (s *Store) Months() ([]string, error) {
 		if err := rows.Scan(&m); err != nil {
 			return nil, err
 		}
-		if IsMonth(m) {
+		if keep(m) {
 			out = append(out, m)
 		}
 	}

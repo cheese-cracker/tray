@@ -206,6 +206,20 @@ func TestMonthsAreCalendarMonthsOnly(t *testing.T) {
 	}
 }
 
+func TestGaragesArePluginMonthsOnly(t *testing.T) {
+	s := sandbox(t)
+	for _, m := range []string{"2026-08", Someday, "notion", "claude"} {
+		put(t, s, core.Task{Layer: core.LayerGarage, Month: m, Text: "in " + m})
+	}
+	got, err := s.Garages()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(got, []string{"claude", "notion"}) {
+		t.Errorf("Garages() = %v, want the plugin months and neither a calendar month nor someday", got)
+	}
+}
+
 func TestParseIDs(t *testing.T) {
 	cases := []struct {
 		spec string

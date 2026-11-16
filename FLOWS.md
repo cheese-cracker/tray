@@ -80,7 +80,7 @@ suite rather than hanging it.
 | T8 | Adding in a garage tab asks for the words and writes nothing else | `TestFlowGarageAddAsksOnlyForATitle` |
 | T9 | Adding on the tray takes the whole form: priority, due and tag all land | `TestFlowTrayAddTakesTheWholeForm` |
 | T10 | `esc` clears an applied filter **before** it quits the program | `TestFlowEscClearsTheFilterBeforeItQuits` |
-| T11 | `carryover` opens the months it is about — the named one, this one, a forward slot, someday — no tray tab, focused on this month, and `>` reaches every one of them | `TestFlowSweepOpensTheMonthsAsTabs` |
+| T11 | `carryover` opens the months it is about — the named one, this one, a forward slot, someday, then every plugin garage holding live lines — no tray tab, focused on this month, and `>` reaches every one of them | `TestFlowSweepOpensTheMonthsAsTabs` |
 | T12 | `?` opens and closes without disturbing the list underneath | `TestFlowHelpOverlayToggles` |
 | T13 | A pasted title lands whole, and a pasted newline collapses rather than splitting the words | `TestFlowPasteIntoTheTitle` |
 | T14 | A finished task is hidden until `v`, and `R` says it wasn't finished after all | `TestFlowViewDoneThenRestore` |

@@ -202,7 +202,7 @@ it. Same tool, same database, in the half you never have to look at.
 | `tray k79l rewrite pri:M +blocked -infra` | Restructure a task — every field, `recur:` `wait:` `until:` too. Exact and scriptable; what agents use. |
 | `tray unload --to 2026-09` | Hand the whole tray back to a month. **The month is never guessed** — bare `tray unload` picks it on a terminal and errors when piped. |
 | `tray k79l unload` | One task, back to the month it came from. |
-| `tray carryover --run --month 2026-08` | That month's live leftovers move to the next month. A due date that has already passed is dropped on the way. `--month` is required, and `tray status` prints the line to run. On a terminal, bare `tray carryover` opens the months as tabs instead. |
+| `tray carryover --run --month 2026-08` | That month's live leftovers move to the next month. A due date that has already passed is dropped on the way. `--month` is required, and `tray status` prints the line to run. On a terminal, bare `tray carryover` opens the months as tabs instead, with every plugin garage that holds lines after them. |
 
 ### Finishing
 
