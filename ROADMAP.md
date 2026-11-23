@@ -10,21 +10,21 @@ Tags: `[plugin]` on the contract in `plugins/README.md` · `[shell]` a snippet c
 CLI · `[ours]` ours to build · `[personal]` may not belong in a general tool · `[shape]` a
 decision, not a feature.
 
+Ids in brackets are tray task ids. Those tasks are marked done on the tray to clear the garage; the work is not done until the line here is deleted.
+
 ## Next
 
-- [ ] `[shape]` **A desktop app in place of the TUI** — Fyne, the letters kept as shortcuts,
-  modes for what has consequences, the ladder drawn in a details pane. Built and under
-  review as a second pull request stacked on this one; whether it replaces the TUI or
-  sits beside it is the open question.
+- [ ] **Slide older tasks to today** (aq2s) — one action (a key, or a verb in the `enter` menu) that
+  moves every open task due before today onto today, instead of re-dating them one by one.
+- [ ] `[shape]` **A cron garage** (9d9t) — a TUI view listing every task set up as a cron or habit,
+  with its rule and next fire. The UX is still being refined; the agent that sets these up
+  lives in traytable.
 - [ ] `[plugin]` **A web garage** — `settings.example.json` asks for a URL and a ruleset
   ("only rows marked in progress"); `sync plan` drives the site with `web-agent` (login
   happens in the browser it opens), screenshots it as evidence, and reads rows off the page
   under the ruleset; `sync apply` marks done where the site allows. Done when two plans on
   an unchanged page produce an empty diff, and the review's rows match the screenshot on
   one real list.
-- [ ] `[plugin]` **Voice** — a trashtalk successor: `sync plan` records, one model call
-  splits the transcript into rows under a ruleset, no push. Manual only; the review is
-  the filtering.
 - [x] `[plugin]` **Google Calendar** — `tray-plugins/gcal`: verb-only, on the contract, with a
   `health` probe that asks Google whether the credentials still answer.
 - [x] `[plugin]` **Turso** — `tray-plugins/turso`: an `all-rows` plugin that keeps a
@@ -53,6 +53,10 @@ decision, not a feature.
 
 ## Parked
 
+- [ ] `[shape]` **A desktop app in place of the TUI** — Fyne, archived as trayfyne (branch `traytable`,
+  draft #5), stale against `main`. The TUI stays.
+- [ ] **Simpler key sequences** — the letters and their chords are a lot to learn; fewer,
+  more obvious ones would help new users.
 - [ ] `[ours]` **A tray server** — one database, many clients, for more than one machine.
   The CLI is already the API; what is missing is a listener and a story for the phone.
 - [ ] **`u` undo, one level** — needs a snapshot in `store`. `E` erase is the only action that
