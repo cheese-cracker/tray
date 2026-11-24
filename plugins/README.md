@@ -110,6 +110,27 @@ confirmed list back to you on `apply`. A pulled row keyed by an id tray holds is
 update of that row (reviewed, only the fields you report); any other key is a new line in
 your garage with `source=<name>:<key>`. Nothing is ever *gone* for you — you own no rows.
 
+A replica is a copy of the store, so a row it brings to a machine that does not hold it
+may say where it sat. Report the columns you were given and the row lands as it was:
+
+```json
+{"pull": [{"key": "k79l", "id": "k79l", "layer": "garage", "month": "2026-06", "text": "…", "done": "",
+           "tags": ["home"], "wait": "2026-09-01", "entry": "2026-06-02", "from_month": "", "source": ""}]}
+```
+
+- `layer: "garage"` and a `month` — a calendar month, `someday`, another plugin's name —
+  and the row lands in that garage instead of yours. The plan names it: `+ … → 2026-06`.
+- `id`: the row keeps it when it is an id no row here holds, so it is the same row on
+  both sides and you never have to match it again. `source` is then kept as you sent it,
+  empty or not, so a line another plugin brought is still that plugin's line. An id that
+  is taken is never reused: the row gets a fresh one and `source=<name>:<key>`, as before.
+- `wait`, `recur`, `until`, `entry` and `from_month` land as sent.
+- `layer: "tray"` changes nothing about where: a sync never writes to the tray, so the row
+  waits in your garage, with its `from_month`, for the user to `take`.
+
+All of it is optional and only read from a plugin with the `all-rows` marker. Leave it
+out and a new row lands in your garage, as any plugin's does.
+
 ## `sync apply`
 
 stdin is the confirmed pushes: `{"push": [...]}`. Do them and answer:
