@@ -32,7 +32,8 @@ type Row struct {
 	Evidence string   `json:"evidence,omitempty"`
 
 	// The rest travels only to a plugin that asked for every row (all-rows): the whole
-	// task, so a replica can tell what changed. Key is then the id.
+	// task, so a replica can tell what changed. Key is then the id. The same plugin may
+	// send them back on a row tray does not hold, and the row lands where it sat (T45).
 	ID        string `json:"id,omitempty"`
 	Layer     string `json:"layer,omitempty"`
 	Month     string `json:"month,omitempty"`
@@ -136,6 +137,7 @@ func (d Diff) Empty() bool { return len(d.Adds) == 0 && len(d.Updates) == 0 }
 // A Result is one plugin's plan against the store, or why there is none.
 type Result struct {
 	Plugin   string
+	AllRows  bool // the plugin reads every row, so a row it adds may say where it sat (T45)
 	Diff     Diff
 	Push     []Push
 	Evidence string
@@ -208,7 +210,7 @@ func Sync(s *store.Store, ev Event, only string, timeout time.Duration) (Summary
 }
 
 func plan(p plugin.Plugin, rows []core.Task, timeout time.Duration) Result {
-	r := Result{Plugin: p.Name}
+	r := Result{Plugin: p.Name, AllRows: p.AllRows}
 	in, _ := json.Marshal(map[string]any{"tasks": asRows(p.Name, rows, p.AllRows)})
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
@@ -341,6 +343,43 @@ func count(n int, noun string) string {
 	return fmt.Sprintf("%d %ss", n, noun)
 }
 
+// Garage is where an added row lands. A plugin's rows land in the garage named after it
+// (T9). A replica — a plugin that reads every row — may name the garage the row sat in,
+// a month, someday or another plugin's, and the row lands there (T45). A row that sat
+// on the tray still lands in the replica's own garage: a sync never writes to the tray
+// (T42), and one garage is where you look for what to take back.
+func (r Result) Garage(row Row) string {
+	if r.AllRows && row.Layer == core.LayerGarage && row.Month != "" {
+		return row.Month
+	}
+	return r.Plugin
+}
+
+// landing is an added row as the task it becomes. From a replica it keeps the columns
+// it was sent, and its id when that id is free here, so the copy is the same row on
+// both sides and the plugin that first brought it still knows it by its source.
+func (r Result) landing(row Row, today string, held func(id string) bool) (core.Task, bool) {
+	t := core.Task{
+		Layer: core.LayerGarage, Month: r.Garage(row), Text: row.Text, Tags: row.Tags,
+		Priority: row.Priority, Due: row.Due, Note: row.Note, Entry: today, Source: r.Plugin + ":" + row.Key,
+	}
+	if row.Done != nil {
+		t.Done = *row.Done
+	}
+	if !r.AllRows {
+		return t, false
+	}
+	t.Wait, t.Recur, t.Until, t.FromMonth = row.Wait, row.Recur, row.Until, row.FromMonth
+	if row.Entry != "" {
+		t.Entry = row.Entry
+	}
+	if !core.IsID(row.ID) || held(row.ID) {
+		return t, false
+	}
+	t.ID, t.Source = row.ID, row.Source // the id is the link now; the source stays whose row it is
+	return t, true
+}
+
 // Applied is what landed: rows in the store, and what the plugin said about each push.
 type Applied struct {
 	Added      int           `json:"added"`
@@ -354,8 +393,8 @@ type PushFailure struct {
 	Error string `json:"error"`
 }
 
-// Apply lands one plugin's plan: adds into its garage and updates on the fields it
-// reported, in a single transaction; then the confirmed pushes go back to the plugin,
+// Apply lands one plugin's plan: adds into its garage — or, from a replica, the garage
+// each row names (T45) — and updates on the fields it reported, in a single transaction; then the confirmed pushes go back to the plugin,
 // whose answer is recorded. Adds arrive at the bottom of the ladder (T9) — a row
 // already taken is updated where it is.
 func Apply(s *store.Store, r Result, push []Push, timeout time.Duration) (Applied, error) {
@@ -366,14 +405,20 @@ func Apply(s *store.Store, r Result, push []Push, timeout time.Duration) (Applie
 	today := store.Today().Format(core.DateLayout)
 	err := s.Update(func(tx *store.Store) error {
 		for _, row := range r.Diff.Adds {
-			t := core.Task{
-				Layer: core.LayerGarage, Month: r.Plugin, Text: row.Text, Tags: row.Tags,
-				Priority: row.Priority, Due: row.Due, Note: row.Note, Entry: today, Source: r.Plugin + ":" + row.Key,
+			var lookup error
+			t, keepID := r.landing(row, today, func(id string) bool {
+				_, held, err := tx.Get(id)
+				lookup = err
+				return held
+			})
+			if lookup != nil {
+				return lookup
 			}
-			if row.Done != nil {
-				t.Done = *row.Done
+			put := tx.Put
+			if keepID {
+				put = tx.Insert
 			}
-			if err := tx.Put(&t); err != nil {
+			if err := put(&t); err != nil {
 				return err
 			}
 			a.Added++

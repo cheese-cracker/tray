@@ -203,29 +203,52 @@ func (s *Store) Get(id string) (core.Task, bool, error) {
 
 // Put inserts a task with no id and gives it one; otherwise it rewrites every column.
 func (s *Store) Put(t *core.Task) error {
-	if t.Entry == "" {
-		t.Entry = Today().Format(core.DateLayout)
-	}
-	vals := []any{
-		t.Layer, null(t.Month), t.Text, null(t.Priority), null(t.Due), null(t.Wait), null(t.Recur),
-		null(t.Until), t.Entry, null(t.Done), null(t.FromMonth), strings.Join(t.Tags, " "), t.Note, null(t.Source),
-	}
 	if t.ID == "" {
 		id, err := s.fresh()
 		if err != nil {
 			return err
 		}
-		_, err = s.q.Exec(`INSERT INTO task (id, layer, month, text, priority, due, wait, recur, until, entry, done, from_month, tags, note, source)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, append([]any{id}, vals...)...)
-		if err != nil {
+		if err := s.insert(id, t); err != nil {
 			return err
 		}
 		t.ID = id
 		return nil
 	}
 	_, err := s.q.Exec(`UPDATE task SET layer = ?, month = ?, text = ?, priority = ?, due = ?, wait = ?, recur = ?,
-		until = ?, entry = ?, done = ?, from_month = ?, tags = ?, note = ?, source = ? WHERE id = ?`, append(vals, t.ID)...)
+		until = ?, entry = ?, done = ?, from_month = ?, tags = ?, note = ?, source = ? WHERE id = ?`, append(vals(t), t.ID)...)
 	return err
+}
+
+// Insert stores a row under the id it already carries: a replica's copy of a row made
+// on another machine (T45). It never replaces — an id that is taken, or is not one, is
+// an error, so an agent that remembers an id never finds a different task behind it.
+func (s *Store) Insert(t *core.Task) error {
+	if !core.IsID(t.ID) {
+		return fmt.Errorf("%q is not an id", t.ID)
+	}
+	if _, held, err := s.Get(t.ID); err != nil {
+		return err
+	} else if held {
+		return fmt.Errorf("id %s is taken", t.ID)
+	}
+	return s.insert(t.ID, t)
+}
+
+func (s *Store) insert(id string, t *core.Task) error {
+	_, err := s.q.Exec(`INSERT INTO task (id, layer, month, text, priority, due, wait, recur, until, entry, done, from_month, tags, note, source)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, append([]any{id}, vals(t)...)...)
+	return err
+}
+
+// vals is every column but the id, in the order both statements name them.
+func vals(t *core.Task) []any {
+	if t.Entry == "" {
+		t.Entry = Today().Format(core.DateLayout)
+	}
+	return []any{
+		t.Layer, null(t.Month), t.Text, null(t.Priority), null(t.Due), null(t.Wait), null(t.Recur),
+		null(t.Until), t.Entry, null(t.Done), null(t.FromMonth), strings.Join(t.Tags, " "), t.Note, null(t.Source),
+	}
 }
 
 // fresh is an id no row holds. A collision is one in a million and costs one more roll.

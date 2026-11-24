@@ -85,6 +85,9 @@ func renderPlans(results []sync.Result, applied map[string]sync.Applied) []strin
 		out = append(out, fmt.Sprintf("%s: %s", r.Plugin, r.Message))
 		for _, row := range r.Diff.Adds {
 			line := "  + " + row.Text + sync.TagSuffix(row.Tags)
+			if g := r.Garage(row); g != r.Plugin {
+				line += "  → " + g
+			}
 			if row.Note != "" {
 				line += "  · " + sync.Clip(row.Note)
 			}

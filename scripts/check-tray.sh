@@ -799,6 +799,30 @@ tray plugin run own >/dev/null
 [ "$(jq '.tasks | length' "$TRAY_HOME/plugins/own/seen.json")" = "0" ] && pass "without the marker a plugin sees only rows it keyed — none" || bad "own saw $(jq '.tasks | length' "$TRAY_HOME/plugins/own/seen.json") rows"
 teardown
 
+# --- F42 · a replica's row lands where it sat ----------------------------------------------
+head_ "F42 · a replica's add lands in the garage it sat in, under its id; a tray row waits in the replica's garage"
+setup
+install_plugin replica
+plan=$(tray sync)
+case $plan in *"Sat in June  +home  → 2026-06"*) pass "the plan names the garage a row is headed for" ;; *) bad "plan: $plan" ;; esac
+case $plan in *"Sat on the tray  →"*) bad "a tray row was shown headed somewhere" ;; *) pass "and none for a row landing in the replica's own" ;; esac
+[ "$(tray garage --month replica list --all --json | jq length)" = "0" ] && pass "nothing lands without --apply" || bad "a plan landed"
+tray sync --apply >/dev/null
+[ "$(garage_json 2026-06 | field 'Sat in June' id)" = "j4ne" ] && pass "a garage row lands in its month under its id" || bad "june: $(garage_json 2026-06)"
+[ "$(garage_json 2026-06 | field 'Sat in June' wait)" = "20260901T000000Z" ] && pass "with the day it waits for" || bad "wait: $(garage_json 2026-06 | field 'Sat in June' wait)"
+[ "$(garage_json 2026-06 | field 'Sat in June' entry)" = "20260602T000000Z" ] && pass "and the day it was made" || bad "entry: $(garage_json 2026-06 | field 'Sat in June' entry)"
+[ "$(garage_json 2026-06 | note_of 'Sat in June')" = "from the other machine" ] && pass "its note comes too" || bad "note missing"
+[ "$(tray garage someday list --all --json | field 'Sat in someday' id)" = "s0me" ] && pass "someday is a garage like any other" || bad "someday: $(tray garage someday list --all --json)"
+[ "$(tray garage --month claude list --all --json | field "Sat in another plugin's garage" id)" = "c1au" ] && pass "a row from another plugin's garage goes back to it" || bad "claude: $(tray garage --month claude list --all --json)"
+tray plugin run replica >/dev/null
+[ "$(jq -r '.tasks[] | select(.id=="c1au") | .source' "$TRAY_HOME/plugins/replica/seen.json")" = "claude:session-9" ] && pass "still that plugin's row by its source" || bad "source: $(jq -c '.tasks[] | select(.id=="c1au")' "$TRAY_HOME/plugins/replica/seen.json")"
+[ "$(tray_json | jq length)" = "0" ] && pass "the tray is manual: nothing landed on it" || bad "tray: $(tray_json)"
+[ "$(tray garage --month replica list --all --json | field 'Sat on the tray' from)" = "2026-07" ] && pass "a tray row waits in the replica's garage, remembering its month" || bad "replica garage: $(tray garage --month replica list --all --json)"
+[ "$(tray garage --month replica list --all --json | rows 'Typed on a phone')" = "1" ] && pass "a row that names no garage lands there too" || bad "phone row missing"
+tray t4ay take >/dev/null
+[ "$(tray_json | field 'Sat on the tray' priority)" = "H" ] && pass "and take puts it back on the tray as it was" || bad "take: $(tray_json)"
+teardown
+
 # --- F40 · plugin is the health view --------------------------------------------------------
 # A plugin that fails at sync time, ten minutes in, is a plugin nobody asked. `check`
 # asks first, with the exit codes a sync already speaks, and the listing reads the

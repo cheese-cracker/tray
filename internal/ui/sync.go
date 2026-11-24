@@ -85,7 +85,11 @@ func (m Model) renderReview() string {
 	for _, r := range m.plans {
 		rows = append(rows, "  "+titleStyle.Render(r.Plugin))
 		for _, row := range r.Diff.Adds {
-			rows = append(rows, "    "+keyStyle.Render("+")+" "+row.Text+faintStyle.Render(sync.TagSuffix(row.Tags)))
+			where := ""
+			if g := r.Garage(row); g != r.Plugin {
+				where = "  → " + g
+			}
+			rows = append(rows, "    "+keyStyle.Render("+")+" "+row.Text+faintStyle.Render(sync.TagSuffix(row.Tags)+where))
 		}
 		for _, u := range r.Diff.Updates {
 			rows = append(rows, "    "+keyStyle.Render("~")+" "+u.Old.Text+faintStyle.Render("  "+u.String()))

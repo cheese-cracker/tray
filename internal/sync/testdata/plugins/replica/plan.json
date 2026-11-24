@@ -1,0 +1,12 @@
+{"pull": [
+  {"key": "j4ne", "id": "j4ne", "layer": "garage", "month": "2026-06", "text": "Sat in June", "done": "", "tags": ["home"],
+   "wait": "2026-09-01", "entry": "2026-06-02", "note": "from the other machine", "source": ""},
+  {"key": "s0me", "id": "s0me", "layer": "garage", "month": "someday", "text": "Sat in someday", "done": "", "tags": [],
+   "entry": "2026-05-11", "source": ""},
+  {"key": "c1au", "id": "c1au", "layer": "garage", "month": "claude", "text": "Sat in another plugin's garage", "done": "",
+   "tags": ["claude"], "entry": "2026-07-30", "source": "claude:session-9"},
+  {"key": "t4ay", "id": "t4ay", "layer": "tray", "text": "Sat on the tray", "done": "", "tags": [], "priority": "H",
+   "entry": "2026-07-01", "from_month": "2026-07", "source": ""},
+  {"key": "phone1", "text": "Typed on a phone", "done": "", "tags": []}
+ ],
+ "push": []}
